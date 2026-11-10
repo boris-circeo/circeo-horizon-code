@@ -60,6 +60,8 @@ class EnsembleMPCPolicy:
         self.tau_s = reduction_tau_d * 86400.0
         self._stencil = build_stencil(coast.grid, dt_s)
         self.last_diagnostics: dict | None = None
+        # DPResult of the trunk (``V[n_split]`` = aggregated value v_bar): read by RefinedMPCPolicy
+        self.last_result = None
 
     def plan(self, t_s, x, y, provider):
         grid = self.coast.grid
@@ -77,6 +79,7 @@ class EnsembleMPCPolicy:
             t = time.perf_counter()
             res = solve_dp(control, t_s, n, self.dt_s, **common)
             tm["dp"] = time.perf_counter() - t
+            self.last_result = res
             j0, i0 = _nearest_cell(grid, np.isfinite(res.V[0]), x, y)
             self.last_diagnostics = {"issue_s": float(t_s), "members": [0], "weights": [1.0],
                                      "v_t0_kwh": float(res.V[0, j0, i0]), "timing_s": tm}
@@ -91,6 +94,7 @@ class EnsembleMPCPolicy:
                                   self.dt_s, split_s=n_split * self.dt_s, risk=self.risk,
                                   **common)
         tm["dp"] = time.perf_counter() - t
+        self.last_result = res.short
         j0, i0 = _nearest_cell(grid, np.isfinite(res.v_t0), x, y)
         path = res.path(j0, i0)
         je, ie = int(path.j_end[-1]), int(path.i_end[-1])
