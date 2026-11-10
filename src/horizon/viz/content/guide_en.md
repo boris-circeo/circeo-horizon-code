@@ -10,6 +10,53 @@ This page compares routing strategies ("routers") run on the same simulated wint
 A sail-propelled ship (two Flettner rotors, auxiliary electric propeller) carries a wind turbine and produces electricity while it sails or holds position in a favourable wind. The polar gives **net** power: turbine gross output minus propulsion consumption, hence negative values close-hauled. Power depends on the true wind speed ([[TWS]]) and the angle at which it meets the course ([[TWA]]): the sweet spot is a beam wind between 18 and 26 kn at 75-105 degrees (the [[productive band]]). Too little wind gives nothing; above {{polar.derate_kn}} kn the output is derated and above {{polar.cutout_kn}} kn the machine shuts down for survival.
 A router chooses where to go every {{replan_h}} h knowing only forecasts, whose errors grow with lead time. Its score is the energy J harvested over {{duration_d}} days. The **hindsight oracle** knows the true wind in advance and gives the upper bound; the gap to it is the [[regret]]. Improving a router means closing that gap, and the Explorer shows where it opens.
 
+## Models explained {#models}
+New here? Read this section first; it needs no knowledge of the design note. Each figure is a schematic, not data.
+
+!fig ship
+!fig problem
+!fig dp
+!fig stencil
+!fig envelope
+!fig mpc
+!fig ensemble
+!fig cvar
+!fig refiner
+!fig terminal
+!fig oracle
+!fig cf
+
+### Cards: what each router uses and does {#m-cards}
+**B0 (fixed point)**
+- Information used: none about the weather (a point chosen from past winters).
+- Optimises: nothing at run time; it waits where the wind was best on average.
+- Horizon: the whole mission, no replanning.
+- Strengths: simple, robust, a fair floor. Weaknesses: cannot dodge storms or chase wind.
+- In Explorer: a track that goes to one spot and stays; hold share close to 100 %.
+
+**B1 (deterministic DP, 5 or 15 days)**
+- Information used: one forecast (the control member) every 6 h.
+- Optimises: expected energy as if that forecast were true, over 5 or 15 days; terminal value 0.
+- Strengths: follows good wind. Weaknesses: over-trusts long lead times, may end the horizon badly.
+- In Explorer: a track that changes with each replan; compare 5 d and 15 d.
+
+**ENS (ensemble DP with CVaR)**
+- Information used: an ensemble of forecasts reduced to a few medoid scenarios and their spread.
+- Optimises: a blend of mean and tail (CVaR) with a 48 h trunk that cannot anticipate the scenario.
+- Horizon: 48 h common, then one branch per scenario. Strengths: cautious in uncertain weather. Weaknesses: needs informative ensembles; costlier.
+- In Explorer: the replan panel shows scenarios, weights and spread.
+
+**REF (continuous refiner)**
+- Information used: the base DP plan plus the same forecast.
+- Optimises: the first 48 h at 30 min step with the DP value at the end as terminal value.
+- Strengths: smooth track, less grid bias. Weaknesses: gain modest; may fall back to the base plan.
+- In Explorer: the same route as its base but without staircases.
+
+**Oracle (hindsight)**
+- Information used: the true wind, in advance. Optimises the whole mission once.
+- Strengths: the ceiling for regret. Weaknesses: not causal, so not a competitor.
+- In Explorer: the reference line against which regret and gap are measured.
+
 ## Routers explained {#routers}
 Each router is one policy: at every replan it receives a causal forecast and returns a plan (destinations every {{plan_dt_h}} h). The simulator executes the plan and measures energy on the TRUE wind.
 

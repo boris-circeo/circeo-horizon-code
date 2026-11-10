@@ -170,12 +170,18 @@ def test_content_bilingual_and_filled(export):
     data, _ = export
     c = load_content(data)
     ids = {lang: re.findall(r"\{#([\w-]+)\}", c["guide"][lang]) for lang in ("en", "fr")}
-    assert ids["en"] == ids["fr"] and {"use", "matrix", "hyp", "limits", "path"} <= set(ids["en"])
+    need = {"use", "models", "matrix", "hyp", "limits", "path"}
+    assert ids["en"] == ids["fr"] and need <= set(ids["en"])
     assert "{{" not in json.dumps(c)
     g = json.loads((_CONTENT / "glossary.json").read_text("utf-8"))
     for sec in ("defs", "captions", "ui", "chips"):
         for k, v in g[sec].items():
             assert v["en"] and v["fr"], (sec, k)
+    figs = c["figures"]
+    assert figs and all(f["en"] and f["fr"] and f["svg"].startswith("<svg") for f in figs.values())
+    for lang in ("en", "fr"):
+        used = re.findall(r"^!fig (\w+)$", c["guide"][lang], re.M)
+        assert used and set(used) <= set(figs), lang
     for step in g["tour"]:
         assert step["en"] and step["fr"]
     # every [[term]] used in texts exists in the glossary
@@ -218,3 +224,31 @@ def test_headless_boot(export):
         except subprocess.TimeoutExpired:
             pytest.skip("headless browser did not terminate")
     assert '<div class="card"><h2>Summary' in out and 'class="err">Failed' not in out
+
+
+def test_year_long_export_size_and_seasons_data(tmp_path):
+    """A 365-day, 6-router export stays well under the 25 MB page budget."""
+    grid = Grid.from_bbox(-20, 0, 40, 55, 80e3)
+    sdf = np.full(grid.shape, 5e5, dtype=np.float32)
+    sdf[:, :3] = -1e4
+    coast = CoastModel(grid, sdf)
+    polar = synthetic_polar()
+    pm = EnvelopePowerModel(build_envelope(polar),
+                            fallback=DirectPowerModel(polar, hold_power_curve(polar)))
+    T = 365 * DAY
+    wx = SyntheticWeather(grid, EPOCH, T, seed=11)
+    truth = wx.truth(dt_s=3600.0)
+    x0, y0 = grid.to_xy(-10.0, 47.0)
+    runs, recs = {}, {}
+    for k in range(6):
+        rp = RecordingPolicy(HoldAtPointPolicy(x0 + 1e5 * (k % 3), y0 + 8e4 * (k // 3)))
+        runs["Oracle" if k == 0 else f"B0_{k}"] = run_mission(rp, wx, truth, (-10.0, 47.0), T, pm, coast)
+        recs["Oracle" if k == 0 else f"B0_{k}"] = rp.records
+    data = export_backtest([SeedRun(1, truth, runs, wx, recs)], coast, start_lonlat=(-10.0, 47.0),
+                           fc_horizon_days=1.0, polar=polar, weather_kind="era5")
+    validate_export(data)
+    s0 = data["seeds"][0]
+    assert len(s0["t_s"]) >= 8760 and len(s0["runs"]["Oracle"]["energy_kwh"]) >= 8760
+    html = build_html(data)
+    assert len(html.encode()) < 25e6
+    assert 'hz-data' in html

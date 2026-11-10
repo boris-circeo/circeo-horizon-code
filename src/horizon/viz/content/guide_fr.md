@@ -10,6 +10,53 @@ Cette page compare des stratégies de routage (« routeurs ») exécutées sur l
 Un navire à propulsion vélique (deux rotors Flettner, propulseur électrique d'appoint) porte une éolienne et produit de l'électricité en naviguant ou en tenant position dans un vent favorable. La polaire donne la puissance **nette** : production brute de l'éolienne moins la consommation de propulsion ; elle peut donc être négative au près. La puissance dépend de la vitesse du vent vrai ([[TWS]]) et de l'angle sous lequel il rencontre la route ([[TWA]]) : le meilleur cas est un vent de travers de 18 à 26 nœuds entre 75 et 105 degrés (la [[productive band|bande productive]]). Trop peu de vent ne donne rien ; au-delà de {{polar.derate_kn}} nœuds la puissance est réduite, et au-delà de {{polar.cutout_kn}} nœuds la machine s'arrête par sécurité.
 Le routeur choisit où aller toutes les {{replan_h}} h en ne connaissant que des prévisions, dont l'erreur croît avec l'échéance. Son score est l'énergie J récoltée sur {{duration_d}} jours. L'**oracle** connaît le vent réel à l'avance et fournit la borne haute ; l'écart à l'oracle est le [[regret]]. Améliorer un routeur, c'est réduire cet écart ; l'Explorer montre où il se creuse.
 
+## Les modèles testés {#models}
+Première visite ? Lisez cette section d'abord ; elle ne suppose pas de connaître la note de conception. Chaque figure est un schéma, pas une donnée.
+
+!fig ship
+!fig problem
+!fig dp
+!fig stencil
+!fig envelope
+!fig mpc
+!fig ensemble
+!fig cvar
+!fig refiner
+!fig terminal
+!fig oracle
+!fig cf
+
+### Fiches : ce que chaque routeur utilise et fait {#m-cards}
+**B0 (point fixe)**
+- Informations utilisées : aucune sur la météo (un point choisi sur des hivers passés).
+- Optimise : rien à l'exécution ; il attend là où le vent était le meilleur en moyenne.
+- Horizon : toute la mission, sans replanification.
+- Forces : simple, robuste, un plancher honnête. Faiblesses : ne peut ni éviter les tempêtes ni chercher le vent.
+- Dans l'Explorer : une trajectoire qui va en un point et y reste ; part d'attente proche de 100 %.
+
+**B1 (DP déterministe, 5 ou 15 jours)**
+- Informations utilisées : une prévision (membre de contrôle) toutes les 6 h.
+- Optimise : l'énergie attendue comme si cette prévision était vraie, sur 5 ou 15 jours ; valeur terminale 0.
+- Forces : suit le bon vent. Faiblesses : trop de confiance aux longues échéances, peut finir l'horizon au mauvais endroit.
+- Dans l'Explorer : une trajectoire qui change à chaque replanification ; comparer 5 j et 15 j.
+
+**ENS (DP d'ensemble avec CVaR)**
+- Informations utilisées : un ensemble de prévisions réduit à quelques scénarios médoïdes et leur dispersion.
+- Optimise : un mélange moyenne et queue (CVaR) avec un tronc de 48 h qui ne peut pas anticiper le scénario.
+- Horizon : 48 h communes, puis une branche par scénario. Forces : prudent quand la météo est incertaine. Faiblesses : exige des ensembles informatifs ; plus coûteux.
+- Dans l'Explorer : le panneau de replanification montre scénarios, poids et dispersion.
+
+**REF (raffineur continu)**
+- Informations utilisées : le plan DP de base et la même prévision.
+- Optimise : les 48 premières heures au pas de 30 min, avec la valeur DP en fin de fenêtre comme valeur terminale.
+- Forces : trajectoire lisse, moins de biais de grille. Faiblesses : gain modeste ; peut retomber sur le plan de base.
+- Dans l'Explorer : la même route que sa base mais sans escaliers.
+
+**Oracle (a posteriori)**
+- Informations utilisées : le vent réel, à l'avance. Optimise une fois toute la mission.
+- Forces : le plafond pour le regret. Faiblesses : non causal, donc pas un concurrent.
+- Dans l'Explorer : la ligne de référence à laquelle regret et écart sont mesurés.
+
 ## Les routeurs expliqués {#routers}
 Chaque routeur est une politique : à chaque replanification il reçoit une prévision causale et renvoie un plan (destinations toutes les {{plan_dt_h}} h). Le simulateur exécute le plan et mesure l'énergie sur le vent RÉEL.
 

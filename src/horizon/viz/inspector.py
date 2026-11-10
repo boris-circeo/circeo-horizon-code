@@ -57,6 +57,7 @@ def load_content(data: dict) -> dict:
     """Guide texts (``guide_<lang>.md``) and glossary with placeholders filled from the export."""
     facts = _facts(data)
     out = {"guide": {}, **_fill(json.loads((_CONTENT / "glossary.json").read_text("utf-8")), facts)}
+    out["figures"] = json.loads((_CONTENT / "figures.json").read_text("utf-8"))
     for lang in ("en", "fr"):
         out["guide"][lang] = _fill((_CONTENT / f"guide_{lang}.md").read_text("utf-8"), facts)
     return out

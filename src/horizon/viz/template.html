@@ -75,6 +75,8 @@ label.ck{display:inline-flex;gap:0.308rem;align-items:center;cursor:pointer}
 .gbody .flash{background:var(--hl)}
 .badge{font-size:0.808rem;font-weight:400;color:var(--good);border:1px solid var(--line);border-radius:7.615rem;padding:0 0.462rem;margin-left:0.462rem}
 .badge.no{color:var(--mute)}
+.fig{margin:.8rem 0;padding:.5rem;border:1px solid var(--line);border-radius:.5rem;background:var(--bg)}.fig svg{width:100%;height:auto;max-height:14rem;display:block}.fig figcaption{font-size:.92rem;margin-top:.3rem}
+#primer{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center}#primer .pbox{background:var(--card);border-radius:.8rem;padding:1.2rem;width:min(40rem,94vw);box-shadow:0 .5rem 2rem rgba(0,0,0,.4)}#primer .fig{border:none;background:none}#primer svg{max-height:17rem}
 #tour{position:fixed;right:1.231rem;bottom:1.231rem;z-index:70;width:24.615rem;background:var(--card);border:1px solid var(--accent);border-radius:0.769rem;padding:0.923rem;box-shadow:0 0.462rem 1.846rem rgba(0,0,0,.3);display:none}
 #tour .row{justify-content:flex-end;margin-bottom:0}
 .tour-hl{outline:0.154rem solid var(--accent);outline-offset:0.154rem;border-radius:0.462rem}
@@ -97,8 +99,8 @@ body.wide .card{margin-bottom:.9rem}
 <body>
 <header>
   <h1 id="ttl"></h1><span class="meta" id="meta"></span>
-  <span class="tabs"><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button><button id="tab-polar" data-ui="tab-polar" style="display:none">Polar</button>
-  <span class="zoom"><button id="zm" title="Smaller UI">A&minus;</button><button id="z0" title="Reset UI size">A</button><button id="zp" title="Larger UI">A+</button></span><button id="guide-btn" data-ui="guide">Guide</button><button id="tourbtn" data-ui="tour" title="Tour">Tour</button><button id="lang">EN</button>
+  <span class="tabs"><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button><button id="tab-seasons" data-ui="tab-seasons" style="display:none">Seasons</button><button id="tab-polar" data-ui="tab-polar" style="display:none">Polar</button>
+  <span class="zoom"><button id="zm" title="Smaller UI">A&minus;</button><button id="z0" title="Reset UI size">A</button><button id="zp" title="Larger UI">A+</button></span><button id="guide-btn" data-ui="guide">Guide</button><button id="primerbtn" data-ui="primer">Primer</button><button id="tourbtn" data-ui="tour" title="Tour">Tour</button><button id="lang">EN</button>
   <button id="theme" title="Toggle dark mode">Dark</button></span>
 </header>
 <div class="bar" id="bar"></div>
@@ -107,7 +109,7 @@ body.wide .card{margin-bottom:.9rem}
 <!--__DATA__-->
 <aside id="guide"><div class="ghead"><b style="flex:1" data-ui="guide">Guide</b><button id="gclose" data-ui="close">Close</button></div><div class="gnav" id="gnav"></div><div class="gbody" id="gbody"></div></aside>
 <div id="pop"></div>
-<div id="tour"></div>
+<div id="tour"></div><div id="primer"><div class="pbox"></div></div>
 <script>
 "use strict";
 const $ = (s, r = document) => r.querySelector(s);
@@ -170,6 +172,7 @@ function prepare(d) {
     for (const [name, r] of Object.entries(s.runs)) {
       r.name = name;
       r.X = nz(r.x_km); r.Y = nz(r.y_km); r.E = nz(r.energy_kwh);
+      r.SP = r.speed_ms ? nz(r.speed_ms) : Float64Array.from(r.X.slice(0, -1), (x, k) => Math.hypot(r.X[k + 1] - x, r.Y[k + 1] - r.Y[k]) * 1000 / d.meta.export_dt_s);
       r.P = nz(r.power_kw); r.H = nz(r.hold_frac); r.TWS = nz(r.tws_ms); r.TWA = nz(r.twa_deg);
       r.plans = r.replans.filter(q => q.plan);
     }
@@ -183,8 +186,8 @@ const run = (s, n) => s.runs[n];
 function refRun(s) { return s.runs[S.ref] || null; }
 function jRef(s) { const r = refRun(s); return r ? r.metrics.energy_kwh : NaN; }
 const METRICS = {
+  CF: {label: "Capacity factor CF", d: 3, hi: true, f: r => r.metrics.capacity_factor},
   J: {label: "Energy J [MWh]", d: 1, hi: true, f: (r, s) => r.metrics.energy_kwh / 1e3},
-  CF: {label: "Capacity factor", d: 3, hi: true, f: r => r.metrics.capacity_factor},
   REG: {label: "Regret vs reference [%]", d: 1, hi: false, f: (r, s) => 100 * (jRef(s) - r.metrics.energy_kwh) / jRef(s)},
   HOLD: {label: "Time in hold [%]", d: 0, hi: null, f: r => 100 * r.diag.hold_share},
   PROD: {label: "Productive band [% time]", d: 1, hi: true, f: r => 100 * r.diag.productive_share},
@@ -354,16 +357,16 @@ function renderBar() {
   });
   $("#refsel").onchange = e => { S.ref = e.target.value; renderAll(); };
 }
-function renderAll() { renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : S.tab === "polar" ? renderPolar() : renderExplorer(); }
+function renderAll() { renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : S.tab === "polar" ? renderPolar() : S.tab === "seasons" ? renderSeasons() : renderExplorer(); }
 function setTab(t) {
-  S.tab = t; for (const k of ["ov", "ex", "polar"]) $("#tab-" + k).classList.toggle("on", t === k);
+  S.tab = t; for (const k of ["ov", "ex", "polar", "seasons"]) $("#tab-" + k).classList.toggle("on", t === k);
   S.play = false; renderAll();
 }
 
 // ------------------------------------------------------------------ overview
 function renderOverview() {
   const names = D.pnames.filter(n => S.sel.has(n)), ns = D.seeds.length;
-  const sumKeys = ["J", "CF", "REG", "HOLD", "PROD", "SPD", "DIST", "TWS"];
+  const sumKeys = ["CF", "J", "REG", "HOLD", "PROD", "SPD", "DIST", "TWS"];
   let t1 = `<tr><th>Policy</th>${sumKeys.map(k => `<th>${METRICS[k].label}${info("m_" + k)}</th>`).join("")}</tr>`;
   const stats = {};
   for (const n of names) stats[n] = Object.fromEntries(sumKeys.map(k => { const v = fin(metricVals(n, k)); return [k, {m: v.length ? mean(v) : NaN, s: std(v), n: v.length}]; }));
@@ -387,15 +390,15 @@ function renderOverview() {
   const barSeries = ([{name: METRICS[mk].label, color: "var(--accent)", opacity: 0.6, colors: names.map(n => D.color[n]), v: names.map(n => stats[n] && fin(metricVals(n, mk)).length ? mean(fin(metricVals(n, mk))) : NaN), err: names.map(n => std(fin(metricVals(n, mk)))), pts: names.map(n => metricVals(n, mk))}]);
   // paired comparison
   const A = S.A, B = S.B;
-  let t3 = `<tr><th>${UW()}</th><th>J ${esc(A)} [MWh]</th><th>J ${esc(B)} [MWh]</th><th>&Delta; = A &minus; B [MWh]</th><th>&Delta; [%]</th><th>Winner</th></tr>`;
-  const dl = [], dp = []; let wa = 0, wb = 0, ties = 0;
+  let t3 = `<tr><th>${UW()}</th><th>CF ${esc(A)}</th><th>CF ${esc(B)}</th><th>&Delta;CF = A &minus; B [points]</th><th>&Delta;CF [%]</th><th>&Delta;J [MWh]</th><th>Winner</th></tr>`;
+  const dl = [], dp = [], dj = []; let wa = 0, wb = 0, ties = 0;
   D.seeds.forEach(s => {
     if (!s.runs[A] || !s.runs[B]) return;
-    const ja = s.runs[A].metrics.energy_kwh / 1e3, jb = s.runs[B].metrics.energy_kwh / 1e3, d = ja - jb;
-    dl.push(d); dp.push(100 * d / jb); d > 0 ? wa++ : d < 0 ? wb++ : ties++;
-    t3 += `<tr class="clk" data-s="${D.seeds.indexOf(s)}"><td>${s.seed}</td><td>${fmt(ja)}</td><td>${fmt(jb)}</td><td class="${d > 0 ? "best" : "worst"}">${d > 0 ? "+" : ""}${fmt(d)}</td><td>${fmt(100 * d / jb)}</td><td>${d > 0 ? esc(A) : d < 0 ? esc(B) : "tie"}</td></tr>`;
+    const ca = s.runs[A].metrics.capacity_factor, cb = s.runs[B].metrics.capacity_factor, d = 100 * (ca - cb), rel = 100 * (ca - cb) / cb, dJ = (s.runs[A].metrics.energy_kwh - s.runs[B].metrics.energy_kwh) / 1e3;
+    dl.push(d); dp.push(rel); dj.push(dJ); d > 0 ? wa++ : d < 0 ? wb++ : ties++;
+    t3 += `<tr class="clk" data-s="${D.seeds.indexOf(s)}"><td>${esc(mlabel(s))}</td><td>${fmt(ca, 3)}</td><td>${fmt(cb, 3)}</td><td class="${d > 0 ? "best" : "worst"}">${d > 0 ? "+" : ""}${fmt(d, 1)}</td><td>${fmt(rel, 1)}</td><td class="meta">${fmt(dJ, 1)}</td><td>${d > 0 ? esc(A) : d < 0 ? esc(B) : "tie"}</td></tr>`;
   });
-  t3 += `<tr><td><b>mean &plusmn; std</b></td><td></td><td></td><td><b>${fmt(dl.length ? mean(dl) : NaN)}</b> &plusmn; ${fmt(std(dl))}</td><td>${fmt(dp.length ? mean(dp) : NaN)} &plusmn; ${fmt(std(dp))}</td><td><b>${esc(A)} ${wa} - ${wb} ${esc(B)}</b>${ties ? ` (${ties} ties)` : ""}</td></tr>`;
+  t3 += `<tr><td><b>mean &plusmn; std</b></td><td></td><td></td><td><b>${fmt(dl.length ? mean(dl) : NaN, 1)}</b> &plusmn; ${fmt(std(dl), 1)}</td><td>${fmt(dp.length ? mean(dp) : NaN, 1)} &plusmn; ${fmt(std(dp), 1)}</td><td class="meta">${fmt(dj.length ? mean(dj) : NaN, 1)}</td><td><b>${esc(A)} ${wa} - ${wb} ${esc(B)}</b>${ties ? ` (${ties} ties)` : ""}</td></tr>`;
   const opt = v => D.pnames.map(n => `<option ${n === v ? "selected" : ""}>${esc(n)}</option>`).join("");
   $("#app").innerHTML = `
   <div id="ovgrid"><div class="card ov-wide"><h2>Summary <small>mean &plusmn; std over ${ns} seeds; regret vs <b>${esc(S.ref)}</b></small></h2>${cap("summary")}<div class="tw"><table>${t1}</table></div></div>
@@ -407,7 +410,7 @@ function renderOverview() {
     A <select id="asel">${opt(A)}</select> vs B <select id="bsel">${opt(B)}</select>
     ${info("c_pair")}</h2>${cap("paired")}
     <div class="tw"><table>${t3}</table></div>
-    <div class="hint">n = ${dl.length}.</div></div></div>`;
+    <div class="hint">n = ${dl.length}. &Delta;CF in capacity-factor points (1 point = 0.01).</div></div></div>`;
   const oc = $("#ovchart"), ow = Math.max(300, oc.clientWidth), oh = S.wide ? Math.max(230 * K, (window.innerHeight - 17 * 13 * K) / 2 - 5 * 13 * K) : 230 * K;
   oc.innerHTML = barsSvg(ow, oh, cats, barSeries);
   $("#msel").onchange = e => { S.metric = e.target.value; renderOverview(); };
@@ -438,7 +441,7 @@ function renderExplorer() {
        <label class="ck"><input type="checkbox" data-l="full" ${S.layers.full ? "checked" : ""}>full tracks</label>
        <span class="ro" id="mouse"></span></div>
      <div class="hint">Shaded coast band = within 20 km of land (infeasible for the DP). Dashed line = plan of the latest replan. Arrow keys step the time, space plays.</div>
-     <div class="row" style="align-items:flex-start;flex-wrap:wrap"><div class="tw" style="flex:1 1 24rem"><table class="ro" id="readout"></table></div>${D.polar ? `<div id="insetslot" style="flex:0 0 auto"><div id="insetbox"><div class="row" style="margin:0"><b>Polar inset</b>${info("c_inset")} <select id="insp"><option value="">auto</option>${selNames(s).map(n => `<option ${n === S.insetP ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div><canvas id="inset"></canvas><div id="inlg" class="ro" style="font-size:.85rem"></div></div></div>` : ""}</div>
+     <div class="tw"><table class="ro" id="readout"></table></div>
     </div>
     <div class="card" id="replancard"><h2>Replan diagnostics at the selected time</h2>${cap("replan")}<div id="replan"></div></div>
    </div>
@@ -446,6 +449,11 @@ function renderExplorer() {
        <select id="smooth"><option value="1">none</option><option value="6">6 h</option><option value="24">24 h</option></select></small></h2>${cap("ts")}
      <div id="ts"></div></div></div>
   <div class="c3"><div class="grid3">
+   <div class="card" id="occcard" style="grid-column:1/-1"><h2>Operating-point occupancy ${info("c_occ")}</h2>${cap("occ")}
+     <div class="row"><select id="occ-tws"><option value="all">all TWS</option><option value="lt10">TWS &lt; 10 kn</option><option value="b1018">10-18 kn</option><option value="b1826">18-26 kn</option><option value="gt26">&gt; 26 kn</option></select>
+      <select id="occ-w"><option value="time">share of time</option><option value="energy">share of energy</option></select>
+      <select id="occ-sc"><option value="mission">whole mission</option><option value="24">&plusmn; 24 h around cursor</option><option value="72">&plusmn; 3 d around cursor</option></select></div>
+     <div id="occ" class="row" style="align-items:flex-start;gap:1rem"></div></div>
    <div class="card" style="grid-column:1/-1"><h2>Diagnostics <small>${UW().toLowerCase()} ${esc(mlabel(s))}</small></h2>${cap("diagtab")}<div class="tw" id="dtab"></div></div>
    <div class="card"><h2>TWS experienced ${info("TWS")}</h2>${cap("h1")}<div id="h1"></div><div class="legend" id="lg1"></div></div>
    <div class="card"><h2>TWA experienced ${info("TWA")}</h2>${cap("h2")}<div id="h2"></div></div>
@@ -457,7 +465,7 @@ function renderExplorer() {
    <div class="card"><h2>Forecast error at the ship <small>mean |TWS error| [kn]</small></h2>${cap("fe")}<div id="fe"></div></div>
   </div></div></div>`;
   layoutExplorer();
-  if (D.polar) { const sel = $("#insp"); if (!selNames(s).includes(S.insetP)) S.insetP = null; sel.value = S.insetP || ""; sel.onchange = e => { S.insetP = e.target.value || null; drawInset(); }; }
+  initOcc();
   $("#ssel").onchange = e => { S.si = +e.target.value; renderExplorer(); };
   $("#sl").oninput = e => { S.play = false; $("#play").textContent = "Play"; setTf(+e.target.value); };
   $("#spd").value = S.speed; $("#spd").onchange = e => S.speed = +e.target.value;
@@ -475,7 +483,7 @@ function renderExplorer() {
 function layoutExplorer() {
   const rc = $("#replancard"), c3 = $(".c3"), c1 = $(".c1");
   if (S.wide) { c3.prepend(rc); } else { c1.appendChild(rc); }
-  const ib = $("#insetbox"); if (ib) { if (S.wide) { ib.classList.add("card"); c3.prepend(ib); } else { ib.classList.remove("card"); $("#insetslot").appendChild(ib); } }
+  const oc = $("#occcard"); if (oc) { if (S.wide) { oc.style.gridColumn = "auto"; c3.prepend(oc); } else { oc.style.gridColumn = "1/-1"; $(".c3 .grid3").prepend(oc); } }
   // height available for the 7 synchronised panels (about 6 charts + the mode strip)
   S.tsU = S.wide ? Math.max(70, (window.innerHeight - 16.5 * 13 * K - 15 * 13 * K) * 110 / 700) : null;
 }
@@ -559,23 +567,28 @@ function updateReadout() {
     const r = s.runs[n], e = interp(r.E, tf), gp = ref ? interp(ref.E, tf) - e : NaN;
     h += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</td><td>${fmt(r.P[i] / 1e3, 2)}</td><td>${fmt(e / 1e3)}</td><td>${n === S.ref ? "-" : fmt(gp / 1e3)}</td><td>${fmt(r.TWS[i] / KN)}</td><td>${fmt(r.TWA[i], 0)}</td><td>${r.H[i] > 0.5 ? "hold" : "transit"}</td></tr>`;
   }
-  $("#readout").innerHTML = h; drawInset();
+  $("#readout").innerHTML = h; drawOcc();
 }
 
 // -- map
 let LAND = null, WL = null;
 function themeVar(n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); }
 const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
-const STOPS = [[0, "#f6f8fb"], [10, "#d3e0ee"], [17.99, "#a9bcd3"], [18, "#fff0b0"], [22, "#ffc83a"], [26, "#f08a00"], [26.01, "#9a86c9"], [36, "#52409a"], [50, "#241a55"]];
-const LUT = (() => { // speed in 0.25 kn steps
-  const out = new Uint8ClampedArray(241 * 3);
+/* Wind speed palettes: smooth sequential ramps (light: pale yellow -> teal -> navy; dark: slate -> teal -> green -> yellow), no jumps. */
+const RAMPS = {
+  light: [[0, "#ffffd9"], [6, "#edf8b1"], [12, "#c7e9b4"], [16, "#7fcdbb"], [20, "#41b6c4"], [24, "#1d91c0"], [28, "#225ea8"], [34, "#253494"], [50, "#081d58"]],
+  dark: [[0, "#0f1a2a"], [8, "#14304a"], [14, "#1b5671"], [18, "#1f8189"], [22, "#35a984"], [26, "#7bc65b"], [32, "#cfe05a"], [40, "#fff0a0"], [50, "#ffffe0"]]
+};
+function buildLUT(dark) { // speed in 0.25 kn steps
+  const st = RAMPS[dark ? "dark" : "light"], out = new Uint8ClampedArray(241 * 3);
   for (let i = 0; i <= 240; i++) {
-    const v = i / 4; let k = 0; while (k < STOPS.length - 2 && v > STOPS[k + 1][0]) k++;
-    const [a, ca] = STOPS[k], [b, cb] = STOPS[k + 1], f = clamp((v - a) / (b - a), 0, 1), A = hex(ca), B = hex(cb);
+    const v = i / 4; let k = 0; while (k < st.length - 2 && v > st[k + 1][0]) k++;
+    const [a, ca] = st[k], [b, cb] = st[k + 1], f = clamp((v - a) / (b - a), 0, 1), A = hex(ca), B = hex(cb);
     for (let c = 0; c < 3; c++) out[i * 3 + c] = A[c] + (B[c] - A[c]) * f;
   }
   return out;
-})();
+}
+let LUT = buildLUT(false);
 function mapGeom() {
   const m = D.map, cv = $("#map"), asp = (m.ymax - m.ymin) / (m.xmax - m.xmin);
   let Wr = Math.max(320, cv.parentElement.clientWidth - 2);
@@ -607,7 +620,7 @@ function windFrame(s, tsec, G) { // returns small canvas with wind colours (null
   const cw = G.cw, ch = G.ch;
   if (!WL || WL.width !== cw || WL.height !== ch) { WL = document.createElement("canvas"); WL.width = cw; WL.height = ch; }
   const cx = WL.getContext("2d"), im = cx.createImageData(cw, ch), nx = w.nx, ny = w.ny, sc = w.scale_ms / KN, onlyBand = S.layers.band;
-  const o0 = k0 * nx * ny, o1 = (k0 + 1) * nx * ny;
+  const o0 = k0 * nx * ny, o1 = (k0 + 1) * nx * ny, cls = new Uint8Array(cw * ch);
   for (let py = 0; py < ch; py++) {
     const yk = m.ymax - (py + 0.5) / ch * (m.ymax - m.ymin), fj = clamp((yk - w.y0_km) / w.dx_km, 0, ny - 1.001), j = Math.floor(fj), b = fj - j;
     for (let px = 0; px < cw; px++) {
@@ -616,10 +629,19 @@ function windFrame(s, tsec, G) { // returns small canvas with wind colours (null
       const u = (1 - a) * (w00 * w.U[o0 + p] + w10 * w.U[o0 + p + 1] + w01 * w.U[o0 + p + nx] + w11 * w.U[o0 + p + nx + 1]) + a * (w00 * w.U[o1 + p] + w10 * w.U[o1 + p + 1] + w01 * w.U[o1 + p + nx] + w11 * w.U[o1 + p + nx + 1]);
       const v = (1 - a) * (w00 * w.V[o0 + p] + w10 * w.V[o0 + p + 1] + w01 * w.V[o0 + p + nx] + w11 * w.V[o0 + p + nx + 1]) + a * (w00 * w.V[o1 + p] + w10 * w.V[o1 + p + 1] + w01 * w.V[o1 + p + nx] + w11 * w.V[o1 + p + nx + 1]);
       const kn = Math.hypot(u, v) * sc, q = Math.min(240, Math.round(kn * 4)) * 3, o = (py * cw + px) * 4;
-      if (onlyBand && (kn < 18 || kn > 26)) { im.data[o] = 246; im.data[o + 1] = 248; im.data[o + 2] = 251; }
+      cls[py * cw + px] = kn < 18 ? 0 : kn <= 26 ? 1 : 2;
+      if (onlyBand && (kn < 18 || kn > 26)) { const nb = S.dark ? 28 : 244; im.data[o] = nb; im.data[o + 1] = nb + 3; im.data[o + 2] = nb + 7; }
       else { im.data[o] = LUT[q]; im.data[o + 1] = LUT[q + 1]; im.data[o + 2] = LUT[q + 2]; }
       im.data[o + 3] = 255;
     }
+  }
+  // isotachs at 18 and 26 kn (solid / dashed) instead of colour jumps
+  const lc = S.dark ? 255 : 15;
+  for (let py = 0; py < ch - 1; py++) for (let px = 0; px < cw - 1; px++) {
+    const c0 = cls[py * cw + px], c1 = cls[py * cw + px + 1], c2 = cls[(py + 1) * cw + px], lo = Math.min(c0, c1, c2), hi = Math.max(c0, c1, c2);
+    if (lo === hi) continue;
+    const th = lo === 0 && hi >= 1 ? 18 : 26; if (th === 26 && ((px + py) & 2)) continue;
+    const o = (py * cw + px) * 4; for (let c = 0; c < 3; c++) im.data[o + c] = im.data[o + c] * 0.35 + lc * 0.65;
   }
   cx.putImageData(im, 0, 0); return WL;
 }
@@ -662,7 +684,7 @@ function drawMap() {
   }
   // arrows
   if (S.layers.arrows) {
-    const w = s.wind; cx.strokeStyle = "rgba(25,30,45,.55)"; cx.lineWidth = 1;
+    const w = s.wind; cx.strokeStyle = S.dark ? "rgba(255,255,255,.6)" : "rgba(25,30,45,.55)"; cx.lineWidth = 1;
     for (let j = 0; j < w.ny; j += 2) for (let i = 0; i < w.nx; i += 2) {
       const xk = w.x0_km + i * w.dx_km, yk = w.y0_km + j * w.dx_km;
       const [u, v, th] = windVec(s, tsec, xk, yk), kn = Math.hypot(u, v) / KN;
@@ -707,14 +729,17 @@ function drawMap() {
     cx.fillStyle = col; cx.strokeStyle = "#fff"; cx.lineWidth = 2; cx.beginPath(); cx.arc(px, py, 5.5, 0, 7); cx.stroke(); cx.fill();
     cx.fillStyle = "#111"; cx.font = "bold 11px system-ui"; cx.lineWidth = 3; cx.strokeStyle = "rgba(255,255,255,.85)"; cx.strokeText(n, px + 8, py - 6); cx.fillText(n, px + 8, py - 6);
   }
-  // colour bar
-  const bx = 10, by = G.H - 30, bw = Math.min(220, G.W * 0.35);
-  cx.fillStyle = "rgba(255,255,255,.8)"; cx.fillRect(bx - 4, by - 16, bw + 8, 40);
+  // colour bar with band brackets
+  const bx = 10, by = G.H - 34, bw = Math.min(240, G.W * 0.38), dk = S.dark, ink = dk ? "#eee" : "#222";
+  cx.fillStyle = dk ? "rgba(10,14,22,.72)" : "rgba(255,255,255,.82)"; cx.fillRect(bx - 4, by - 17, bw + 8, 52);
   for (let k = 0; k < bw; k++) { const q = Math.min(240, Math.round(k / bw * 40 * 4)) * 3; cx.fillStyle = `rgb(${LUT[q]},${LUT[q + 1]},${LUT[q + 2]})`; cx.fillRect(bx + k, by, 1, 10); }
-  cx.fillStyle = "#222"; cx.font = "10px system-ui";
+  cx.fillStyle = ink; cx.font = "10px system-ui";
   for (const v of [0, 10, 18, 26, 40]) cx.fillText(v, bx + v / 40 * bw - 4, by + 21);
-  cx.fillText("TWS [kn]; 18-26 productive", bx, by - 5);
-  cx.strokeStyle = "#222"; cx.lineWidth = 1; cx.strokeRect(bx + 18 / 40 * bw, by - 1, 8 / 40 * bw, 12);
+  cx.fillText("TWS [kn]", bx, by - 5);
+  const x18 = bx + 18 / 40 * bw, x26 = bx + 26 / 40 * bw; cx.strokeStyle = ink; cx.lineWidth = 1.2;
+  cx.beginPath(); cx.moveTo(x18, by + 27); cx.lineTo(x18, by + 31); cx.lineTo(x26, by + 31); cx.lineTo(x26, by + 27); cx.stroke();
+  cx.fillText("18-26 kn preferred (isotachs)", x26 + 6, by + 33);
+  cx.beginPath(); cx.moveTo(x18, by - 2); cx.lineTo(x18, by + 12); cx.moveTo(x26, by - 2); cx.lineTo(x26, by + 12); cx.stroke();
 }
 function mapHover(e) {
   const m = D.map, cv = $("#map"), r = cv.getBoundingClientRect(), xk = m.xmin + (e.clientX - r.left) / r.width * (m.xmax - m.xmin), yk = m.ymax - (e.clientY - r.top) / r.height * (m.ymax - m.ymin);
@@ -725,10 +750,10 @@ function mapHover(e) {
 // -- diagnostics panels
 function buildDiagnostics() {
   const s = seed(), names = selNames(s), ref = refRun(s);
-  let h = `<table><tr><th>Policy</th><th>J [MWh]</th><th>Regret [%]${info("m_REG")}</th><th>CF${info("m_CF")}</th><th>Productive [% t]${info("m_PROD")}</th><th>TWS band [% t]${info("m_TWSB")}</th><th>TWA band [% t]${info("m_TWAB")}</th><th>Hold [% t]${info("m_HOLD")}</th><th>Mean speed [kn]${info("m_SPD")}</th><th>Distance [km]${info("m_DIST")}</th><th>Mean TWS [kn]${info("m_TWS")}</th><th>Replans${info("m_REPL")}</th><th>Coast viol.${info("m_VIOL")}</th></tr>`;
+  let h = `<table><tr><th>Policy</th><th>CF${info("m_CF")}</th><th>J [MWh]</th><th>Regret [%]${info("m_REG")}</th><th>Productive [% t]${info("m_PROD")}</th><th>TWS band [% t]${info("m_TWSB")}</th><th>TWA band [% t]${info("m_TWAB")}</th><th>Hold [% t]${info("m_HOLD")}</th><th>Mean speed [kn]${info("m_SPD")}</th><th>Distance [km]${info("m_DIST")}</th><th>Mean TWS [kn]${info("m_TWS")}</th><th>Replans${info("m_REPL")}</th><th>Coast viol.${info("m_VIOL")}</th></tr>`;
   for (const n of names) {
     const r = s.runs[n], d = r.diag, m = r.metrics;
-    h += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></td><td>${fmt(m.energy_kwh / 1e3)}</td><td>${ref ? fmt(METRICS.REG.f(r, s)) : "-"}</td><td>${fmt(m.capacity_factor, 3)}</td><td>${fmt(100 * d.productive_share)}</td><td>${fmt(100 * d.tws_band_share)}</td><td>${fmt(100 * d.twa_band_share)}</td><td>${fmt(100 * d.hold_share, 0)}</td><td>${fmt(d.mean_speed_ms / KN, 2)}</td><td>${fmt(m.distance_km, 0)}</td><td>${fmt(d.mean_tws_ms / KN)}</td><td>${m.n_replans}</td><td>${m.coast_violations}</td></tr>`;
+    h += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></td><td><b>${fmt(m.capacity_factor, 3)}</b></td><td>${fmt(m.energy_kwh / 1e3)}</td><td>${ref ? fmt(METRICS.REG.f(r, s)) : "-"}</td><td>${fmt(100 * d.productive_share)}</td><td>${fmt(100 * d.tws_band_share)}</td><td>${fmt(100 * d.twa_band_share)}</td><td>${fmt(100 * d.hold_share, 0)}</td><td>${fmt(d.mean_speed_ms / KN, 2)}</td><td>${fmt(m.distance_km, 0)}</td><td>${fmt(d.mean_tws_ms / KN)}</td><td>${m.n_replans}</td><td>${m.coast_violations}</td></tr>`;
   }
   $("#dtab").innerHTML = h + "</table>";
   const W = Math.max(300, $("#h1").clientWidth);
@@ -784,6 +809,94 @@ function updateReplan() {
   el.innerHTML = h || "<div class='hint'>No replan before this time.</div>";
 }
 
+
+
+
+// ------------------------------------------------------------------ seasons (calendar months, computed in the browser)
+const MONTHS = {en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], fr: ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"]};
+function monthly(n) { // pooled over seeds: per calendar month energy, hours, hold hours, TWS sum
+  const acc = Array.from({length: 12}, () => ({e: 0, h: 0, hold: 0, tws: 0, w: 0})), dt = dtS() / 3600, prated = D.meta.p_rated_kw || 3000;
+  for (const s of D.seeds) {
+    const r = s.runs[n]; if (!r) continue; const t0 = Date.parse(s.epoch || D.meta.epoch);
+    for (let k = 0; k < s.n - 1; k++) {
+      const m = new Date(t0 + (k + 0.5) * dtS() * 1000).getUTCMonth(), a = acc[m];
+      a.e += r.E[k + 1] - r.E[k]; a.h += dt; a.hold += r.H[k] * dt; if (isFinite(r.TWS[k])) { a.tws += r.TWS[k] / KN * dt; a.w += dt; }
+    }
+  }
+  return acc.map(a => ({cf: a.h > 0 ? a.e / (prated * a.h) : NaN, hold: a.h > 0 ? 100 * a.hold / a.h : NaN, tws: a.w > 0 ? a.tws / a.w : NaN, h: a.h}));
+}
+function renderSeasons() {
+  const names = D.pnames.filter(n => S.sel.has(n)), mo = Object.fromEntries(names.map(n => [n, monthly(n)])), cats = MONTHS[S.lang];
+  const ref = names.includes(S.ref) ? S.ref : null, any = names.length ? mo[names[0]] : [], used = any.map((a, i) => a.h > 0 ? i : -1).filter(i => i >= 0);
+  const W = 760 * K, H = 230 * K, pick = f => used.map(i => i);
+  const series = key => names.map(n => ({name: n, color: D.color[n], v: used.map(i => mo[n][i][key])}));
+  const lbl = used.map(i => cats[i]);
+  const tws = {name: "TWS", color: "#8a8f98", v: used.map(i => any[i].tws)};
+  let tbl = `<tr><th>Policy</th>${used.map(i => `<th>${cats[i]}</th>`).join("")}</tr>`;
+  for (const n of names) tbl += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></td>${used.map(i => { const v = mo[n][i].cf, b = ref && n !== ref ? v - mo[ref][i].cf : NaN; return `<td>${fmt(v, 3)}${isFinite(b) ? ` <span class="meta ${b >= 0 ? "pos" : "neg"}">${b >= 0 ? "+" : ""}${fmt(1e2 * b, 1)}</span>` : ""}</td>`; }).join("")}</tr>`;
+  $("#app").innerHTML = `<div class="grid2">
+   <div class="card"><h2>${ui("tab-seasons")}: CF ${info("c_seasons")}</h2>${cap("seasons")}<div id="s-cf">${barsSvg(W, H, lbl, series("cf"))}</div><div class="legend">${names.map(n => `<span><span class="dot" style="background:${D.color[n]}"></span>${esc(n)}</span>`).join("")}</div></div>
+   <div class="card"><h2>${S.lang === "fr" ? "Mean experienced wind TWS [kn], first router" : "Mean experienced TWS [kn], first router"}</h2><div id="s-tws">${barsSvg(W, H * 0.62, lbl, [tws])}</div>
+     <h2 style="margin-top:.8rem">${S.lang === "fr" ? "Part du temps en attente [%]" : "Hold share [% of time]"}</h2><div id="s-hold">${barsSvg(W, H * 0.62, lbl, series("hold"))}</div></div>
+   <div class="card" style="grid-column:1/-1"><h2>CF ${S.lang === "fr" ? "par mois" : "by month"} (${S.lang === "fr" ? "points de CF x 100 vs référence" : "CF x 100 points vs reference in small type"})</h2><div class="tw"><table class="ro">${tbl}</table></div></div></div>`;
+}
+
+// ------------------------------------------------------------------ operating-point occupancy (per router, own polar)
+const OA = 18, OU = 16, OUMAX = 8;
+const OCOL = ["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#e34a33", "#b30000", "#7f0000"];
+const OCLS = {all: [0, 1e9], lt10: [0, 10], b1018: [10, 18], b1826: [18, 26], gt26: [26, 1e9]};
+function occBins(r, cls, energy, i0, i1) {
+  const g = new Float64Array(OA * OU), [lo, hi] = OCLS[cls]; let tot = 0, hold = 0;
+  for (let k = Math.max(0, i0); k < Math.min(r.TWS.length, i1); k++) {
+    const t = r.TWS[k] / KN; if (!(t >= lo && t < hi)) continue;
+    const w = energy ? Math.max(r.P[k], 0) : 1; tot += w;
+    if (r.H[k] > 0.5 || !isFinite(r.TWA[k])) { hold += w; continue; }
+    const a = Math.min(OA - 1, Math.floor(r.TWA[k] / 10)), u = Math.min(OU - 1, Math.floor(r.SP[k] / (OUMAX / OU)));
+    g[a * OU + u] += w;
+  }
+  if (tot > 0) { for (let q = 0; q < g.length; q++) g[q] /= tot; hold /= tot; }
+  return {g, hold, tot};
+}
+function initOcc() {
+  for (const [id, key] of [["occ-tws", "tws"], ["occ-w", "w"], ["occ-sc", "sc"]]) { const el = $("#" + id); if (!el) return; el.value = S.occ[key]; el.onchange = e => { S.occ[key] = e.target.value; buildOcc(); drawOcc(); }; }
+  buildOcc();
+}
+function buildOcc() {
+  const s = seed(), names = selNames(s), R = (S.wide ? 120 : 100) * K;
+  $("#occ").innerHTML = names.map(n => `<div style="text-align:center"><canvas data-n="${esc(n)}" width="10" height="10"></canvas><div class="ro"><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></div><div class="meta" data-h="${esc(n)}"></div></div>`).join("");
+  S.occR = R;
+}
+function drawOcc() {
+  const el = $("#occ"); if (!el) return;
+  const s = seed(), names = selNames(s), R = S.occR || 100 * K, dpr = window.devicePixelRatio || 1, i = clamp(Math.floor(S.tf), 0, s.n - 2);
+  const sc = S.occ.sc, win = sc === "mission" ? null : +sc * 3600 / dtS(), i0 = win === null ? 0 : Math.round(S.tf - win), i1 = win === null ? 1e9 : Math.round(S.tf + win);
+  const bins = {}; let mx = 0;
+  for (const n of names) { bins[n] = occBins(s.runs[n], S.occ.tws, S.occ.w === "energy", i0, i1); for (const v of bins[n].g) mx = Math.max(mx, v); }
+  const W = R + 40 * K, H = 2 * R + 26 * K, cx0 = 12 * K, cy0 = H / 2, ink = themeVar("--mute");
+  el.querySelectorAll("canvas").forEach(cv => {
+    const n = cv.dataset.n, r = s.runs[n], b = bins[n], ctx = cv.getContext("2d");
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + "px"; cv.style.height = H + "px"; cv.style.border = "none";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wedge = (a0, a1, u0, u1) => { const f0 = a0 * Math.PI / 180 - Math.PI / 2, f1 = a1 * Math.PI / 180 - Math.PI / 2; ctx.beginPath(); ctx.arc(cx0, cy0, u1 / OUMAX * R, f0, f1); ctx.arc(cx0, cy0, Math.max(u0, 0) / OUMAX * R, f1, f0, true); ctx.closePath(); };
+    for (let a = 0; a < OA; a++) for (let u = 0; u < OU; u++) {
+      const v = b.g[a * OU + u]; if (v <= 0) continue;
+      const c = Math.min(OCOL.length - 1, Math.floor(Math.sqrt(v / (mx || 1)) * (OCOL.length - 1) + 0.5));
+      wedge(a * 10, a * 10 + 10, u * OUMAX / OU, (u + 1) * OUMAX / OU); ctx.fillStyle = OCOL[c]; ctx.fill();
+    }
+    ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 0.8; ctx.font = `${Math.round(9.5 * K)}px system-ui`; ctx.globalAlpha = 0.55;
+    for (let u = 2; u <= OUMAX; u += 2) { ctx.beginPath(); ctx.arc(cx0, cy0, u / OUMAX * R, -Math.PI / 2, Math.PI / 2); ctx.stroke(); }
+    for (let a = 0; a <= 180; a += 30) { const t = a * Math.PI / 180; ctx.beginPath(); ctx.moveTo(cx0, cy0); ctx.lineTo(cx0 + R * Math.sin(t), cy0 - R * Math.cos(t)); ctx.stroke(); }
+    ctx.setLineDash([3, 3]); ctx.lineWidth = 1.2; ctx.globalAlpha = 0.9; wedge(75, 105, 0, OUMAX); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.fillText("0°", cx0 + 3, 10 * K); ctx.fillText("180°", cx0 + 3, H - 3); ctx.fillText("90°", cx0 + R + 3, cy0 + 3);
+    for (let u = 2; u <= OUMAX; u += 2) ctx.fillText(u, cx0 + 2, cy0 + u / OUMAX * R * 0.0 - 2 + 0 * u) && 0;
+    if (r.H[i] <= 0.5 && isFinite(r.TWA[i])) { // current operating point of this router
+      const t = r.TWA[i] * Math.PI / 180, rr = Math.min(r.SP[i], OUMAX) / OUMAX * R, x = cx0 + rr * Math.sin(t), y = cy0 - rr * Math.cos(t);
+      ctx.fillStyle = D.color[n]; ctx.strokeStyle = themeVar("--ink"); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 5 * K, 0, 7); ctx.stroke(); ctx.fill();
+    }
+    const h = el.querySelector(`[data-h="${CSS.escape(n)}"]`); if (h) h.textContent = `hold ${(100 * b.hold).toFixed(0)} %`;
+  });
+  el.title = `rings: U = 2, 4, 6, 8 m/s; dashed wedge: TWA 75-105; max cell = ${(100 * mx).toFixed(1)} %`;
+}
 
 // ------------------------------------------------------------------ polar tab and Explorer inset
 /* net power P [kW] at (tws_kn, twa_deg, u_ms): trilinear on the exported table, NaN if infeasible */
@@ -883,21 +996,6 @@ function renderPolar() {
   draw();
 }
 function shipU(r, i) { return r.speed_ms ? r.speed_ms[i] : Math.hypot(r.X[i + 1] - r.X[i], r.Y[i + 1] - r.Y[i]) * 1000 / dtS(); }
-function drawInset() {
-  const cv = $("#inset"); if (!cv || !D.polar) return;
-  const s = seed(), names = selNames(s), i = clamp(Math.floor(S.tf), 0, s.n - 2), foc = s.runs[S.insetP] || s.runs[names.find(n => n !== S.ref && s.runs[n].H[i] <= 0.5) || names.find(n => n !== S.ref) || names[0]];
-  if (!foc) return;
-  const ft = clamp(foc.TWS[i] / KN, 0, D.polar.tws_kn[D.polar.nT - 1]), pts = [];
-  let rows = `<table class="kv"><tr><th>policy</th><th>TWA</th><th>U m/s</th><th>TWS kn</th><th>P polar kW</th></tr>`;
-  for (const n of names) {
-    const r = s.runs[n], tws = r.TWS[i] / KN, twa = r.TWA[i], u = shipU(r, i), hold = r.H[i] > 0.5;
-    const p = hold || !isFinite(twa) ? NaN : polarP(tws, twa, u);
-    if (!hold && isFinite(twa)) pts.push({twa, u, color: D.color[n], near: Math.abs(tws - ft) < 2.5});
-    rows += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</td><td>${hold ? "hold" : fmt(twa, 0)}</td><td>${hold ? "-" : fmt(u, 2)}</td><td>${fmt(tws, 1)}</td><td>${isNaN(p) ? (hold ? "-" : "masked") : fmt(p, 0)}</td></tr>`;
-  }
-  drawPolar(cv, ft, {size: Math.round((S.wide ? 330 : 230) * K), margin: 18 * K, optimum: true, points: pts});
-  $("#inlg").innerHTML = `<div>heat map at TWS ${ft.toFixed(1)} kn (${esc(foc.name)}); hollow dots = other ships at a different TWS</div>` + rows + "</table>";
-}
 
 // ------------------------------------------------------------------ pedagogy: popovers, chips, guide, tour
 function routerKey(n) {
@@ -924,6 +1022,10 @@ function initPop() {
   });
 }
 /* small markdown subset: ## / ### {#id}, tables, lists, paragraphs */
+function figHtml(k) {
+  const f = G.figures && G.figures[k]; if (!f) return "";
+  return `<figure class="fig">${f.svg}<figcaption>${rich(f[S.lang] || f.en)}</figcaption></figure>`;
+}
 function mdHtml(src) {
   const out = []; let list = null, tab = null, para = [];
   const flush = () => { if (para.length) { out.push(`<p>${rich(para.join(" "))}</p>`); para = []; } };
@@ -935,6 +1037,7 @@ function mdHtml(src) {
     endTab();
     if ((m = ln.match(/^(##|###) (.+?)(?: \{#([\w-]+)\})?$/))) { flush(); endList(); const lv = m[1].length; out.push(`<h${lv} id="g-${m[3] || ""}">${rich(m[2])}</h${lv}>`); continue; }
     if ((m = ln.match(/^(- |\d+\. )(.*)$/))) { flush(); const tag = m[1] === "- " ? "ul" : "ol"; if (list !== tag) { endList(); out.push(`<${tag}>`); list = tag; } out.push(`<li>${rich(m[2])}</li>`); continue; }
+    if ((m = ln.match(/^!fig (\w+)$/))) { flush(); endList(); out.push(figHtml(m[1])); continue; }
     if (!ln.trim()) { flush(); endList(); continue; }
     endList(); para.push(ln.trim());
   }
@@ -992,6 +1095,15 @@ function renderChips() {
   el.innerHTML = cs.length ? `<span class="meta">${esc(ui("attention"))}</span>` + cs.map((c, i) => `<span class="chip2" data-i="${i}" title="${esc(txt(c))}">${esc(txt(c))}</span>`).join("") : "";
   el.querySelectorAll(".chip2").forEach(e => e.onclick = () => { const c = cs[+e.dataset.i]; if (c.act) c.act(); else openGuide(G.chips[c.k].more); });
 }
+/* first-visit visual primer: the schematics one after the other */
+function runPrimer(i = 0, then = null) {
+  const ks = Object.keys(G.figures || {}), el = $("#primer"), box = el.querySelector(".pbox");
+  if (i >= ks.length) { el.style.display = "none"; try { localStorage.setItem("hz-primer", "1"); } catch (e) { /* ignore */ } if (then) then(); return; }
+  el.style.display = "flex";
+  box.innerHTML = figHtml(ks[i]) + `<div class="row" style="margin-top:.6rem"><span class="meta" style="margin-right:auto">${i + 1}/${ks.length}</span><button id="pguide">${esc(ui("guide"))}</button><button id="pskip">${esc(ui("skip"))}</button><button class="on" id="pnext">${esc(ui(i === ks.length - 1 ? "done" : "next"))}</button></div>`;
+  $("#pnext").onclick = () => runPrimer(i + 1, then); $("#pskip").onclick = () => runPrimer(ks.length, then);
+  $("#pguide").onclick = () => { runPrimer(ks.length, null); openGuide("models"); };
+}
 /* first-visit mini tour */
 function runTour(i = 0) {
   const T = G.tour, el = $("#tour");
@@ -1012,7 +1124,7 @@ function applyLang() {
 
 // ------------------------------------------------------------------ boot
 function applyTheme() {
-  document.body.classList.toggle("dark", S.dark); $("#theme").textContent = G ? ui(S.dark ? "light" : "dark") : "Dark"; LAND = null;
+  document.body.classList.toggle("dark", S.dark); LUT = buildLUT(S.dark); $("#theme").textContent = G ? ui(S.dark ? "light" : "dark") : "Dark"; LAND = null;
   try { localStorage.setItem("hz-dark", S.dark ? "1" : "0"); } catch (e) { /* ignore */ }
 }
 async function boot() {
@@ -1023,13 +1135,13 @@ async function boot() {
   let dark = false; try { dark = localStorage.getItem("hz-dark") === "1"; } catch (e) { /* ignore */ }
   let lang = "fr"; try { lang = localStorage.getItem("hz-lang") || "fr"; } catch (e) { /* ignore */ }
   let zoom = 1; try { zoom = parseFloat(localStorage.getItem("hz-zoom")) || 1; } catch (e) { /* ignore */ }
-  S = {zoom, insetP: null, ptws: 20, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "J", dark, smooth: 6, speed: 24, win: 24, play: false,
+  S = {zoom, occ: {tws: "all", w: "time", sc: "mission"}, occR: 0, ptws: 20, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "CF", dark, smooth: 6, speed: 24, win: 24, play: false,
     A: non.includes("B1_5d") ? "B1_5d" : non[0] || pn[0], B: non.includes("B1_15d") ? "B1_15d" : non[1] || pn[0], focus: null,
     layers: {wind: true, band: false, arrows: true, storms: true, plans: true, full: true}};
   $("#ttl").textContent = D.title;
   const m = D.meta;
   $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
-  $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); if (D.polar) $("#tab-polar").style.display = "";
+  $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); $("#tab-seasons").onclick = () => setTab("seasons"); if (D.meta.duration_s / DAY >= 45) $("#tab-seasons").style.display = ""; if (D.polar) $("#tab-polar").style.display = "";
   $("#theme").onclick = () => { S.dark = !S.dark; applyTheme(); if (S.tab === "ex") { buildTS(); buildDiagnostics(); buildLosses(); buildForecast(); drawMap(); moveCursor(); } else renderOverview(); };
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeGuide(); hidePop(); }
@@ -1042,10 +1154,11 @@ async function boot() {
   $("#zm").onclick = () => setZ(zs[Math.max(0, zs.indexOf(S.zoom) - 1)] || 1); $("#zp").onclick = () => setZ(zs[Math.min(zs.length - 1, zs.indexOf(S.zoom) + 1)] || 1); $("#z0").onclick = () => setZ(1);
   $("#guide-btn").onclick = () => S.gopen ? closeGuide() : openGuide(); $("#gclose").onclick = closeGuide;
   $("#lang").onclick = () => { S.lang = S.lang === "fr" ? "en" : "fr"; applyLang(); renderGuide(); renderAll(); };
-  $("#tourbtn").onclick = () => runTour(0);
+  $("#tourbtn").onclick = () => runTour(0); $("#primerbtn").onclick = () => runPrimer(0);
   setScale(); initPop(); applyTheme(); applyLang(); renderGuide(); renderAll();
   let seen = false; try { seen = localStorage.getItem("hz-tour") === "1"; } catch (e) { /* ignore */ }
-  if (!seen) runTour(0);
+  let pseen = false; try { pseen = localStorage.getItem("hz-primer") === "1"; } catch (e) { /* ignore */ }
+  if (!pseen) runPrimer(0, seen ? null : () => runTour(0)); else if (!seen) runTour(0);
 }
 boot();
 </script>

@@ -379,14 +379,16 @@ def _forecast_error(weather, truth: WindField, results: Mapping[str, MissionResu
 # -------------------------------------------------------------------------------------- export
 def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: str = "Oracle",
                     title: str = "HORIZON router inspector", p_rated_kw: float = 3000.0,
-                    export_dt_s: float = 3600.0, wind_dt_s: float = 3 * 3600.0,
-                    wind_factor: int = 2, policy_info: Mapping[str, Mapping] | None = None,
+                    export_dt_s: float = 3600.0, wind_dt_s: float | None = None,
+                    wind_factor: int | None = None,
+                    policy_info: Mapping[str, Mapping] | None = None,
                     markers: Sequence[Mapping] | None = None,
                     start_lonlat: tuple[float, float] | None = None,
                     params: Mapping | None = None, forecast_error: bool = True,
                     fc_horizon_days: float = 5.0, fc_issue_every_s: float = 86400.0,
                     polar=None, weather_kind: str | None = None,
-                    era5_mask: np.ndarray | None = None) -> dict:
+                    era5_mask: np.ndarray | None = None, wind_budget_mb: float = 6.0,
+                    max_plan_records: int = 400) -> dict:
     """Collect backtest outputs into the inspector schema (see module docstring).
 
     Parameters
@@ -398,7 +400,9 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     title : str  Page title.
     p_rated_kw : float  [kW]  Rated power for the capacity factor.
     export_dt_s : float  [s]  Time step of the exported series (multiple of the simulation step).
-    wind_dt_s : float  [s]  Time step of the truth wind snapshots (multiple of the truth step).
+    wind_dt_s : float, optional  [s]  Time step of the truth wind snapshots (multiple of the truth
+        step). ``None`` = automatic: 3 h, coarsened (6 h, 12 h, then 160 km cells) until each seed's
+        wind block is below ``wind_budget_mb`` (year-long missions).
     wind_factor : int  Spatial block-decimation factor of the snapshots (2 -> 80 km on 40 km).
     policy_info : mapping, optional  ``name -> {"label", "description", "params"}``.
     markers : sequence of dict, optional  ``{"name", "lon", "lat"}`` shown on the map.
@@ -411,6 +415,9 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     weather_kind : str, optional  ``"synthetic"`` or ``"era5"`` (ERA5 hides storm layers and labels
         missions with their real UTC dates).
     era5_mask : (ny, nx) bool array, optional  True inside the ERA5 box (cells outside are greyed).
+    wind_budget_mb : float  Size budget of the wind snapshots of one seed (raw int8, MB).
+    max_plan_records : int  Per run, at most this many replans keep their ``plan`` / ``diag``
+        (evenly thinned) so that year-long missions stay compact.
 
     Returns
     -------
@@ -429,9 +436,10 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     for r in runs:
         names += [n for n in r.results if n not in names]
     info = policy_info or {}
+    wdt, wfac = _auto_wind(runs[0].truth, grid, duration, wind_dt_s, wind_factor, wind_budget_mb)
     seeds_out = []
     for r in runs:
-        wind, wts = _export_wind(r, grid, wind_dt_s, wind_factor, duration)
+        wind, wts = _export_wind(r, grid, wdt, wfac, duration)
         storms = []
         if hasattr(r.weather, "storm_centres"):
             storms = [_listify(np.asarray(r.weather.storm_centres(float(t))) / 1e3, 1)
@@ -447,7 +455,8 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
                         "frac_18_26kn": float(np.mean((tws_all >= 18 * KNOT)
                                                       & (tws_all <= 26 * KNOT)))},
             "wind": wind, "storms": storms,
-            "runs": {n: _export_run(r.truth, res, r.records.get(n), p_rated_kw, step)
+            "runs": {n: _export_run(r.truth, res, _thin(r.records.get(n), max_plan_records),
+                                    p_rated_kw, step)
                      for n, res in r.results.items()},
         }
         if forecast_error and hasattr(r.weather, "forecast"):
@@ -483,6 +492,30 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     if polar is not None:
         out["polar"] = _export_polar(polar)
     return out
+
+
+def _auto_wind(truth, grid, duration, dt_s, factor, budget_mb) -> tuple[float, int]:
+    """Wind snapshot step and decimation: explicit values win, else fit ``budget_mb``."""
+    if dt_s is not None and factor is not None:
+        return float(dt_s), int(factor)
+    base = max(truth.dt_s, 3600.0)
+    for dt_h, f in ((3, 2), (6, 2), (12, 2), (12, 4), (24, 4)):
+        dt = float(dt_s) if dt_s is not None else max(dt_h * 3600.0, base)
+        fac = int(factor) if factor is not None else f
+        nt = int(duration // dt) + 1
+        cells = int(np.ceil(grid.ny / fac) * np.ceil(grid.nx / fac))
+        if nt * cells * 2 <= budget_mb * 1e6:
+            break
+    return dt, fac
+
+
+def _thin(records: list[dict] | None, max_n: int) -> list[dict] | None:
+    """Keep ``plan`` / ``diag`` on at most ``max_n`` evenly spaced replans (others lose them)."""
+    if records is None or len(records) <= max_n:
+        return records
+    stride = int(np.ceil(len(records) / max_n))
+    return [r if i % stride == 0 else {k: v for k, v in r.items() if k not in ("plan", "diag")}
+            for i, r in enumerate(records)]
 
 
 def _export_polar(polar, tws_step_kn: float = 2.0) -> dict:

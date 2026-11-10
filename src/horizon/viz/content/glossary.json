@@ -188,6 +188,15 @@
    "en": "For each TWA, the best net power over all ship speeds U at a given TWS. The envelope of what the ship can do at that angle.",
    "fr": "Pour chaque TWA, la meilleure puissance nette sur toutes les vitesses U à un TWS donné. L'enveloppe de ce que le navire peut faire à cet angle.",
    "more": "polar"
+  },
+  "c_occ": {
+   "en": "Where each router actually operates, in the polar plane: angle = true wind angle folded to 0-180 degrees (0 = into the wind, 180 = dead downwind), radius = ship speed U, colour = share of time (or of energy) spent in each cell. All routers share one colour scale. The dot is the current operating point of that router at the cursor; the dashed wedge is the productive 75-105 degree band. Hold time is counted separately.",
+   "fr": "Où chaque routeur navigue réellement dans le plan polaire : angle = angle de vent vrai replié sur 0-180 degrés (0 = vent debout, 180 = vent arrière), rayon = vitesse U du navire, couleur = part du temps (ou de l'énergie) passée dans chaque case. Tous les routeurs partagent la même échelle. Le point est le point de fonctionnement courant du routeur au curseur ; le secteur en tireté est la bande productive 75-105 degrés. Les attentes sont comptées à part.",
+   "more": "polar"
+  },
+  "c_seasons": {
+   "en": "Capacity factor per calendar month, computed in your browser from the hourly energy of each run and the real dates (months pooled over all missions). Small figures give the difference to the reference in CF points x 100.",
+   "fr": "Facteur de charge par mois civil, calculé dans votre navigateur à partir de l'énergie horaire de chaque run et des vraies dates (mois cumulés sur toutes les missions). Les petits chiffres donnent l'écart à la référence en points de CF x 100."
   }
  },
  "captions": {
@@ -258,6 +267,14 @@
   "map_era5": {
    "en": "Wind at the cursor time (real ERA5); amber = productive speed band. Dots = ships, dashed = latest plan. Hatched grey = outside the ERA5 box.",
    "fr": "Vent à l'instant du curseur (ERA5 réel) ; ambre = vitesses productives. Points = navires, pointillé = dernier plan. Gris hachuré = hors de la boîte ERA5."
+  },
+  "occ": {
+   "en": "One small polar per router, same colour scale: darker = more time (or energy) at that wind angle and speed. Filters: wind class, weighting, whole mission or a window around the cursor. The dot is where the router is at the cursor.",
+   "fr": "Une petite polaire par routeur, même échelle de couleur : plus foncé = plus de temps (ou d'énergie) à cet angle de vent et cette vitesse. Filtres : classe de vent, pondération, mission entière ou fenêtre autour du curseur. Le point indique où se trouve le routeur au curseur."
+  },
+  "seasons": {
+   "en": "Seasonal view: does a router gain where the wind is steady, or lose when it is weak? Bars are capacity factor by calendar month.",
+   "fr": "Vue saisonnière : un routeur gagne-t-il quand le vent est établi, ou perd-il quand il est faible ? Les barres sont le facteur de charge par mois civil."
   }
  },
  "ui": {
@@ -328,6 +345,14 @@
   "tab-polar": {
    "en": "Polar",
    "fr": "Polaire"
+  },
+  "tab-seasons": {
+   "en": "Seasons",
+   "fr": "Saisons"
+  },
+  "primer": {
+   "en": "Primer",
+   "fr": "Schémas"
   }
  },
  "chips": {
