@@ -45,13 +45,27 @@ A policy with an unknown name is shown with its exported parameters only. Name i
 | REF | as its base DP | as base | as base | 48 h refined | DP value at t+48 h | yes (NLP) | yes |
 | Oracle | truth | - | - | whole mission | - | no | NO |
 
+## The Polar tab {#polar}
+Shown when the export embeds the power polar the routers optimise against. It is the table of net power P as a function of true wind speed ([[TWS]]), wind angle ([[TWA]]) and ship speed U through the water.
+- Angle = TWA from the top (0 degrees = head to wind, 180 = dead downwind); both tacks are drawn mirrored. Radius = U. Colour = net power: blue negative, white zero, red positive. Grey hatching = infeasible or masked nodes.
+- The slider sets TWS. The dashed line is U*(TWA), the speed that maximises power wherever that power is positive. The chart on the right shows P-dagger(TWA) = max over U of P for the selected TWS and some reference TWS.
+- In the Explorer, a small polar inset shows where each ship operates (TWA, U) at the cursor time on the polar at the TWS of the chosen policy; the table gives the polar power at the ship's own TWS. A ship sitting on a blue area is losing energy; a dot far from the dashed line is sailing at a poor speed.
+- Facts about this polar (client VPP data): net power = turbine gross output minus propulsion consumption, so it can be negative; head to wind it is at best zero by physics; optimisation-failure holes of the [[VPP]] were repaired by interpolation; the slow downwind sector (TWA of 135 degrees or more with U of 2.5 m/s or less) is masked as a known VPP bug; below 10 kn production is taken as nearly zero (hypothesis stated by the client, to be confirmed).
+
 ## Hypotheses in force {#hyp}
 Every number below is a hypothesis to be replaced with real data; conclusions are about relative behaviour, not absolute energy.
+**Common to all runs**
+- **Space and time**: {{grid_km}} km grid, {{plan_dt_h}} h DP step, replan every {{replan_h}} h, missions of {{duration_d}} d, no return-to-port constraint, 20 km coast clearance.
+- **Simplifications**: no leeway or current in the graph search, no forecast availability latency.
+- **Statistics**: {{n_seeds}} runs per policy. The spread between runs is large.
+**Synthetic runs (S1, S2)**
 - **Polar**: {{polar.kind}}. Beam-reach optimum near {{polar.twa_opt_deg}} degrees, cap {{polar.cap_kw}} kW, derating from {{polar.derate_kn}} kn, cut-out at {{polar.cutout_kn}} kn.
-- **Weather**: {{weather}} North-Atlantic winter (jet, travelling cyclones, regime index, noise). Forecast errors grow with lead; truth and forecasts come from the same generator.
-- **Space and time**: {{grid_km}} km grid, {{plan_dt_h}} h DP step, replan every {{replan_h}} h, missions of {{duration_d}} d starting at {{start}}, no return-to-port constraint, 20 km coast clearance.
-- **Simplifications**: no leeway or current in the graph search, no forecast availability latency, hourly truth.
-- **Statistics**: {{n_seeds}} seeds (one seed = one winter). The spread between seeds is large.
+- **Weather**: {{weather}} North-Atlantic winter (jet, travelling cyclones, regime index, noise). Truth and forecasts come from the same generator. Start at {{start}}.
+**Real-data runs (S3)**
+- **Truth**: ERA5 10 m wind of 2015 (hourly), regridded on the planning grid; cells outside the ERA5 box are greyed on the map and filled with edge values.
+- **Forecast**: an exchangeable perturbation model built from the truth (lead-dependent displacement, amplitude and noise), so that the truth is statistically one more member. It is not an archive of real forecasts.
+- **Polar**: the client BETA polar described in the Polar tab, with its masks and repairs.
+- **Optimiser**: macro-arc stencil (an arc may span up to 2 DP steps, about 49 directions, worst angular gap about 18 degrees) and a climatological terminal value (energy of station-keeping under the local climatological wind for the rest of the horizon).
 
 ## What good looks like {#expect}
 - Every causal router should sit between B0_spec (worst) and Oracle (best); regret of a good one is in the low tens of percent or below.
@@ -68,6 +82,9 @@ Every number below is a hypothesis to be replaced with real data; conclusions ar
 - TWA is undefined while holding; hold time counts as in the TWA band for the productive share.
 - Synthetic ensemble is not informative: its mean is no better than the control, so the value of ensembles cannot be judged on this data.
 - Cells within 20 km of the coast are forbidden for the optimiser; a harbour-exit corridor is not modelled.
+- **S3 forecasts are built from the truth** (oracle perturbation): causality rests on the error statistics, not on the data flow, and successive forecasts are independent of each other.
+- **Polar below 10 kn** and the masked slow-downwind sector are client hypotheses / known VPP issues.
+- **One year of weather (2015)**: seasonal and inter-annual variability is not sampled.
 
 ## What to look at first {#path}
 1. Overview: read the summary and the chips; note the regret ranking.
@@ -81,3 +98,4 @@ Every number below is a hypothesis to be replaced with real data; conclusions ar
 - **S0** - grid, units and wind conventions, synthetic polar, coast signed-distance asset.
 - **S1** - synthetic weather with causal forecasts, DP kernel, power envelope, closed-loop simulator, B0 / B1 / oracle, first regret figure.
 - **S2** - ensemble reduction and two-stage DP with CVaR, continuous refiner, this inspector. Results: the refiner wins (~+3 %, lower spread); the ensemble does not win yet because of the synthetic weather (see ENS).
+- **S3** - real data: ERA5 2015 truth, exchangeable forecast-error model, client BETA polar with VPP repairs and masks, macro-arc stencil, climatological terminal value; inspector gains the Polar tab and ERA5 support.

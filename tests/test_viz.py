@@ -67,8 +67,11 @@ def export():
         runs[name] = run_mission(rp, wx, truth, (-10.0, 47.0), T, pm, coast)
         recs[name] = rp.records
     sr = [SeedRun(7, truth, runs, wx, recs)]
+    mask = np.ones(grid.shape, bool)
+    mask[:, -2:] = False
     return export_backtest(sr, coast, start_lonlat=(-10.0, 47.0), fc_horizon_days=1.0,
-                           params={"k": 1}), coast
+                           params={"k": 1}, polar=polar, weather_kind="era5",
+                           era5_mask=mask), coast
 
 
 def test_schema_and_roundtrip(export, tmp_path):
@@ -90,6 +93,37 @@ def test_schema_and_roundtrip(export, tmp_path):
     assert 0.0 <= r["diag"]["productive_share"] <= 1.0
     assert sum(r["diag"]["tws_hist"]) == pytest.approx(1.0, abs=1e-3)
     assert s["forecast_error"]["by_policy"]["B0"]["mae_tws_ms"][0] is not None
+
+
+def test_polar_and_era5_fields(export):
+    data, _ = export
+    pl = data["polar"]
+    q = decode_array(pl["p"])
+    shape = (len(pl["tws_kn"]), len(pl["twa_deg"]), len(pl["u_ms"]))
+    assert q.dtype == np.int16 and q.shape == shape
+    assert all(abs(k - 2 * round(k / 2)) < 0.6 for k in pl["tws_kn"])
+    # round trip of a feasible node within the quantisation step
+    from horizon.polar import synthetic_polar
+    ref = synthetic_polar()
+    i = len(pl["tws_kn"]) // 2
+    j = int(np.argmin(abs(ref.tws / 0.514444 - pl["tws_kn"][i])))
+    ok = q[i] != pl["infeasible"]
+    assert np.allclose(q[i][ok] * pl["scale_kw"], ref.p[j][ok], atol=0.51)
+    assert data["meta"]["weather_kind"] == "era5"
+    assert decode_array(data["map"]["era5_mask"]).shape == decode_array(data["map"]["sdf"]).shape
+    assert data["seeds"][0]["epoch"].startswith("2026-01-01")
+    assert len(data["seeds"][0]["runs"]["B0"]["speed_ms"]) == len(data["seeds"][0]["t_s"]) - 1
+
+
+def test_html_with_polar_and_existing_s2_export(export):
+    data, _ = export
+    html = build_html(data)
+    assert "renderPolar" in html and not re.findall(r"https?://", html)
+    s2 = Path(__file__).resolve().parents[1] / "outputs" / "s2_inspector" / "s2_export.json.gz"
+    if s2.exists():  # old export without polar / epoch / speed must still build
+        d2 = load_export(s2)
+        assert "polar" not in d2
+        assert "hz-data" in build_html(d2)
 
 
 def test_recorder_and_diagnostics(export):

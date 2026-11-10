@@ -47,6 +47,13 @@ replan's plan; ``diag`` is the policy's ``last_diagnostics`` (made JSON-safe) af
 ``v`` (int8, ``(nt, ny, nx)``, physical value = ``q * scale_ms``, true east / north "toward"
 components) and ``theta`` (float32 ``(ny, nx)``, grid-frame angle [rad] of true east).
 
+Optional additions (still ``schema_version`` 1, all backward compatible):
+
+``polar`` : dict  ``tws_kn, twa_deg, u_ms`` axes, ``p`` (int16 ``(nTWS, nTWA, nU)``, kW =
+    ``q * scale_kw``, ``-32768`` = infeasible) and ``meta``.
+``meta.weather_kind`` : ``"synthetic"`` | ``"era5"``;  ``map.era5_mask`` : uint8 ``(ny, nx)``.
+Per seed ``epoch`` (ISO UTC) and ``label``; per run ``speed_ms`` (block-mean ground speed).
+
 Encoded arrays are ``{"dtype", "shape", "b64"}`` (little-endian raw bytes, base64).
 """
 
@@ -190,6 +197,7 @@ class SeedRun:
     weather : object, optional  ``SyntheticWeather``-like: ``storm_centres(t)`` adds storm marks
         and ``forecast(...)`` enables the forecast-error-by-lead diagnostic.
     records : dict[str, list[dict]]  Policy name -> :attr:`RecordingPolicy.records` (optional).
+    label : str, optional  Free label of the mission (e.g. ``"2015-03 W2"``) shown in the UI.
     """
 
     seed: int
@@ -197,6 +205,7 @@ class SeedRun:
     results: dict[str, MissionResult]
     weather: Any = None
     records: dict[str, list[dict]] = field(default_factory=dict)
+    label: str | None = None
 
 
 # ------------------------------------------------------------------------------- experienced wind
@@ -256,6 +265,7 @@ def _export_run(truth: WindField, res: MissionResult, records: list[dict] | None
         "energy_kwh": _listify(res.energy_kwh[sl], 1),
         "power_kw": _listify(_blocks(res.power_kw, step), 1),
         "hold_frac": _listify(_blocks(hold.astype(float), step), 2),
+        "speed_ms": _listify(_blocks(spd, step), 3),
         "tws_ms": _listify(_blocks(tws, step), 2),
         "twa_deg": _listify(_blocks(twa, step, nan_aware=True), 1),
         "replans": records if records is not None
@@ -374,7 +384,9 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
                     markers: Sequence[Mapping] | None = None,
                     start_lonlat: tuple[float, float] | None = None,
                     params: Mapping | None = None, forecast_error: bool = True,
-                    fc_horizon_days: float = 5.0, fc_issue_every_s: float = 86400.0) -> dict:
+                    fc_horizon_days: float = 5.0, fc_issue_every_s: float = 86400.0,
+                    polar=None, weather_kind: str | None = None,
+                    era5_mask: np.ndarray | None = None) -> dict:
     """Collect backtest outputs into the inspector schema (see module docstring).
 
     Parameters
@@ -394,6 +406,11 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     params : mapping, optional  Free-form run parameters shown in the header.
     forecast_error : bool  Compute control-forecast error at the ship (needs ``run.weather``).
     fc_horizon_days, fc_issue_every_s : float  Lead range [d] and issue spacing [s] for it.
+    polar : PolarTable, optional  Polar used by the policies; embedded (compact) for the Polar tab
+        and the Explorer operating-point inset.
+    weather_kind : str, optional  ``"synthetic"`` or ``"era5"`` (ERA5 hides storm layers and labels
+        missions with their real UTC dates).
+    era5_mask : (ny, nx) bool array, optional  True inside the ERA5 box (cells outside are greyed).
 
     Returns
     -------
@@ -424,6 +441,8 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
         n_t = next(iter(r.results.values())).t_s[::step]
         entry = {
             "seed": int(r.seed), "t_s": _listify(n_t, 1),
+            "epoch": str(np.datetime_as_string(np.datetime64(r.truth.epoch, "s"), timezone="UTC")),
+            "label": r.label,
             "weather": {"mean_tws_ms": float(tws_all.mean()),
                         "frac_18_26kn": float(np.mean((tws_all >= 18 * KNOT)
                                                       & (tws_all <= 26 * KNOT)))},
@@ -439,7 +458,7 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     mk = [_marker(grid, m["name"], m["lon"], m["lat"]) for m in (markers or [])]
     start = _marker(grid, "start", *start_lonlat) if start_lonlat else None
     epoch = str(np.datetime_as_string(np.datetime64(runs[0].truth.epoch, "s"), timezone="UTC"))
-    return {
+    out = {
         "schema_version": SCHEMA_VERSION, "title": title,
         "generated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "meta": {"epoch": epoch, "duration_s": float(duration), "sim_dt_s": float(sim_dt),
@@ -456,6 +475,33 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
                 "graticule": _graticule(grid), "markers": mk, "start": start},
         "seeds": seeds_out,
     }
+    if weather_kind:
+        out["meta"]["weather_kind"] = weather_kind
+    if era5_mask is not None:
+        m = np.asarray(era5_mask, bool).astype(np.uint8)
+        out["map"]["era5_mask"] = encode_array(m, "uint8")
+    if polar is not None:
+        out["polar"] = _export_polar(polar)
+    return out
+
+
+def _export_polar(polar, tws_step_kn: float = 2.0) -> dict:
+    """Compact copy of a :class:`horizon.polar.table.PolarTable` for the Polar tab.
+
+    TWS is decimated to multiples of ``tws_step_kn`` (nearest axis node); power is quantised to
+    int16 in units of ``scale_kw`` with ``-32768`` marking infeasible nodes (NaN).
+    """
+    tws_kn = np.asarray(polar.tws) / KNOT
+    want = np.arange(0.0, tws_kn[-1] + 1e-6, tws_step_kn)
+    idx = sorted({int(np.argmin(np.abs(tws_kn - w))) for w in want if abs(tws_kn - w).min() < 0.5})
+    p = np.asarray(polar.p, float)[idx]
+    scale = 0.5
+    q = np.where(np.isfinite(p), np.clip(np.rint(p / scale), -32767, 32767), -32768)
+    meta = {k: v for k, v in (polar.meta or {}).items()
+            if isinstance(v, (str, int, float, bool)) and len(str(v)) <= 160}
+    return {"tws_kn": _listify(tws_kn[idx], 2), "twa_deg": _listify(polar.twa, 2),
+            "u_ms": _listify(polar.u, 3), "scale_kw": scale, "infeasible": -32768,
+            "p": encode_array(q, "int16"), "meta": _jsonable(meta)}
 
 
 def merge_exports(base: dict, extra: dict, overwrite: bool = True) -> dict:
@@ -531,6 +577,10 @@ def validate_export(data: Mapping) -> None:
     need(len(data["seeds"]) > 0, "no seeds")
     g = data["map"]["grid"]
     need(list(decode_array(data["map"]["sdf"]).shape) == [g["ny"], g["nx"]], "sdf shape")
+    if "polar" in data:
+        pl = data["polar"]
+        need(decode_array(pl["p"]).shape == (len(pl["tws_kn"]), len(pl["twa_deg"]),
+                                             len(pl["u_ms"])), "polar shape")
     for s in data["seeds"]:
         n1 = len(s["t_s"])
         w = s["wind"]

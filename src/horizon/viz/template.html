@@ -50,7 +50,7 @@ input[type=range]{flex:1;min-width:12.308rem}
 .legend{display:flex;gap:0.769rem;flex-wrap:wrap;font-size:0.885rem;color:var(--mute)}
 label.ck{display:inline-flex;gap:0.308rem;align-items:center;cursor:pointer}
 .mini{display:inline-block;vertical-align:middle}
-.kv td{padding:1px 0.462rem}
+.kv{table-layout:auto}.kv td:last-child{text-align:left;white-space:normal;word-break:break-word}.kv td{padding:1px 0.462rem}
 .err{padding:2.308rem;color:var(--bad);font-size:1.154rem}
 .cap{color:var(--mute);font-size:0.885rem;margin:-2px 0 0.462rem;line-height:1.35}
 .ii{display:inline-block;width:1rem;height:1rem;border:1px solid var(--mute);border-radius:50%;font:italic 600 0.692rem/0.846rem Georgia,serif;text-align:center;color:var(--mute);cursor:help;margin-left:0.308rem;vertical-align:middle;font-weight:600}
@@ -97,7 +97,7 @@ body.wide .card{margin-bottom:.9rem}
 <body>
 <header>
   <h1 id="ttl"></h1><span class="meta" id="meta"></span>
-  <span class="tabs"><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button>
+  <span class="tabs"><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button><button id="tab-polar" data-ui="tab-polar" style="display:none">Polar</button>
   <span class="zoom"><button id="zm" title="Smaller UI">A&minus;</button><button id="z0" title="Reset UI size">A</button><button id="zp" title="Larger UI">A+</button></span><button id="guide-btn" data-ui="guide">Guide</button><button id="tourbtn" data-ui="tour" title="Tour">Tour</button><button id="lang">EN</button>
   <button id="theme" title="Toggle dark mode">Dark</button></span>
 </header>
@@ -130,6 +130,10 @@ function rich(t) {
   }).replace(/\[([^\]]+)\]\(#([\w-]+)\)/g, '<a data-guide="$2">$1</a>');
 }
 const cap = id => G.captions[id] ? `<div class="cap">${rich(L(G.captions[id]))}</div>` : "";
+const ERA = () => D.meta.weather_kind === "era5";
+const UW = () => ERA() ? "Mission" : "Seed";
+const mlabel = q => ERA() ? `${q.label || q.seed} (${(q.epoch || D.meta.epoch).slice(0, 10)})` : String(q.seed);
+const mshort = q => ERA() ? (q.epoch || D.meta.epoch).slice(5, 10) : String(q.seed);
 const info = k => G.defs[k] ? `<i class="ii" data-d="${esc(k)}">i</i>` : "";
 
 // ------------------------------------------------------------------ data loading
@@ -152,6 +156,8 @@ function prepare(d) {
   const g = mp.grid;
   mp.xmin = g.x0_km - g.dx_km / 2; mp.xmax = g.x0_km + (g.nx - 0.5) * g.dx_km;
   mp.ymin = g.y0_km - g.dx_km / 2; mp.ymax = g.y0_km + (g.ny - 0.5) * g.dx_km;
+  if (mp.era5_mask) mp.M = new Uint8Array(b64bytes(mp.era5_mask.b64).buffer);
+  if (d.polar) { const pl = d.polar; pl.P = new Int16Array(b64bytes(pl.p.b64).buffer); pl.nT = pl.tws_kn.length; pl.nA = pl.twa_deg.length; pl.nU = pl.u_ms.length; pl.umax = pl.u_ms[pl.nU - 1]; }
   d.pnames = d.policies.map(p => p.name);
   d.color = {}; let k = 0;
   d.pnames.forEach(n => { d.color[n] = FIXED[n] || PAL[k++ % PAL.length]; });
@@ -235,7 +241,7 @@ function topLosses(s, n, wH, k = 5) {
 }
 const dayStr = i => (i * dtS() / DAY).toFixed(2);
 function clock(tf) {
-  const t0 = Date.parse(D.meta.epoch), d = new Date(t0 + tf * dtS() * 1000);
+  const t0 = Date.parse(seed().epoch || D.meta.epoch), d = new Date(t0 + tf * dtS() * 1000);
   return d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
 }
 
@@ -266,7 +272,7 @@ function setScale() {
 function chartW(el) { return Math.max(300, el.clientWidth || 600); }
 /* Time-series chart. opts: series[{name,color,y,w,dash}], bands[[y0,y1]], zero, height, title, ylabel, x (days), xmax, ticksX, shade[[x0,x1]] */
 function tsChart(el, o) {
-  const W = chartW(el), H = Math.round((o.height || 120) * (S.wide && S.tsU ? S.tsU / 110 : K)), T = Math.round(8 * K), B = Math.round((o.xaxis ? 20 : 4) * K), pw = W - ML - MR, ph = H - T - B;
+  const W = chartW(el), H = Math.round((o.height || 120) * (!o.fixed && S.wide && S.tsU ? S.tsU / 110 : K)), T = Math.round(8 * K), B = Math.round((o.xaxis ? 30 : 4) * K), pw = W - ML - MR, ph = H - T - B;
   let lo = Infinity, hi = -Infinity;
   for (const s of o.series) for (const v of s.y) if (isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
   if (o.ymin !== undefined) lo = o.ymin; if (o.ymax !== undefined) hi = o.ymax;
@@ -278,9 +284,9 @@ function tsChart(el, o) {
   for (const t of niceTicks(lo, hi, Math.max(2, Math.floor(ph / 28)))) g += `<line class="gl" x1="${ML}" x2="${W - MR}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${ML - 4}" y="${Y(t) + 3}" text-anchor="end">${+t.toFixed(3)}</text>`;
   for (const t of niceTicks(0, o.xmax, 10)) {
     g += `<line class="gl" x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${T + ph}"/>`;
-    if (o.xaxis) g += `<text x="${X(t)}" y="${H - 5}" text-anchor="middle">${t}</text>`;
+    if (o.xaxis) g += `<text x="${X(t)}" y="${H - 15 * K}" text-anchor="middle">${t}</text>`;
   }
-  if (o.xaxis) g += `<text x="${W - MR}" y="${H - 5}" text-anchor="end" style="font-weight:600">days</text>`;
+  if (o.xaxis) g += `<text x="${W - MR}" y="${H - 3 * K}" text-anchor="end" style="font-weight:600">${o.xlabel || "days"}</text>`;
   for (const b of o.bands || []) g += `<rect x="${ML}" width="${pw}" y="${Y(b[1])}" height="${Math.abs(Y(b[0]) - Y(b[1]))}" fill="var(--band)"/>`;
   for (const sh of o.shade || []) g += `<rect x="${X(sh[0])}" width="${Math.max(2, X(sh[1]) - X(sh[0]))}" y="${T}" height="${ph}" fill="${sh[2] || "#f5aa14"}" opacity=".22"/>`;
   if (o.zero) g += `<line class="ax" x1="${ML}" x2="${W - MR}" y1="${Y(0)}" y2="${Y(0)}"/>`;
@@ -348,9 +354,9 @@ function renderBar() {
   });
   $("#refsel").onchange = e => { S.ref = e.target.value; renderAll(); };
 }
-function renderAll() { renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : renderExplorer(); }
+function renderAll() { renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : S.tab === "polar" ? renderPolar() : renderExplorer(); }
 function setTab(t) {
-  S.tab = t; $("#tab-ov").classList.toggle("on", t === "ov"); $("#tab-ex").classList.toggle("on", t === "ex");
+  S.tab = t; for (const k of ["ov", "ex", "polar"]) $("#tab-" + k).classList.toggle("on", t === k);
   S.play = false; renderAll();
 }
 
@@ -371,7 +377,7 @@ function renderOverview() {
     return `<td class="${cls}">${fmt(x.m, METRICS[k].d)} &plusmn; ${fmt(x.s, METRICS[k].d)}${x.n < ns ? ` <span class="meta">(n=${x.n})</span>` : ""}</td>`;
   }).join("")}</tr>`;
   const mk = S.metric;
-  let t2 = `<tr><th>Policy</th>${D.seeds.map((s, i) => `<th>seed ${s.seed}</th>`).join("")}<th>mean &plusmn; std</th></tr>`;
+  let t2 = `<tr><th>Policy</th>${D.seeds.map((s, i) => `<th>${UW().toLowerCase()} ${mshort(s)}</th>`).join("")}<th>mean &plusmn; std</th></tr>`;
   const colBest = D.seeds.map((s, i) => { const v = names.filter(n => n !== S.ref).map(n => metricVals(n, mk)[i]).filter(isFinite); return METRICS[mk].hi === null || !v.length ? NaN : (METRICS[mk].hi ? Math.max(...v) : Math.min(...v)); });
   for (const n of names) {
     const v = metricVals(n, mk), f = fin(v);
@@ -381,7 +387,7 @@ function renderOverview() {
   const barSeries = ([{name: METRICS[mk].label, color: "var(--accent)", opacity: 0.6, colors: names.map(n => D.color[n]), v: names.map(n => stats[n] && fin(metricVals(n, mk)).length ? mean(fin(metricVals(n, mk))) : NaN), err: names.map(n => std(fin(metricVals(n, mk)))), pts: names.map(n => metricVals(n, mk))}]);
   // paired comparison
   const A = S.A, B = S.B;
-  let t3 = `<tr><th>Seed</th><th>J ${esc(A)} [MWh]</th><th>J ${esc(B)} [MWh]</th><th>&Delta; = A &minus; B [MWh]</th><th>&Delta; [%]</th><th>Winner</th></tr>`;
+  let t3 = `<tr><th>${UW()}</th><th>J ${esc(A)} [MWh]</th><th>J ${esc(B)} [MWh]</th><th>&Delta; = A &minus; B [MWh]</th><th>&Delta; [%]</th><th>Winner</th></tr>`;
   const dl = [], dp = []; let wa = 0, wb = 0, ties = 0;
   D.seeds.forEach(s => {
     if (!s.runs[A] || !s.runs[B]) return;
@@ -415,11 +421,11 @@ function renderExplorer() {
   const s = seed(), names = selNames(s), nT = s.n - 1;
   S.tf = clamp(S.tf, 0, nT);
   $("#app").innerHTML = `
-  <div class="row"><b>Seed</b><select id="ssel">${D.seeds.map((q, i) => `<option value="${i}" ${i === S.si ? "selected" : ""}>${q.seed}</option>`).join("")}</select>
+  <div class="row"><b>${UW()}</b><select id="ssel">${D.seeds.map((q, i) => `<option value="${i}" ${i === S.si ? "selected" : ""}>${esc(mlabel(q))}</option>`).join("")}</select>
    <span class="meta">weather: mean TWS ${fmt(s.weather.mean_tws_ms / KN)} kn, ${fmt(100 * s.weather.frac_18_26kn, 0)} % of sea cell-hours in 18-26 kn</span></div>
   <div id="exgrid">
    <div class="c1">
-    <div class="card"><h2>Map <small id="clock"></small></h2>${cap("map")}
+    <div class="card"><h2>Map <small id="clock"></small></h2>${cap(ERA() ? "map_era5" : "map")}
      <canvas id="map"></canvas>
      <div class="row"><button id="play">Play</button><input type="range" id="sl" min="0" max="${nT}" step="1" value="${Math.round(S.tf)}">
        <select id="spd"><option value="6">6 h/s</option><option value="24">1 d/s</option><option value="72">3 d/s</option></select></div>
@@ -427,12 +433,12 @@ function renderExplorer() {
        <label class="ck"><input type="checkbox" data-l="wind" ${S.layers.wind ? "checked" : ""}>wind speed</label>
        <label class="ck"><input type="checkbox" data-l="band" ${S.layers.band ? "checked" : ""}>only 18-26 kn</label>
        <label class="ck"><input type="checkbox" data-l="arrows" ${S.layers.arrows ? "checked" : ""}>arrows</label>
-       <label class="ck"><input type="checkbox" data-l="storms" ${S.layers.storms ? "checked" : ""}>storm centres</label>
+       ${s.storms.length ? `<label class="ck"><input type="checkbox" data-l="storms" ${S.layers.storms ? "checked" : ""}>storm centres</label>` : ""}
        <label class="ck"><input type="checkbox" data-l="plans" ${S.layers.plans ? "checked" : ""}>current plan</label>
        <label class="ck"><input type="checkbox" data-l="full" ${S.layers.full ? "checked" : ""}>full tracks</label>
        <span class="ro" id="mouse"></span></div>
      <div class="hint">Shaded coast band = within 20 km of land (infeasible for the DP). Dashed line = plan of the latest replan. Arrow keys step the time, space plays.</div>
-     <div class="tw"><table class="ro" id="readout"></table></div>
+     <div class="row" style="align-items:flex-start;flex-wrap:wrap"><div class="tw" style="flex:1 1 24rem"><table class="ro" id="readout"></table></div>${D.polar ? `<div id="insetslot" style="flex:0 0 auto"><div id="insetbox"><div class="row" style="margin:0"><b>Polar inset</b>${info("c_inset")} <select id="insp"><option value="">auto</option>${selNames(s).map(n => `<option ${n === S.insetP ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div><canvas id="inset"></canvas><div id="inlg" class="ro" style="font-size:.85rem"></div></div></div>` : ""}</div>
     </div>
     <div class="card" id="replancard"><h2>Replan diagnostics at the selected time</h2>${cap("replan")}<div id="replan"></div></div>
    </div>
@@ -440,7 +446,7 @@ function renderExplorer() {
        <select id="smooth"><option value="1">none</option><option value="6">6 h</option><option value="24">24 h</option></select></small></h2>${cap("ts")}
      <div id="ts"></div></div></div>
   <div class="c3"><div class="grid3">
-   <div class="card" style="grid-column:1/-1"><h2>Diagnostics <small>seed ${s.seed}</small></h2>${cap("diagtab")}<div class="tw" id="dtab"></div></div>
+   <div class="card" style="grid-column:1/-1"><h2>Diagnostics <small>${UW().toLowerCase()} ${esc(mlabel(s))}</small></h2>${cap("diagtab")}<div class="tw" id="dtab"></div></div>
    <div class="card"><h2>TWS experienced ${info("TWS")}</h2>${cap("h1")}<div id="h1"></div><div class="legend" id="lg1"></div></div>
    <div class="card"><h2>TWA experienced ${info("TWA")}</h2>${cap("h2")}<div id="h2"></div></div>
    <div class="card"><h2>Energy lost vs <b>${esc(S.ref)}</b> by day <small>MWh per day</small></h2>${cap("dl")}<div id="dl"></div></div>
@@ -451,6 +457,7 @@ function renderExplorer() {
    <div class="card"><h2>Forecast error at the ship <small>mean |TWS error| [kn]</small></h2>${cap("fe")}<div id="fe"></div></div>
   </div></div></div>`;
   layoutExplorer();
+  if (D.polar) { const sel = $("#insp"); if (!selNames(s).includes(S.insetP)) S.insetP = null; sel.value = S.insetP || ""; sel.onchange = e => { S.insetP = e.target.value || null; drawInset(); }; }
   $("#ssel").onchange = e => { S.si = +e.target.value; renderExplorer(); };
   $("#sl").oninput = e => { S.play = false; $("#play").textContent = "Play"; setTf(+e.target.value); };
   $("#spd").value = S.speed; $("#spd").onchange = e => S.speed = +e.target.value;
@@ -468,8 +475,9 @@ function renderExplorer() {
 function layoutExplorer() {
   const rc = $("#replancard"), c3 = $(".c3"), c1 = $(".c1");
   if (S.wide) { c3.prepend(rc); } else { c1.appendChild(rc); }
+  const ib = $("#insetbox"); if (ib) { if (S.wide) { ib.classList.add("card"); c3.prepend(ib); } else { ib.classList.remove("card"); $("#insetslot").appendChild(ib); } }
   // height available for the 7 synchronised panels (about 6 charts + the mode strip)
-  S.tsU = S.wide ? Math.max(70, (window.innerHeight - 16.5 * 13 * K - 10 * 13 * K) * 110 / 700) : null;
+  S.tsU = S.wide ? Math.max(70, (window.innerHeight - 16.5 * 13 * K - 15 * 13 * K) * 110 / 700) : null;
 }
 function tick(now) {
   if (!S.play || S.tab !== "ex") return;
@@ -512,7 +520,7 @@ function buildTS() {
   if (optS.length) tsChart($("#ts-opt"), {title: "Plan optimism: planned - realised energy over the plan horizon", ylabel: "MWh", series: optS, dots: true, zero: true, xmax, height: 110, x: days});
   else $("#ts-opt").remove();
   // mode strip
-  const W = chartW(el), rh = Math.round(11 * K), H = names.length * (rh + 3) + Math.round(34 * K), pw = W - ML - MR, X = d => ML + d / xmax * pw;
+  const W = chartW(el), rh = Math.round(11 * K), H = names.length * (rh + 3) + Math.round(40 * K), pw = W - ML - MR, X = d => ML + d / xmax * pw;
   let g = "";
   names.forEach((n, i) => {
     const y = 4 + i * (rh + 3), r = s.runs[n];
@@ -523,8 +531,8 @@ function buildTS() {
       if (h && a < 0) a = k; if (!h && a >= 0) { g += `<rect x="${X(a * dtS() / DAY)}" y="${y}" width="${Math.max(1, X(k * dtS() / DAY) - X(a * dtS() / DAY))}" height="${rh}" fill="${D.color[n]}"/>`; a = -1; }
     }
   });
-  for (const t of niceTicks(0, xmax, 10)) g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${t}</text>`;
-  g += `<text x="${W - MR}" y="${H - 18}" text-anchor="end" style="font-weight:600">days</text><text x="${ML + 4}" y="${H - 18}" style="fill:var(--ink)">Mode: coloured = hold (station-keeping), grey = transit</text><line class="cur" y1="0" y2="${H - 24}" x1="0" x2="0"/>`;
+  for (const t of niceTicks(0, xmax, 10)) g += `<text x="${X(t)}" y="${H - 7 * K}" text-anchor="middle">${t}</text>`;
+  g += `<text x="${W - MR}" y="${H - 18 * K}" text-anchor="end" style="font-weight:600">days</text><text x="${ML + 4}" y="${H - 18 * K}" style="fill:var(--ink)">Mode: coloured = hold (station-keeping), grey = transit</text><line class="cur" y1="0" y2="${H - 24}" x1="0" x2="0"/>`;
   $("#ts-mode").innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" data-ml="${ML}" data-pw="${pw}" data-xmax="${xmax}" style="touch-action:none;cursor:crosshair">${g}</svg>`;
   // the last chart carries the x axis labels
   const last = el.querySelector("#ts-opt svg") || el.querySelector("#ts-twa svg");
@@ -551,7 +559,7 @@ function updateReadout() {
     const r = s.runs[n], e = interp(r.E, tf), gp = ref ? interp(ref.E, tf) - e : NaN;
     h += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</td><td>${fmt(r.P[i] / 1e3, 2)}</td><td>${fmt(e / 1e3)}</td><td>${n === S.ref ? "-" : fmt(gp / 1e3)}</td><td>${fmt(r.TWS[i] / KN)}</td><td>${fmt(r.TWA[i], 0)}</td><td>${r.H[i] > 0.5 ? "hold" : "transit"}</td></tr>`;
   }
-  $("#readout").innerHTML = h;
+  $("#readout").innerHTML = h; drawInset();
 }
 
 // -- map
@@ -587,6 +595,8 @@ function buildStatic() { // land layer + graticule, rebuilt on resize / theme
   const cx = oc.getContext("2d"), im = cx.createImageData(w, h), land = hex(themeVar("--land")), buf = hex(themeVar("--buf"));
   for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
     const xk = m.xmin + (px + 0.5) / w * (m.xmax - m.xmin), yk = m.ymax - (py + 0.5) / h * (m.ymax - m.ymin), d = sdfAt(xk, yk), o = (py * w + px) * 4;
+    if (m.M) { const g0 = m.grid, ci = clamp(Math.round((xk - g0.x0_km) / g0.dx_km), 0, g0.nx - 1), cj = clamp(Math.round((yk - g0.y0_km) / g0.dx_km), 0, g0.ny - 1);
+      if (!m.M[cj * g0.nx + ci] && d >= 0) { const hatch = ((px + py) >> 2) & 1; im.data.set(hatch ? [90, 95, 105, 170] : [150, 155, 165, 200], o); continue; } }
     if (d < 0) { im.data.set([land[0], land[1], land[2], 255], o); }
     else if (d < 20) { im.data.set([buf[0], buf[1], buf[2], 90], o); }
   }
@@ -774,6 +784,121 @@ function updateReplan() {
   el.innerHTML = h || "<div class='hint'>No replan before this time.</div>";
 }
 
+
+// ------------------------------------------------------------------ polar tab and Explorer inset
+/* net power P [kW] at (tws_kn, twa_deg, u_ms): trilinear on the exported table, NaN if infeasible */
+function polarP(tws, twa, u) {
+  const pl = D.polar, T = pl.tws_kn, A = pl.twa_deg, U = pl.u_ms, inf = pl.infeasible;
+  const ft = clamp((tws - T[0]) / (T[1] - T[0]), 0, pl.nT - 1.0001), fa = clamp((twa - A[0]) / (A[1] - A[0]), 0, pl.nA - 1.0001), fu = clamp((u - U[0]) / (U[1] - U[0]), 0, pl.nU - 1.0001);
+  const i = Math.floor(ft), j = Math.floor(fa), k = Math.floor(fu), a = ft - i, b = fa - j, c = fu - k;
+  let out = 0;
+  for (let di = 0; di < 2; di++) for (let dj = 0; dj < 2; dj++) for (let dk = 0; dk < 2; dk++) {
+    const w = (di ? a : 1 - a) * (dj ? b : 1 - b) * (dk ? c : 1 - c); if (w <= 1e-9) continue;
+    const q = pl.P[((i + di) * pl.nA + j + dj) * pl.nU + k + dk]; if (q === inf) return NaN;
+    out += w * q;
+  }
+  return out * pl.scale_kw;
+}
+const PCOL = (() => {
+  const neg = ["#ffffff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"], pos = ["#ffffff", "#fdd49e", "#fc8d59", "#d7301f", "#7f0000"];
+  const mix = (st, t) => { const x = clamp(t, 0, 1) * (st.length - 1), i = Math.min(Math.floor(x), st.length - 2), a = hex(st[i]), b = hex(st[i + 1]), f = x - i; return a.map((v, c) => v + (b[c] - v) * f); };
+  const out = new Uint8ClampedArray(513 * 3);
+  for (let n = 0; n <= 512; n++) { const c = (n - 256) / 256, rgb = mix(c < 0 ? neg : pos, Math.abs(c)); out.set(rgb, n * 3); }
+  return out;
+})();
+const PVMAX = 3000, pcode = p => Math.round(256 + 256 * Math.sign(p) * Math.sqrt(Math.min(Math.abs(p), PVMAX) / PVMAX));
+/* heat map of P(TWA, U) at TWS on `cv`; angle = TWA from the top (0 = head to wind), both tacks mirrored, radius = U */
+function drawPolar(cv, tws, opt) {
+  const pl = D.polar, dpr = window.devicePixelRatio || 1, S0 = opt.size, m = opt.margin, R = S0 / 2 - m, ctx = cv.getContext("2d");
+  const px = Math.round(S0 * dpr); if (cv.width !== px) { cv.width = px; cv.height = px; } cv.style.width = S0 + "px"; cv.style.height = S0 + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, S0, S0);
+  const rn = Math.round(Math.min(px, 420)), oc = document.createElement("canvas"); oc.width = rn; oc.height = rn;
+  const ox = oc.getContext("2d"), im = ox.createImageData(rn, rn), c0 = rn / 2, Rr = R / S0 * rn;
+  for (let y = 0; y < rn; y++) for (let x = 0; x < rn; x++) {
+    const dx = x + 0.5 - c0, dy = y + 0.5 - c0, r = Math.hypot(dx, dy); if (r > Rr) continue;
+    const twa = Math.atan2(Math.abs(dx), -dy) * 180 / Math.PI, u = r / Rr * pl.umax, p = polarP(tws, twa, u), o = (y * rn + x) * 4;
+    if (isNaN(p)) { const h = ((x + y) >> 2) & 1; im.data[o] = h ? 150 : 190; im.data[o + 1] = h ? 150 : 190; im.data[o + 2] = h ? 155 : 195; }
+    else { const q = pcode(p) * 3; im.data[o] = PCOL[q]; im.data[o + 1] = PCOL[q + 1]; im.data[o + 2] = PCOL[q + 2]; }
+    im.data[o + 3] = 255;
+  }
+  ox.putImageData(im, 0, 0);
+  ctx.save(); ctx.beginPath(); ctx.arc(S0 / 2, S0 / 2, R, 0, 7); ctx.clip(); ctx.imageSmoothingEnabled = true; ctx.drawImage(oc, S0 / 2 - R, S0 / 2 - R, 2 * R, 2 * R); ctx.restore();
+  const ink = themeVar("--mute"), PT = (twa, u, side) => { const a = twa * Math.PI / 180, r = u / pl.umax * R; return [S0 / 2 + side * r * Math.sin(a), S0 / 2 - r * Math.cos(a)]; };
+  ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 0.8; ctx.font = `${Math.round(10 * K)}px system-ui`;
+  for (let u = 2; u <= pl.umax; u += 2) { ctx.beginPath(); ctx.arc(S0 / 2, S0 / 2, u / pl.umax * R, 0, 7); ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1; ctx.fillText(u + " m/s", S0 / 2 + 3, S0 / 2 - u / pl.umax * R - 2); }
+  for (let a = 0; a <= 180; a += 30) { const [x1, y1] = PT(a, pl.umax, 1), [x2, y2] = PT(a, pl.umax, -1); ctx.globalAlpha = 0.4; ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(S0 / 2, S0 / 2); ctx.lineTo(x1, y1); ctx.stroke(); ctx.globalAlpha = 1; if (a > 0 && a < 180) { const [lx, ly] = PT(a, pl.umax * (R + 13 * K) / R, 1); ctx.textAlign = "center"; ctx.fillText(a + "\u00b0", lx, ly + 4 * K); } }
+  ctx.textAlign = "center"; ctx.fillText("head to wind", S0 / 2, 10 * K); ctx.fillText("downwind", S0 / 2, S0 - 3 * K); ctx.textAlign = "left";
+  if (opt.optimum) { // U*(TWA): speed maximising net power
+    ctx.strokeStyle = "#111"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.4;
+    for (const side of [1, -1]) { ctx.beginPath(); let pen = false;
+      for (let a = 0; a <= 180; a += 2.5) { let best = -1e9, bu = NaN; for (let u = 0; u <= pl.umax; u += 0.1) { const p = polarP(tws, a, u); if (p > best) { best = p; bu = u; } }
+        if (isNaN(bu) || best <= 0) { pen = false; continue; } const [x, y] = PT(a, bu, side); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; }
+      ctx.stroke(); }
+    ctx.setLineDash([]);
+  }
+  for (const q of opt.points || []) { // ship operating points
+    const [x, y] = PT(q.twa, Math.min(q.u, pl.umax), 1);
+    ctx.fillStyle = q.color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.globalAlpha = q.near ? 1 : 0.55; ctx.beginPath(); ctx.arc(x, y, 5.5 * K, 0, 7); ctx.stroke(); ctx.fill();
+    if (!q.near) { ctx.fillStyle = themeVar("--card"); ctx.beginPath(); ctx.arc(x, y, 2.4 * K, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+}
+function polarCbar(w) { // colour bar with real kW ticks
+  let h = `<svg viewBox="0 0 ${w} ${44 * K}" height="${44 * K}">`;
+  for (let k = 0; k < w - 20; k++) { const q = Math.round(k / (w - 21) * 512) * 3; h += `<rect x="${10 + k}" y="2" width="1.5" height="${10 * K}" fill="rgb(${PCOL[q]},${PCOL[q + 1]},${PCOL[q + 2]})"/>`; }
+  for (const v of [-3000, -1000, -250, 0, 250, 1000, 3000]) { const c = Math.sign(v) * Math.sqrt(Math.abs(v) / PVMAX), x = 10 + (c + 1) / 2 * (w - 21); h += `<text x="${x}" y="${24 * K}" text-anchor="middle">${v}</text>`; }
+  return h + `<text x="10" y="${40 * K}" style="font-weight:600">net P [kW] (square-root colour scale)</text></svg>`;
+}
+function renderPolar() {
+  const pl = D.polar, tmax = pl.tws_kn[pl.nT - 1];
+  $("#app").innerHTML = `
+  <div class="grid2"><div class="card"><h2>${ui("tab-polar")} <small id="pinfo"></small></h2>${cap("polar")}
+    <div class="row"><b>TWS</b><input type="range" id="ptws" min="${pl.tws_kn[0]}" max="${tmax}" step="0.5" value="${S.ptws}"><span class="ro" id="ptv"></span>
+      <label class="ck"><input type="checkbox" id="popt" ${S.popt !== false ? "checked" : ""}>optimal speed U*(TWA)</label></div>
+    <canvas id="pcv"></canvas><div id="pcb"></div><div class="ro" id="phov" style="min-height:1.4em"></div></div>
+   <div><div class="card"><h2>P&dagger;(TWA) = max over U of P ${info("c_pdag")}</h2>${cap("pdag")}<div id="pdag"></div><div class="legend" id="pdl"></div></div>
+    <div class="card"><h2>Notes</h2><div class="hint">${rich(L(G.captions.polar_facts))}</div></div></div></div>`;
+  const draw = () => {
+    S.ptws = +$("#ptws").value; S.popt = $("#popt").checked; $("#ptv").textContent = `${S.ptws.toFixed(1)} kn`;
+    const cv = $("#pcv"), avail = cv.parentElement.clientWidth - 4, size = Math.min(avail, (window.innerHeight - 15 * 13 * K), 760 * K);
+    drawPolar(cv, S.ptws, {size, margin: 26 * K, optimum: S.popt});
+    $("#pcb").innerHTML = polarCbar(Math.min(size, 520 * K)); pdag();
+  };
+  const pdag = () => {
+    const A = pl.twa_deg, ser = [], sel = S.ptws, ref = [10, 14, 18, 22, 26, 30].filter(t => t <= tmax);
+    const curve = t => Array.from(A, a => { let b = -1e9; for (let u = 0; u <= pl.umax; u += 0.1) { const p = polarP(t, a, u); if (p > b) b = p; } return b < -1e8 ? NaN : b; });
+    for (const t of ref) ser.push({name: t + " kn", color: themeVar("--mute"), y: curve(t), x: A, w: 1});
+    ser.push({name: sel.toFixed(1) + " kn", color: themeVar("--accent"), y: curve(sel), x: A, w: 2.6});
+    tsChart($("#pdag"), {title: "", ylabel: "kW", series: ser, x: A, xmax: 180, height: 300, xaxis: true, zero: true, xlabel: "TWA [deg]", fixed: true});
+    $("#pdl").innerHTML = `<span><b style="color:var(--accent)">${sel.toFixed(1)} kn</b> selected</span>` + ref.map(t => `<span>${t} kn</span>`).join("<span>,</span>") + `<span>(grey = reference TWS)</span>`;
+  };
+  $("#ptws").oninput = draw; $("#popt").onchange = draw;
+  $("#pinfo").textContent = Object.values(pl.meta || {}).slice(0, 3).join(" - ");
+  $("#pcv").onmousemove = e => {
+    const cv = $("#pcv"), r = cv.getBoundingClientRect(), S0 = r.width, m = 26 * K, R = S0 / 2 - m, dx = e.clientX - r.left - S0 / 2, dy = e.clientY - r.top - S0 / 2, rr = Math.hypot(dx, dy);
+    if (rr > R) { $("#phov").textContent = ""; return; }
+    const twa = Math.atan2(Math.abs(dx), -dy) * 180 / Math.PI, u = rr / R * pl.umax, p = polarP(S.ptws, twa, u);
+    $("#phov").textContent = `TWA ${twa.toFixed(0)}°, U ${u.toFixed(2)} m/s (${(u / KN).toFixed(1)} kn): ` + (isNaN(p) ? "infeasible / masked" : `net P = ${p.toFixed(0)} kW`);
+  };
+  draw();
+}
+function shipU(r, i) { return r.speed_ms ? r.speed_ms[i] : Math.hypot(r.X[i + 1] - r.X[i], r.Y[i + 1] - r.Y[i]) * 1000 / dtS(); }
+function drawInset() {
+  const cv = $("#inset"); if (!cv || !D.polar) return;
+  const s = seed(), names = selNames(s), i = clamp(Math.floor(S.tf), 0, s.n - 2), foc = s.runs[S.insetP] || s.runs[names.find(n => n !== S.ref && s.runs[n].H[i] <= 0.5) || names.find(n => n !== S.ref) || names[0]];
+  if (!foc) return;
+  const ft = clamp(foc.TWS[i] / KN, 0, D.polar.tws_kn[D.polar.nT - 1]), pts = [];
+  let rows = `<table class="kv"><tr><th>policy</th><th>TWA</th><th>U m/s</th><th>TWS kn</th><th>P polar kW</th></tr>`;
+  for (const n of names) {
+    const r = s.runs[n], tws = r.TWS[i] / KN, twa = r.TWA[i], u = shipU(r, i), hold = r.H[i] > 0.5;
+    const p = hold || !isFinite(twa) ? NaN : polarP(tws, twa, u);
+    if (!hold && isFinite(twa)) pts.push({twa, u, color: D.color[n], near: Math.abs(tws - ft) < 2.5});
+    rows += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</td><td>${hold ? "hold" : fmt(twa, 0)}</td><td>${hold ? "-" : fmt(u, 2)}</td><td>${fmt(tws, 1)}</td><td>${isNaN(p) ? (hold ? "-" : "masked") : fmt(p, 0)}</td></tr>`;
+  }
+  drawPolar(cv, ft, {size: Math.round((S.wide ? 330 : 230) * K), margin: 18 * K, optimum: true, points: pts});
+  $("#inlg").innerHTML = `<div>heat map at TWS ${ft.toFixed(1)} kn (${esc(foc.name)}); hollow dots = other ships at a different TWS</div>` + rows + "</table>";
+}
+
 // ------------------------------------------------------------------ pedagogy: popovers, chips, guide, tour
 function routerKey(n) {
   return /_REF$|^REF/.test(n) ? "r-REF" : /^B0_spec/.test(n) ? "r-B0_spec" : /^B0/.test(n) ? "r-B0" : /^B1/.test(n) ? "r-B1" : /^Oracle/i.test(n) ? "r-Oracle" : /^ENS/.test(n) ? "r-ENS" : /^REF/.test(n) ? "r-REF" : "r-generic";
@@ -852,7 +977,8 @@ function computeChips() {
   const hh = D.pnames.find(n => n !== D.meta.reference && meanOf(n) > 0.8);
   if (hh) out.push({k: "holdheavy", v: {a: hh, p: (100 * meanOf(hh)).toFixed(0)}});
   const pr = D.meta.params || {};
-  if (/synth/i.test(String(pr.weather || "")) || /synth/i.test(String((pr.polar && pr.polar.kind) || pr.polar || ""))) out.push({k: "synth", v: {}});
+  if (ERA()) out.push({k: "era5", v: {}});
+  else if (/synth/i.test(String(pr.weather || "")) || /synth/i.test(String((pr.polar && pr.polar.kind) || pr.polar || ""))) out.push({k: "synth", v: {}});
   if (ns < 5) out.push({k: "fewseeds", v: {n: ns}});
   if (/oracle/i.test(D.meta.reference)) out.push({k: "optim", v: {}});
   if (D.seeds.some(s => Object.values(s.runs).some(r => r.replans.some(q => q.diag && q.diag.weights)))) out.push({k: "ensdiag", v: {}});
@@ -897,13 +1023,13 @@ async function boot() {
   let dark = false; try { dark = localStorage.getItem("hz-dark") === "1"; } catch (e) { /* ignore */ }
   let lang = "fr"; try { lang = localStorage.getItem("hz-lang") || "fr"; } catch (e) { /* ignore */ }
   let zoom = 1; try { zoom = parseFloat(localStorage.getItem("hz-zoom")) || 1; } catch (e) { /* ignore */ }
-  S = {zoom, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "J", dark, smooth: 6, speed: 24, win: 24, play: false,
+  S = {zoom, insetP: null, ptws: 20, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "J", dark, smooth: 6, speed: 24, win: 24, play: false,
     A: non.includes("B1_5d") ? "B1_5d" : non[0] || pn[0], B: non.includes("B1_15d") ? "B1_15d" : non[1] || pn[0], focus: null,
     layers: {wind: true, band: false, arrows: true, storms: true, plans: true, full: true}};
   $("#ttl").textContent = D.title;
   const m = D.meta;
   $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
-  $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex");
+  $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); if (D.polar) $("#tab-polar").style.display = "";
   $("#theme").onclick = () => { S.dark = !S.dark; applyTheme(); if (S.tab === "ex") { buildTS(); buildDiagnostics(); buildLosses(); buildForecast(); drawMap(); moveCursor(); } else renderOverview(); };
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeGuide(); hidePop(); }
@@ -911,8 +1037,8 @@ async function boot() {
     if (e.key === "ArrowRight") setTf(S.tf + (e.shiftKey ? 24 : 1) * 3600 / dtS()); else if (e.key === "ArrowLeft") setTf(S.tf - (e.shiftKey ? 24 : 1) * 3600 / dtS());
     else if (e.key === " ") { e.preventDefault(); $("#play").click(); }
   });
-  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { setScale(); LAND = null; S.tab === "ex" ? renderExplorer() : renderOverview(); }, 150); });
-  const zs = [0.85, 1, 1.15, 1.3, 1.5], setZ = z => { S.zoom = z; try { localStorage.setItem("hz-zoom", String(z)); } catch (e) { /* ignore */ } setScale(); LAND = null; S.tab === "ex" ? renderExplorer() : renderOverview(); };
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { setScale(); LAND = null; renderAll(); }, 150); });
+  const zs = [0.85, 1, 1.15, 1.3, 1.5], setZ = z => { S.zoom = z; try { localStorage.setItem("hz-zoom", String(z)); } catch (e) { /* ignore */ } setScale(); LAND = null; renderAll(); };
   $("#zm").onclick = () => setZ(zs[Math.max(0, zs.indexOf(S.zoom) - 1)] || 1); $("#zp").onclick = () => setZ(zs[Math.min(zs.length - 1, zs.indexOf(S.zoom) + 1)] || 1); $("#z0").onclick = () => setZ(1);
   $("#guide-btn").onclick = () => S.gopen ? closeGuide() : openGuide(); $("#gclose").onclick = closeGuide;
   $("#lang").onclick = () => { S.lang = S.lang === "fr" ? "en" : "fr"; applyLang(); renderGuide(); renderAll(); };

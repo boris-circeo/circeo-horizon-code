@@ -168,6 +168,26 @@
   "c_ts": {
    "en": "Panels, top to bottom: power; cumulative energy; accumulated gap to the reference (rising = losing); TWS and TWA experienced with their productive bands; plan optimism; hold/transit strips. Click or drag to move the cursor.",
    "fr": "Panneaux de haut en bas : puissance ; énergie cumulée ; écart cumulé à la référence (qui monte = perd) ; TWS et TWA subis avec leurs bandes productives ; optimisme de plan ; bandes attente/transit. Cliquer ou glisser pour déplacer le curseur."
+  },
+  "polar": {
+   "en": "Table of net power P(TWS, TWA, U): what the ship produces minus what its propulsion consumes, for a wind speed, wind angle and ship speed.",
+   "fr": "Table de puissance nette P(TWS, TWA, U) : ce que le navire produit moins ce que sa propulsion consomme, pour une vitesse de vent, un angle de vent et une vitesse du navire.",
+   "more": "polar"
+  },
+  "VPP": {
+   "en": "Velocity prediction program: the client's naval-architecture tool that computes the polar. It has known optimisation failures (holes, a slow-downwind bug).",
+   "fr": "Velocity prediction program : l'outil d'architecture navale du client qui calcule la polaire. Il a des échecs d'optimisation connus (trous, bug vent arrière lent).",
+   "more": "polar"
+  },
+  "c_inset": {
+   "en": "Operating point (TWA, U) of each ship at the cursor time, on the polar at the TWS of the chosen policy. Filled dot = TWS within 2.5 kn of the heat map TWS, hollow = different TWS. Ships in hold are not drawn.",
+   "fr": "Point de fonctionnement (TWA, U) de chaque navire à l'instant du curseur, sur la polaire au TWS de la politique choisie. Point plein = TWS à moins de 2,5 nœuds de celui du fond, creux = TWS différent. Les navires en attente ne sont pas dessinés.",
+   "more": "polar"
+  },
+  "c_pdag": {
+   "en": "For each TWA, the best net power over all ship speeds U at a given TWS. The envelope of what the ship can do at that angle.",
+   "fr": "Pour chaque TWA, la meilleure puissance nette sur toutes les vitesses U à un TWS donné. L'enveloppe de ce que le navire peut faire à cet angle.",
+   "more": "polar"
   }
  },
  "captions": {
@@ -222,6 +242,22 @@
   "fe": {
    "en": "How wrong the control forecast was at the ship position, by lead time. Error growing with lead explains why long horizons mislead.",
    "fr": "Erreur de la prévision de contrôle à la position du navire, selon l'échéance. Une erreur croissante explique pourquoi les longs horizons trompent."
+  },
+  "polar": {
+   "en": "Net power of the ship as a [[polar]]: angle = wind angle from the top, radius = ship speed, colour = power (blue = consuming). Move the TWS slider; the dashed line is the best speed.",
+   "fr": "Puissance nette du navire sous forme de [[polar|polaire]] : angle = angle du vent depuis le haut, rayon = vitesse du navire, couleur = puissance (bleu = consomme). Déplacez le curseur de TWS ; le tireté est la meilleure vitesse."
+  },
+  "pdag": {
+   "en": "Best net power reachable at each wind angle (max over ship speed): where the ship can harvest, and where it cannot whatever it does.",
+   "fr": "Meilleure puissance nette atteignable à chaque angle de vent (max sur la vitesse) : où le navire peut récolter, et où il ne le peut pas quoi qu'il fasse."
+  },
+  "polar_facts": {
+   "en": "Net power = turbine gross minus propulsion; head to wind it is at best 0. [[VPP]] holes are repaired by interpolation; the slow downwind sector (TWA 135 degrees or more, U 2.5 m/s or less) is masked as a known bug; below 10 kn production is about 0 (client hypothesis). See the [Polar section](#polar).",
+   "fr": "Puissance nette = brut turbine moins propulsion ; vent debout elle est au mieux nulle. Les trous du [[VPP]] sont réparés par interpolation ; le secteur lent vent arrière (TWA 135 degrés ou plus, U 2,5 m/s ou moins) est masqué comme bug connu ; sous 10 nœuds la production est d'environ 0 (hypothèse client). Voir la [section Polar](#polar)."
+  },
+  "map_era5": {
+   "en": "Wind at the cursor time (real ERA5); amber = productive speed band. Dots = ships, dashed = latest plan. Hatched grey = outside the ERA5 box.",
+   "fr": "Vent à l'instant du curseur (ERA5 réel) ; ambre = vitesses productives. Points = navires, pointillé = dernier plan. Gris hachuré = hors de la boîte ERA5."
   }
  },
  "ui": {
@@ -288,6 +324,10 @@
   "not_in_export": {
    "en": "not in this export",
    "fr": "absent de cet export"
+  },
+  "tab-polar": {
+   "en": "Polar",
+   "fr": "Polaire"
   }
  },
  "chips": {
@@ -325,6 +365,11 @@
    "en": "Ensemble diagnostics are available: see the replan panel in the Explorer.",
    "fr": "Diagnostics d'ensemble disponibles : voir le panneau de replanification dans l'Explorer.",
    "more": "r-ENS"
+  },
+  "era5": {
+   "en": "Real ERA5 weather, but forecasts are a statistical perturbation model, not archived forecasts.",
+   "fr": "Météo ERA5 réelle, mais les prévisions sont un modèle statistique de perturbation, pas des prévisions archivées.",
+   "more": "hyp"
   }
  },
  "tour": [

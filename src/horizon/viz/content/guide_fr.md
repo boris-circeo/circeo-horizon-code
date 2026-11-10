@@ -45,13 +45,27 @@ Une politique de nom inconnu est affichée avec ses seuls paramètres exportés.
 | REF | comme sa DP de base | comme la base | comme la base | 48 h raffinées | valeur DP à t+48 h | oui (NLP) | oui |
 | Oracle | vent réel | - | - | toute la mission | - | non | NON |
 
+## L'onglet Polar {#polar}
+Affiché quand l'export embarque la polaire de puissance utilisée par les routeurs. C'est la table de puissance nette P en fonction de la vitesse du vent vrai ([[TWS]]), de l'angle du vent ([[TWA]]) et de la vitesse U du navire dans l'eau.
+- Angle = TWA depuis le haut (0 degré = vent debout, 180 = vent arrière) ; les deux amures sont dessinées en miroir. Rayon = U. Couleur = puissance nette : bleu négatif, blanc nul, rouge positif. Hachures grises = nœuds infaisables ou masqués.
+- Le curseur règle le TWS. Le tireté est U*(TWA), la vitesse qui maximise la puissance là où elle est positive. Le graphe de droite montre P-dagger(TWA) = max sur U de P pour le TWS choisi et quelques TWS de référence.
+- Dans l'Explorer, un petit encart polaire montre où chaque navire opère (TWA, U) à l'instant du curseur, sur la polaire au TWS de la politique choisie ; le tableau donne la puissance polaire au TWS propre du navire. Un navire sur une zone bleue perd de l'énergie ; un point loin du tireté navigue à une mauvaise vitesse.
+- Faits sur cette polaire (données VPP du client) : puissance nette = production brute de la turbine moins consommation de propulsion, donc elle peut être négative ; vent debout elle est au mieux nulle par physique ; les trous d'échec d'optimisation du [[VPP]] ont été réparés par interpolation ; le secteur lent vent arrière (TWA de 135 degrés ou plus avec U de 2,5 m/s ou moins) est masqué comme bug connu du VPP ; sous 10 nœuds la production est prise quasi nulle (hypothèse énoncée par le client, à confirmer).
+
 ## Hypothèses en vigueur {#hyp}
 Tous les nombres ci-dessous sont des hypothèses à remplacer par des données réelles ; les conclusions portent sur les comportements relatifs, pas sur l'énergie absolue.
+**Communes à tous les runs**
+- **Espace et temps** : grille de {{grid_km}} km, pas DP de {{plan_dt_h}} h, replanification toutes les {{replan_h}} h, missions de {{duration_d}} j, pas de contrainte de retour au port, distance minimale à la côte 20 km.
+- **Simplifications** : ni dérive ni courant dans la recherche sur graphe, pas de latence de disponibilité des prévisions.
+- **Statistique** : {{n_seeds}} runs par politique. La dispersion entre runs est grande.
+**Runs synthétiques (S1, S2)**
 - **Polaire** : {{polar.kind}}. Optimum de travers vers {{polar.twa_opt_deg}} degrés, plafond {{polar.cap_kw}} kW, réduction dès {{polar.derate_kn}} nœuds, arrêt à {{polar.cutout_kn}} nœuds.
-- **Météo** : hiver nord-atlantique simulé ({{weather}} ; jet, cyclones mobiles, indice de régime, bruit). Les erreurs de prévision croissent avec l'échéance ; vérité et prévisions viennent du même générateur.
-- **Espace et temps** : grille de {{grid_km}} km, pas DP de {{plan_dt_h}} h, replanification toutes les {{replan_h}} h, missions de {{duration_d}} j depuis {{start}}, pas de contrainte de retour au port, distance minimale à la côte 20 km.
-- **Simplifications** : ni dérive ni courant dans la recherche sur graphe, pas de latence de disponibilité des prévisions, vérité horaire.
-- **Statistique** : {{n_seeds}} tirages (un tirage = un hiver). La dispersion entre tirages est grande.
+- **Météo** : hiver nord-atlantique simulé ({{weather}} ; jet, cyclones mobiles, indice de régime, bruit). Vérité et prévisions viennent du même générateur. Départ : {{start}}.
+**Runs sur données réelles (S3)**
+- **Vérité** : vent à 10 m ERA5 de 2015 (horaire), regrillé sur la grille de planification ; les cellules hors de la boîte ERA5 sont grisées sur la carte et remplies par les valeurs du bord.
+- **Prévision** : modèle de perturbation échangeable construit à partir de la vérité (déplacement, amplitude et bruit dépendant de l'échéance), de sorte que la vérité est statistiquement un membre de plus. Ce n'est pas une archive de prévisions réelles.
+- **Polaire** : la polaire BETA du client décrite dans l'onglet Polar, avec ses masques et réparations.
+- **Optimiseur** : stencil à macro-arcs (un arc peut couvrir jusqu'à 2 pas DP, environ 49 directions, plus grand écart angulaire environ 18 degrés) et valeur terminale climatologique (énergie d'une tenue de position sous le vent climatologique local pour le reste de l'horizon).
 
 ## À quoi ressemble un bon résultat {#expect}
 - Tout routeur causal doit se situer entre B0_spec (pire) et l'oracle (meilleur) ; le regret d'un bon routeur est de quelques dizaines de pourcents ou moins.
@@ -68,6 +82,9 @@ Tous les nombres ci-dessous sont des hypothèses à remplacer par des données r
 - Le TWA est indéfini en attente ; le temps d'attente compte dans la bande de TWA pour la part productive.
 - Ensemble synthétique non informatif : sa moyenne n'est pas meilleure que le contrôle ; la valeur de l'ensemble ne peut pas être jugée sur ces données.
 - Les cellules à moins de 20 km de la côte sont interdites à l'optimiseur ; aucun couloir de sortie de port n'est modélisé.
+- **Les prévisions S3 sont construites à partir de la vérité** (perturbation d'oracle) : la causalité repose sur les statistiques d'erreur, pas sur le flux de données, et les prévisions successives sont indépendantes entre elles.
+- **La polaire sous 10 nœuds** et le secteur lent vent arrière masqué sont des hypothèses du client / des défauts connus du VPP.
+- **Une seule année de météo (2015)** : la variabilité saisonnière et interannuelle n'est pas échantillonnée.
 
 ## Par où commencer {#path}
 1. Overview : lisez le résumé et les pastilles ; notez le classement par regret.
@@ -81,3 +98,4 @@ Tous les nombres ci-dessous sont des hypothèses à remplacer par des données r
 - **S0** - grille, unités et conventions de vent, polaire synthétique, fichier de distance signée à la côte.
 - **S1** - météo synthétique avec prévisions causales, noyau DP, enveloppe de puissance, simulateur en boucle fermée, B0 / B1 / oracle, premier chiffre de regret.
 - **S2** - réduction d'ensemble et DP à deux étages avec CVaR, raffineur continu, cet inspecteur. Résultats : le raffineur gagne ; l'ensemble ne gagne pas encore, à cause de la météo synthétique (voir ENS).
+- **S3** - données réelles : vérité ERA5 2015, modèle d'erreur de prévision échangeable, polaire BETA du client avec réparations et masques VPP, stencil à macro-arcs, valeur terminale climatologique ; l'inspecteur gagne l'onglet Polar et le support ERA5.
