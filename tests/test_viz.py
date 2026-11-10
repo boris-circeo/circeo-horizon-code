@@ -242,7 +242,8 @@ def test_year_long_export_size_and_seasons_data(tmp_path):
     runs, recs = {}, {}
     for k in range(6):
         rp = RecordingPolicy(HoldAtPointPolicy(x0 + 1e5 * (k % 3), y0 + 8e4 * (k // 3)))
-        runs["Oracle" if k == 0 else f"B0_{k}"] = run_mission(rp, wx, truth, (-10.0, 47.0), T, pm, coast)
+        name = "Oracle" if k == 0 else f"B0_{k}"
+        runs[name] = run_mission(rp, wx, truth, (-10.0, 47.0), T, pm, coast)
         recs["Oracle" if k == 0 else f"B0_{k}"] = rp.records
     data = export_backtest([SeedRun(1, truth, runs, wx, recs)], coast, start_lonlat=(-10.0, 47.0),
                            fc_horizon_days=1.0, polar=polar, weather_kind="era5")
