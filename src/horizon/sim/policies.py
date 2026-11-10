@@ -178,12 +178,14 @@ class DeterministicMPCPolicy:
         self.d_min = d_min_m
         self.reward_model = reward_model
         self._stencil = build_stencil(coast.grid, dt_s)
+        self.last_result = None  # DPResult of the latest plan (read by the S2 refiner wrapper)
 
     def plan(self, t_s, x, y, provider):
         n = max(int(np.ceil(min(self.horizon_s, provider.mission_end_s - t_s) / self.dt_s)), 1)
         ens = provider.forecast(issue_s=t_s, horizon_s=n * self.dt_s, n_members=1, dt_s=self.dt_s)
         res = solve_dp(ens.member(0), t_s, n, self.dt_s, self.polar, self.hold, self.coast,
                        d_min=self.d_min, stencil=self._stencil, reward_model=self.reward_model)
+        self.last_result = res
         j0, i0 = _nearest_cell(self.coast.grid, np.isfinite(res.V[0]), x, y)
         return _plan_from_path(self.coast.grid, res.path(j0, i0, 0), t_s, self.dt_s,
                                float(res.V[0, j0, i0]))
