@@ -52,16 +52,23 @@ def resample_wind(wind: WindField, times_s: np.ndarray) -> np.ndarray:
 
 @dataclass(frozen=True)
 class Path:
-    """Forward-extracted route; one entry per arc.
+    """Forward-extracted route, expanded to one entry per DP step.
+
+    A macro arc spanning ``m`` steps contributes ``m`` consecutive entries sharing ``offset``,
+    ``speed`` and ``heading``; its positions advance linearly (fractional cell indices) and its
+    energy is split equally over its sub-steps. For one-step arcs everything is integer-valued.
 
     Attributes
     ----------
-    k, j, i : ndarray int (n,)  Source node (time index, row, column) of each arc.
-    offset : ndarray int (n,)  Stencil index (0 = hold).
-    speed : ndarray float (n,)  [m/s]  Ground speed ``length / dt`` (0 for hold).
+    k : ndarray int (n,)  DP step index of each entry.
+    j, i : ndarray float (n,)  Row / column (fractional) at the start of the step.
+    offset : ndarray int (n,)  Stencil index of the arc (0 = hold).
+    speed : ndarray float (n,)  [m/s]  Ground speed ``length / (span dt)`` (0 for hold).
     heading : ndarray float (n,)  [deg]  Mean true heading (NaN for hold).
-    reward : ndarray float (n,)  [kWh]  ``V[k, c] - V[k+1, c']`` (arc energy).
-    j_end, i_end : ndarray int (n,)  Destination cell.
+    reward : ndarray float (n,)  [kWh]  Arc energy ``V[k] - V[k+m]`` divided by ``m``.
+    j_end, i_end : ndarray float (n,)  Row / column (fractional) at the end of the step.
+    arc_k, arc_j, arc_i, arc_offset, arc_span : ndarray int (n_arcs,)
+        Arc-level source node, stencil index and span.
     """
 
     k: np.ndarray
@@ -73,6 +80,11 @@ class Path:
     reward: np.ndarray
     j_end: np.ndarray
     i_end: np.ndarray
+    arc_k: np.ndarray
+    arc_j: np.ndarray
+    arc_i: np.ndarray
+    arc_offset: np.ndarray
+    arc_span: np.ndarray
 
     @property
     def energy_kwh(self) -> float:
@@ -116,21 +128,31 @@ class DPResult:
         st = self.stencil
         if k0 >= self.n_steps or self.policy[k0, j0, i0] < 0:
             raise ValueError("no feasible route from the start node")
-        ks, js, is_, offs, spd, hdg, rew, je, ie = ([] for _ in range(9))
+        cols = {n: [] for n in ("k", "j", "i", "offset", "speed", "heading", "reward", "j_end",
+                                "i_end", "ak", "aj", "ai", "ao", "am")}
         j, i = int(j0), int(i0)
-        for k in range(k0, self.n_steps):
+        k = int(k0)
+        while k < self.n_steps:
             s = int(self.policy[k, j, i])
             if s < 0:
                 break
+            m = int(st.span[s])
             jn, in_ = j + int(st.dj[s]), i + int(st.di[s])
-            ks.append(k), js.append(j), is_.append(i), offs.append(s)
-            spd.append(float(st.length_m[j, i, s]) / st.dt_s)
-            hdg.append(float(st.heading_deg[j, i, s]))
-            rew.append(float(self.V[k, j, i]) - float(self.V[k + 1, jn, in_]))
-            je.append(jn), ie.append(in_)
-            j, i = jn, in_
-        return Path(np.array(ks), np.array(js), np.array(is_), np.array(offs), np.array(spd),
-                    np.array(hdg), np.array(rew), np.array(je), np.array(ie))
+            r = (float(self.V[k, j, i]) - float(self.V[k + m, jn, in_])) / m
+            spd = float(st.length_m[j, i, s]) / (m * st.dt_s)
+            hdg = float(st.heading_deg[j, i, s])
+            for q in range(m):
+                f0, f1 = q / m, (q + 1) / m
+                for name, val in (("k", k + q), ("j", j + f0 * (jn - j)), ("i", i + f0 * (in_ - i)),
+                                  ("offset", s), ("speed", spd), ("heading", hdg), ("reward", r),
+                                  ("j_end", j + f1 * (jn - j)), ("i_end", i + f1 * (in_ - i))):
+                    cols[name].append(val)
+            cols["ak"].append(k), cols["aj"].append(j), cols["ai"].append(i)
+            cols["ao"].append(s), cols["am"].append(m)
+            j, i, k = jn, in_, k + m
+        a = {n: np.array(v) for n, v in cols.items()}
+        return Path(a["k"], a["j"], a["i"], a["offset"], a["speed"], a["heading"], a["reward"],
+                    a["j_end"], a["i_end"], a["ak"], a["aj"], a["ai"], a["ao"], a["am"])
 
     def value_at(self, x, y, k) -> np.ndarray:
         """Bilinear value [kWh] at projected points ``(x, y)`` [m] and time index ``k``.
@@ -158,7 +180,7 @@ class DPResult:
 
 def solve_dp(wind: WindField, t0_s: float, n_steps: int, dt_s: float, polar: PolarTable,
              hold_curve: HoldCurve, coast: CoastModel, terminal=None, d_min: float = 20e3,
-             u_bounds=(0.5, 8.0), stencil: Stencil | None = None,
+             u_bounds=(0.5, 8.0), stencil: Stencil | None = None, max_span: int = 2,
              reward_model: str = "envelope", envelope: EnvelopeTable | None = None) -> DPResult:
     """Deterministic backward DP maximising energy over ``n_steps`` steps of ``dt_s``.
 
@@ -180,6 +202,10 @@ def solve_dp(wind: WindField, t0_s: float, n_steps: int, dt_s: float, polar: Pol
     d_min : float  [m]  Minimum distance to coast (DES-860 A.1).
     u_bounds : tuple  [m/s]  Allowed ground speed ``(u_min, u_max)``.
     stencil : Stencil, optional  Precomputed (must match grid, ``dt_s``, ``u_bounds``).
+    max_span : int
+        Maximum DP steps spanned by one arc when ``stencil`` is not given (default 2; 3 gives
+        ~3 % more energy and finer headings at ~2x the cost; 1 = plain one-step ring). Arcs
+        overshooting the horizon end are forbidden.
     reward_model : {"envelope", "direct"}
         ``"envelope"`` (default): arc reward = upper concave envelope of the polar at the arc's
         ground velocity in the wind frame, tack mixtures penalised by ``hold_curve.f_avail``;
@@ -194,7 +220,7 @@ def solve_dp(wind: WindField, t0_s: float, n_steps: int, dt_s: float, polar: Pol
     grid = coast.grid
     if wind.grid != grid:
         raise ValueError("wind and coast must share the same grid")
-    st = stencil if stencil is not None else build_stencil(grid, dt_s, u_bounds)
+    st = stencil if stencil is not None else build_stencil(grid, dt_s, u_bounds, max_span=max_span)
     times = t0_s + dt_s * np.arange(n_steps + 1)
     uv = np.ascontiguousarray(resample_wind(wind, times))
     nav = np.ascontiguousarray(coast.sdf >= d_min)
@@ -218,6 +244,7 @@ def solve_dp(wind: WindField, t0_s: float, n_steps: int, dt_s: float, polar: Pol
         V, policy, uv, st.di, st.dj, st.length_m, st.heading_deg, ok, nav,
         polar.p, np.array(polar.axis_params), float(polar.u[-1]),
         np.ascontiguousarray(hold_curve.p_hold, dtype=np.float64),
-        float(hold_curve.tws[0]), hold_d, float(dt_s), mode, env_t, env_ax,
+        float(hold_curve.tws[0]), hold_d, float(dt_s), mode, env_t, env_ax, st.span,
+        np.ascontiguousarray(0.5 * (uv[:-1] + uv[1:])), st.sin_h, st.cos_h,
     )
     return DPResult(V, policy, st, times, grid, nav)

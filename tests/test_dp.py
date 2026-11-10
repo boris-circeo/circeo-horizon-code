@@ -7,13 +7,26 @@ import pytest
 from scipy.interpolate import RegularGridInterpolator
 
 from horizon.core import wind as W
-from horizon.dp import build_stencil, solve_dp
+from horizon.dp import build_stencil as _build_stencil
+from horizon.dp import solve_dp as _solve_dp
 from horizon.dp.solver import _envelope_for
 from horizon.geo.coast import CoastModel, signed_distance
 from horizon.geo.grid import Grid
 from horizon.polar import PolarTable, hold_power_curve, synthetic_polar
 from horizon.polar.envelope import build_envelope
 from horizon.weather.fields import WindField
+
+
+def solve_dp(*a, **k):
+    """One-step-arc DP (the original semantics); macro arcs are tested separately."""
+    k.setdefault("max_span", 1)
+    return _solve_dp(*a, **k)
+
+
+def build_stencil(*a, **k):
+    k.setdefault("max_span", 1)
+    return _build_stencil(*a, **k)
+
 
 EPOCH = np.datetime64("2026-01-01T00:00:00", "s")
 H = 3600.0
@@ -153,8 +166,8 @@ def test_coast_avoidance_and_land(polar, hold):
     js, is_ = np.where(res.nav)
     for q in rng.choice(js.size, 40, replace=False):
         p = res.path(js[q], is_[q])
-        x0, y0 = g.x[p.i], g.y[p.j]
-        x1, y1 = g.x[p.i_end], g.y[p.j_end]
+        x0, y0 = (g.x0 + g.dx * p.i), (g.y0 + g.dx * p.j)
+        x1, y1 = (g.x0 + g.dx * p.i_end), (g.y0 + g.dx * p.j_end)
         for f in (0.0, 0.25, 0.5, 0.75, 1.0):
             assert np.all(coast.sdf_at(x0 + f * (x1 - x0), y0 + f * (y1 - y0)) >= 60e3 - 1.0)
 
@@ -179,8 +192,8 @@ def test_uniform_wind_racetrack_energy(polar, hold, model):
             hd, sp = st.heading_deg[j0, i0, s], st.length_m[j0, i0, s] / dt
             if model == "direct":
                 arcs.append(polar(10.0, W.twa(u, v, hd), sp) * dt / H)
-            else:  # wind from the north: v_par = -v_north, v_perp = |v_east|
-                r = interp([[10.0, -sp * np.cos(np.radians(hd)), abs(sp * np.sin(np.radians(hd)))]])
+            else:  # wind from the north: upwind = north, v_par = v_north, v_perp = |v_east|
+                r = interp([[10.0, sp * np.cos(np.radians(hd)), abs(sp * np.sin(np.radians(hd)))]])
                 arcs.append(float(r[0]) * dt / H if np.isfinite(r[0]) else -np.inf)
     if model == "direct":
         e_hold = float(np.interp(10.0, hold.tws, hold.p_hold)) * dt / H
@@ -192,7 +205,7 @@ def test_uniform_wind_racetrack_energy(polar, hold, model):
     p = res.path(j0, i0)
     assert abs(p.energy_kwh - res.V[0, j0, i0]) < 1e-2 * max(1.0, abs(p.energy_kwh)) + 1.0
     if model == "direct":  # (the envelope may legitimately mix tacks, i.e. sit still)
-        dy = g.y[p.j_end[-1]] - g.y[p.j[0]]  # wind blows toward south => upwind = north
+        dy = g.dx * (p.j_end[-1] - p.j[0])  # wind blows toward south => upwind = north
         assert dy < 0.1 * np.sum(p.speed * dt)
         assert np.all(np.abs(W.twa(u, v, p.heading[p.offset > 0]) - 90.0) < 30.0)
 
@@ -268,7 +281,7 @@ def test_path_consistency(polar, hold, model):
     p = res.path(g.ny // 2, g.nx // 2)
     assert p.k.tolist() == list(range(n))
     for a in range(n):
-        k, j, i, s = p.k[a], p.j[a], p.i[a], p.offset[a]
+        k, j, i, s = p.k[a], int(p.j[a]), int(p.i[a]), p.offset[a]
         jj, ii = j + st.dj[s], i + st.di[s]
         assert (jj, ii) == (p.j_end[a], p.i_end[a])
         pts = ((j, i),) if s == 0 else ((j, i), (jj, ii))
@@ -308,7 +321,7 @@ def test_terminal_and_wind_resampling(polar, hold):
     b = solve_dp(w_fine, 0.0, n, dt, polar, hold, open_sea(g), terminal=term)
     np.testing.assert_allclose(a.V, b.V, rtol=1e-6)
     p = a.path(g.ny // 2, g.nx - 9)
-    assert g.x[p.i_end[-1]] > g.x[p.i[0]]  # heads east toward the terminal reward
+    assert p.i_end[-1] > p.i[0]  # heads east toward the terminal reward
 
 
 # ---------------------------------------------------------- (iv) grid refinement x2
@@ -380,6 +393,94 @@ def test_toy_front_anticipation(polar, hold):
     greedy = _greedy_energy(wind, n, dt, polar, hold, coast, j0, i0)
     assert p.energy_kwh > 1.3 * greedy
     # anticipation: the ship moves toward the front's track (north) before the front arrives
-    assert g.y[p.j_end[2]] - g.y[j0] > 0.5 * (y_b - y_s)
+    assert (g.y0 + g.dx * p.j_end[2]) - g.y[j0] > 0.5 * (y_b - y_s)
     # no chase: the ship does not follow the front east at the front's speed
-    assert g.x[p.i_end[-1]] - x_s < 0.5 * c * n * dt
+    assert (g.x0 + g.dx * p.i_end[-1]) - x_s < 0.5 * c * n * dt
+
+
+# ------------------------------------------------------------------ macro (multi-step) arcs
+def test_macro_stencil_properties():
+    g = centre_grid()
+    assert _build_stencil(g, 3 * H).span.max() == 2  # library default
+    st = _build_stencil(g, 3 * H, max_span=3)
+    assert 60 <= st.n_arcs <= 130
+    assert set(np.unique(st.span)) == {1, 2, 3}
+    assert st.angular_resolution_deg <= 10.0
+    # speed bounds on ground length / (span dt)
+    u = st.length_m / (st.span[None, None, :] * st.dt_s)
+    ok = st.valid[..., 1:]
+    assert u[..., 1:][ok].min() >= 0.5 and u[..., 1:][ok].max() <= 8.0
+    # the 8 one-step neighbours are present and the set is symmetric under 90 deg rotation
+    arcs = set(zip(st.di.tolist(), st.dj.tolist(), st.span.tolist(), strict=True))
+    for a in (-1, 0, 1):
+        for b in (-1, 0, 1):
+            if (a, b) != (0, 0):
+                assert (a, b, 1) in arcs
+    assert all((-b, a, m) in arcs for a, b, m in arcs)
+
+
+def test_macro_uniform_wind_path_and_horizon_end(polar, hold):
+    g = centre_grid()
+    n, dt = 7, 3 * H  # 7 is not a multiple of 3: shorter arcs close the horizon
+    wind = uniform_wind(g, 0.0, -10.0, n + 1)
+    res = _solve_dp(wind, 0.0, n, dt, polar, hold, open_sea(g), max_span=3)
+    j0, i0 = g.ny // 2, 2
+    p = res.path(j0, i0)
+    assert p.k.tolist() == list(range(n)) and p.arc_span.sum() == n
+    np.testing.assert_allclose(p.i[1:], p.i_end[:-1])  # continuous track
+    assert abs(p.energy_kwh - res.V[0, j0, i0]) < 1.0
+    # steady wind: arc energy = span * reward(velocity) from the envelope table
+    env = _envelope_for(polar, hold.f_avail)
+    interp = RegularGridInterpolator(
+        (env.tws0 + env.dtws * np.arange(env.reward.shape[0]), env.v_par_axis(),
+         env.v_perp_axis()), env.reward, bounds_error=False)
+    st = res.stencil
+    for k, j, i, s, m in zip(p.arc_k, p.arc_j, p.arc_i, p.arc_offset, p.arc_span, strict=True):
+        psi = np.radians(st.heading_deg[j, i, s]) if s else 0.0
+        sp = st.length_m[j, i, s] / (m * dt)
+        r = float(interp([[10.0, sp * np.cos(psi), abs(sp * np.sin(psi))]])[0]) * dt / H * m
+        assert res.V[k, j, i] - res.V[k + m, j + st.dj[s], i + st.di[s]] == pytest.approx(
+            r, rel=1e-3, abs=0.1)
+    # macro arcs are at least as good as the one-step ring (same hold/neighbour arcs included)
+    one = _solve_dp(wind, 0.0, n, dt, polar, hold, open_sea(g), max_span=1)
+    assert res.V[0, j0, i0] >= one.V[0, j0, i0] * 0.99
+
+
+def test_macro_coast_clearance(polar, hold):
+    g = Grid.from_bbox(-12, 0, 38, 46, 40e3)
+    land = np.zeros(g.shape, bool)
+    land[g.ny // 2 - 3: g.ny // 2 + 3, g.nx // 2 - 4: g.nx // 2 + 4] = True
+    coast = CoastModel(g, signed_distance(g, land))
+    n, dt = 9, 3 * H
+    res = _solve_dp(uniform_wind(g, 9.0, 0.0, n + 1), 0.0, n, dt, polar, hold, coast, d_min=60e3,
+                    max_span=3)
+    assert np.all(res.V[:, land] == -np.inf)
+    rng = np.random.default_rng(0)
+    js, is_ = np.where(res.nav)
+    for q in rng.choice(js.size, 40, replace=False):
+        p = res.path(js[q], is_[q])
+        x0, y0 = g.x0 + g.dx * p.i, g.y0 + g.dx * p.j
+        x1, y1 = g.x0 + g.dx * p.i_end, g.y0 + g.dx * p.j_end
+        for f in (0.0, 0.5, 1.0):
+            assert np.all(coast.sdf_at(x0 + f * (x1 - x0), y0 + f * (y1 - y0)) >= 60e3 - 1.0)
+
+
+def test_macro_orientation_and_beam_reach(polar, hold):
+    """Uniform wind from many directions: tracks follow near-beam headings, not the grid axes."""
+    g = centre_grid()
+    n, dt = 6, 3 * H
+    heads = []
+    vals = []
+    for d in (0, 11, 37, 45, 62, 90, 100, 153, 200, 290):
+        uu, vv = W.uv_from_met(10.0, d)
+        res = _solve_dp(uniform_wind(g, uu, vv, n + 1), 0.0, n, dt, polar, hold, open_sea(g),
+                        max_span=3)
+        p = res.path(g.ny // 2, g.nx // 2)
+        mv = p.offset > 0
+        twa = W.twa(uu, vv, p.heading[mv])
+        assert mv.sum() >= 3 and np.all(np.abs(twa - 93.0) < 12.0), (d, twa)
+        heads += list(p.heading[mv])
+        vals.append(float(res.V[0, g.ny // 2, g.nx // 2]))
+    off_axis = [h for h in heads if min(h % 45, 45 - h % 45) > 5.0]
+    assert len(off_axis) >= 10  # genuinely off the 8 grid directions
+    assert max(vals) / min(vals) - 1 < 0.07  # was 5.8 % -> lattice-limited, see docs

@@ -59,7 +59,8 @@ def test_psi_is_twa_from_apparent_wind_consistency(path):
 def test_regrid_exact_at_native_nodes():
     raw = read_beta_file(DATA / Path(FILES[5]).name)  # 20 kn
     assert raw["tws_kn"] == 20
-    t = load_beta_polar(DATA, tws_kn=[20, 22], twa=raw["psi_deg"], u=raw["u"], repair_holes=False)
+    t = load_beta_polar(DATA, tws_kn=[20, 22], twa=raw["psi_deg"], u=raw["u"], repair_holes=False,
+                        vpp_bug_mask=None)
     got = t.p[0]
     want = raw["power"]
     assert np.array_equal(np.isnan(got), np.isnan(want))
@@ -93,9 +94,10 @@ def test_feasibility_mask_and_limits(beta):
 @needs_data
 def test_hole_repair_removes_hold_dents(beta):
     h = hold_power_curve(beta, include_stopped=True)
-    for kn in (28, 32, 46):  # holes in the raw data
-        assert h.u_star[kn] == 0.0 and h.p_hold[kn] > 2900
-    assert np.all(h.p_hold[22:] > 2900)
+    # no dents left at the former raw-data holes: hold power is monotone-ish from 18 kn
+    d = np.diff(h.p_hold[18:51])
+    assert np.all(d > -60.0)
+    assert np.all(h.p_hold[26:] > 2400)
 
 
 @needs_data
@@ -110,8 +112,11 @@ def test_peak_locations(beta, capsys):
     by = {r[0]: r for r in rep}
     for kn in (10, 14, 20):  # light/moderate: beam-ish reach at U 1.5-3.5
         assert 80 <= by[kn][2] <= 100 and 1.5 <= by[kn][3] <= 4.0
-    for kn in (24, 30, 50):  # strong wind: stopped (U ~ 0), dead downwind, ~3 MW
-        assert by[kn][2] >= 170 and by[kn][3] <= 0.25 and by[kn][1] > 2950
+    for kn in (24, 30, 50):  # strong wind: reaching, sailing; ~3 MW
+        assert 80 <= by[kn][2] <= 130 and by[kn][3] >= 2.5 and by[kn][1] > 2900
+    # VPP-bug sector (client 2026-11-10 12:10): slow downwind production is masked out
+    sector = (beta.twa[:, None] >= 137.5) & (beta.u[None, :] <= 2.25)  # interior of the mask
+    assert not np.any(beta.feasible[10:][:, sector])
     # no cut-out in the data
     assert np.nanmax(beta.p[50]) > 2900
 
@@ -154,11 +159,8 @@ def test_envelope_above_direct_and_hold(beta, env_beta):
     # envelope(0) captures every single hold mode (tack alternation, stopped ship)
     good = np.isfinite(p0)
     assert np.all(p0[good] >= h.p_hold[good] - 1.0)
-    # strong wind: stopped downwind is the best hold (up to isolated data holes)
-    stopped = [kn for kn in range(8, 51) if h.u_star[kn] == 0.0 and h.twa_b[kn] == 180.0]
-    assert len(stopped) >= 30
-    for kn in (22, 24, 26, 40, 50):
-        assert h.u_star[kn] == 0.0 and abs(p0[kn] - h.p_hold[kn]) < 1.0
+    # the masked VPP-bug sector can no longer provide a "stopped downwind" hold
+    assert not any(h.u_star[kn] == 0.0 and h.twa_b[kn] >= 135.0 for kn in range(10, 51))
     assert np.all(env.e[:, ip, 0][good] <= 3000.0 + 1.0)
     # without stopped modes the tack-alternation hold is not better
     h0 = hold_power_curve(beta)

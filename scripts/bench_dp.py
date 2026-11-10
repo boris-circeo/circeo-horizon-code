@@ -24,10 +24,10 @@ def synth_wind(grid, n, dt):
     return WindField(grid, EPOCH, t, uv)
 
 
-def run(label, grid, coast, n, dt, polar, hold):
+def run(label, grid, coast, n, dt, polar, hold, max_span=1):
     wind = synth_wind(grid, n, dt)
     t0 = time.perf_counter()
-    st = build_stencil(grid, dt)
+    st = build_stencil(grid, dt, max_span=max_span)
     t_st = time.perf_counter() - t0
     solve_dp(wind, 0.0, 1, dt, polar, hold, coast, stencil=st)  # JIT warm-up
     t0 = time.perf_counter()
@@ -44,6 +44,8 @@ def main():
     coast = CoastModel(g, np.full(g.shape, 1e6, np.float32))  # open sea: worst case
     for n in (40, 104):
         run(f"basin 40 km, 3 h, {n} steps", g, coast, n, 3 * 3600.0, polar, hold)
+    for ms in (1, 2, 3):  # macro arcs, 15 d, single scenario (default span 2)
+        run(f"basin 40 km, 3 h, 120 steps, span {ms}", g, coast, 120, 3 * 3600.0, polar, hold, ms)
     # 10 km, 1 h, 48 steps on a 1000x1000 km subdomain
     c10 = build_basin_coast(10e3)
     sub = Grid(c10.grid.crs_wkt, -500e3, -500e3, 10e3, 101, 101)

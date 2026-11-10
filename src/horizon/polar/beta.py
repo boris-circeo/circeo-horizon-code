@@ -219,6 +219,7 @@ def _smoothstep(x):
 
 def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_kn: float = 7.0,
                     repair_holes: bool = True,
+                    vpp_bug_mask: tuple[float, float] | None = (135.0, 2.5),
                     p_bounds: tuple[float, float] = BETA_P_BOUNDS_KW) -> PolarTable:
     """Load the client's BETA power polars onto uniform ``(TWS, TWA, U)`` axes.
 
@@ -240,6 +241,14 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
         Fill optimiser-failure artefacts (see module docstring): NaNs inside the feasible U
         interval, isolated NaNs, and blocks feasible in both neighbouring TWS files. Genuinely
         unreachable states stay NaN. Default True (client answer 2026-11-10 12:02).
+    vpp_bug_mask : (float, float) or None  [deg, m/s]
+        ``(twa_min, u_max)``: native nodes with TWA >= ``twa_min`` and U <= ``u_max`` are declared
+        INVALID (not just NaN) before repair, so they are never refilled. Client statement
+        2026-11-10 12:10: the "stopped ship, dead downwind" high-power points and the producing
+        points around ~2 m/s downwind are a bug of the vessel VPP and must be ignored. The
+        sector bounds (135 deg, 2.5 m/s) are an orchestrator choice from inspection of the data
+        (spurious up to ~3 MW at U = 0.25 m/s, TWA 165-180, TWS >= 20 kn) -- to be confirmed.
+        ``None`` disables the mask.
     p_bounds : (float, float)  [kW]
         Sanity bounds applied to feasible values.
 
@@ -258,11 +267,22 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
     if not files:
         raise FileNotFoundError(f"no polar_BETA_TWS=*.csv in {directory}")
     nodes = [read_beta_file(f) for f in files]
+    n_bug = 0
+    if vpp_bug_mask is not None:
+        twa_min, u_bug = vpp_bug_mask
+        for n in nodes:
+            bad = (n["psi_deg"][:, None] >= twa_min - 1e-9) & (n["u"][None, :] <= u_bug + 1e-9)
+            bad = np.broadcast_to(bad, n["power"].shape) if bad.shape != n["power"].shape else bad
+            n_bug += int((bad & np.isfinite(n["power"])).sum())
+            n["bug"] = bad
+            n["power"] = np.where(bad, np.nan, n["power"])
     n_nan_native = int(sum(np.isnan(n["power"]).sum() for n in nodes))
     n_interval = n_isolated = 0
     if repair_holes:
         for n in nodes:
             n["power"], a, b = _repair_native(n["power"])
+            if "bug" in n:  # never refill the VPP-bug sector
+                n["power"] = np.where(n["bug"], np.nan, n["power"])
             n_interval += a
             n_isolated += b
     kn_nodes = np.array([n["tws_kn"] for n in nodes], dtype=float)
@@ -318,6 +338,10 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
             "u_above_8": "infeasible",
         },
         "cutin_kn": cutin_kn,
+        "vpp_bug_mask": None if vpp_bug_mask is None else {
+            "twa_min_deg": vpp_bug_mask[0], "u_max_ms": vpp_bug_mask[1],
+            "masked_native_nodes": n_bug,
+            "reason": "client 2026-11-10: stopped/slow downwind production is a VPP bug"},
         "repair": {"native_nan": n_nan_native, "filled_interval": n_interval,
                    "filled_isolated": n_isolated, "filled_tws_block_regridded": n_block,
                    "kept_infeasible_native": n_nan_native - n_interval - n_isolated},

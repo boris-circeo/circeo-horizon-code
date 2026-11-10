@@ -123,10 +123,12 @@ def run(scen, w, short, polar, hold, sea, risk=None, **kw):
 
 
 def test_single_scenario_equals_deterministic(grid, sea, polar, hold):
+    # one-step arcs: macro arcs cannot straddle the split node, so equality only holds for span 1
     wind = smooth_wind(grid, N_TOT)
-    ref = solve_dp(wind, 0.0, N_TOT, DT, polar, hold, sea)
+    st1 = build_stencil(grid, DT, max_span=1)
+    ref = solve_dp(wind, 0.0, N_TOT, DT, polar, hold, sea, stencil=st1)
     for gamma in (0.0, 0.7):
-        r = run([wind], [1.0], wind, polar, hold, sea, RiskSpec(gamma, 0.2))
+        r = run([wind], [1.0], wind, polar, hold, sea, RiskSpec(gamma, 0.2), stencil=st1)
         fin = np.isfinite(ref.V[0])
         assert np.array_equal(fin, np.isfinite(r.v_t0))
         assert np.allclose(r.v_t0[fin], ref.V[0][fin], rtol=1e-6, atol=1e-3)
@@ -135,9 +137,11 @@ def test_single_scenario_equals_deterministic(grid, sea, polar, hold):
 
 def test_identical_scenarios_give_deterministic_value(grid, sea, polar, hold):
     wind = smooth_wind(grid, N_TOT)
-    ref = solve_dp(wind, 0.0, N_TOT, DT, polar, hold, sea)
+    st1 = build_stencil(grid, DT, max_span=1)  # see test_single_scenario_equals_deterministic
+    ref = solve_dp(wind, 0.0, N_TOT, DT, polar, hold, sea, stencil=st1)
     for gamma in (0.0, 0.5, 1.0):
-        r = run([wind] * 4, [0.1, 0.2, 0.3, 0.4], wind, polar, hold, sea, RiskSpec(gamma, 0.2))
+        r = run([wind] * 4, [0.1, 0.2, 0.3, 0.4], wind, polar, hold, sea, RiskSpec(gamma, 0.2),
+                stencil=st1)
         fin = np.isfinite(ref.V[N_SPLIT])
         assert np.allclose(r.v_bar[fin], ref.V[N_SPLIT][fin], rtol=1e-5, atol=1e-2)
         assert np.allclose(r.v_t0[fin], ref.V[0][fin], rtol=1e-5, atol=1e-2)

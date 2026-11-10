@@ -67,26 +67,78 @@ def _hold_power(hold_p, tws0, dtws, tws):  # pragma: no cover - jitted
     return hold_p[i] * (1.0 - a) + hold_p[i + 1] * a
 
 
+@njit(cache=True)
+def _wind_mid(uvm, k, fj, fi):  # pragma: no cover - jitted
+    """Wind (u, v) [m/s] at fractional cell ``(fj, fi)``: bilinear in space on ``uvm[k]``."""
+    ny, nx = uvm.shape[1], uvm.shape[2]
+    j0 = min(int(fj), ny - 2)
+    i0 = min(int(fi), nx - 2)
+    b = fj - j0
+    a = fi - i0
+    w00 = (1 - a) * (1 - b)
+    w01 = a * (1 - b)
+    w10 = (1 - a) * b
+    w11 = a * b
+    u = (w00 * uvm[k, j0, i0, 0] + w01 * uvm[k, j0, i0 + 1, 0]
+         + w10 * uvm[k, j0 + 1, i0, 0] + w11 * uvm[k, j0 + 1, i0 + 1, 0])
+    v = (w00 * uvm[k, j0, i0, 1] + w01 * uvm[k, j0, i0 + 1, 1]
+         + w10 * uvm[k, j0 + 1, i0, 1] + w11 * uvm[k, j0 + 1, i0 + 1, 1])
+    return u, v
+
+
+@njit(cache=True)
+def _arc_power(mode, u, v, sp, sn, cs, spd, P, ax, u_max_table, env, env_ax):  # pragma: no cover
+    """Power [kW] of an arc: wind ``(u, v)`` of speed ``sp``, heading (sin, cos) ``(sn, cs)``,
+    ground speed ``spd``."""
+    if mode == 1:
+        vx = spd * sn
+        vy = spd * cs
+        if sp > 0.0:
+            vpar = -(vx * u + vy * v) / sp
+            vperp = (vx * v - vy * u) / sp
+        else:
+            vpar = vx
+            vperp = vy
+        return envelope_lookup(env, env_ax, sp, vpar, vperp)
+    if spd > u_max_table:
+        return np.nan
+    if sp > 0.0:
+        c = -(u * sn + v * cs) / sp
+        twa = np.degrees(np.arccos(min(max(c, -1.0), 1.0)))
+    else:
+        twa = 0.0
+    return trilinear_scalar(P, ax[0], ax[1], ax[2], ax[3], ax[4], ax[5], sp, twa, spd)
+
+
 @njit(cache=True, parallel=True)
 def backward_recursion(V, policy, uv, di, dj, length, heading, ok, nav, P, ax, u_max_table,
-                       hold_p, hold_tws0, hold_dtws, dt_s, mode, env,
-                       env_ax):  # pragma: no cover - jitted
+                       hold_p, hold_tws0, hold_dtws, dt_s, mode, env, env_ax,
+                       span, uvm, sin_h, cos_h):  # pragma: no cover - jitted
     """Fill ``V[:n]`` and ``policy`` backwards from ``V[n]`` (in place).
+
+    ``V[k, c] = max_s ( sum_{q < m_s} r_q + V[k + m_s, c + d_s] )`` where an arc spanning
+    ``m_s`` steps earns ``m_s`` times the polar/envelope power at the wind of the arc's
+    spatio-temporal midpoint (bilinear in space, middle of the ``m_s`` steps; second-order
+    midpoint rule, DES-860 §6.1.1) with ground speed ``length / (m_s dt)``. For ``m_s = 1`` the
+    wind is the mean of the two end cells.
+    Arcs that would end after the horizon (``k + m_s > n``) are forbidden.
 
     Parameters
     ----------
     V : float32 (n+1, Ny, Nx)  [kWh]  ``V[n]`` holds the terminal value (-inf where not navigable).
     policy : int16 (n, Ny, Nx)  Output stencil index (-1 = no feasible arc).
     uv : float32 (n+1, Ny, Nx, 2)  [m/s]  Wind at the DP time nodes.
-    di, dj : int32 (K,)  Stencil offsets (index 0 = hold).
-    length, heading : float32 (Ny, Nx, K)  [m], [deg]  Geodesic arc geometry.
+    di, dj, span : int32 (K,)  Stencil offsets and spans (index 0 = hold, span 1).
+    length, heading : float32 (Ny, Nx, K)  [m], [deg]  Geodesic arc geometry (total length).
     ok : bool (Ny, Nx, K)  Arc feasibility; nav : bool (Ny, Nx)  navigable cells.
     P : float32 polar table; ax : 6 axis parameters (``PolarTable.axis_params``).
-    u_max_table : float  [m/s]  Largest tabulated ship speed; faster arcs are invalid.
+    u_max_table : float  [m/s]  Largest tabulated ship speed (direct mode).
     hold_p, hold_tws0, hold_dtws : 1-D hold curve [kW] and its uniform TWS axis [m/s].
     dt_s : float  [s]
     mode : int  0 = direct single-heading reward, 1 = velocity-space envelope (hold is v = 0).
     env, env_ax : envelope table (nTWS, nvp, nvq) [kW] and its axes (EnvelopeTable.axes).
+    uvm : float32 (n, Ny, Nx, 2)  [m/s]  Wind averaged over each step (mean of nodes k, k+1).
+    sin_h, cos_h : float64 (Ny, Nx, K)  Sine / cosine of the arc heading.
     """
     n = V.shape[0] - 1
     ny, nx = V.shape[1], V.shape[2]
@@ -115,42 +167,44 @@ def backward_recursion(V, policy, uv, di, dj, length, heading, ok, nav, P, ax, u
                 for s in range(1, k_arcs):
                     if not ok[j, i, s]:
                         continue
+                    m = span[s]
+                    if k + m > n:
+                        continue
                     jj = j + dj[s]
                     ii = i + di[s]
-                    vn = V[k + 1, jj, ii]
+                    vn = V[k + m, jj, ii]
                     if not np.isfinite(vn):
                         continue
-                    u = 0.25 * (uv[k, j, i, 0] + uv[k + 1, j, i, 0]
-                                + uv[k, jj, ii, 0] + uv[k + 1, jj, ii, 0])
-                    v = 0.25 * (uv[k, j, i, 1] + uv[k + 1, j, i, 1]
-                                + uv[k, jj, ii, 1] + uv[k + 1, jj, ii, 1])
-                    sp = np.hypot(u, v)
-                    spd = length[j, i, s] / dt_s
-                    psi = np.radians(heading[j, i, s])
-                    if mode == 1:
-                        # ground velocity in the wind frame: v_par towards the wind source
-                        vx = spd * np.sin(psi)
-                        vy = spd * np.cos(psi)
-                        if sp > 0.0:
-                            vpar = -(vx * u + vy * v) / sp
-                            vperp = (vx * v - vy * u) / sp
-                        else:
-                            vpar = vx
-                            vperp = vy
-                        p = envelope_lookup(env, env_ax, sp, vpar, vperp)
+                    spd = length[j, i, s] / (m * dt_s)
+                    tot = 0.0
+                    if m == 1:
+                        psi = np.radians(heading[j, i, s])
+                        sn = np.sin(psi)
+                        cs = np.cos(psi)
+                        u = 0.25 * (uv[k, j, i, 0] + uv[k + 1, j, i, 0]
+                                    + uv[k, jj, ii, 0] + uv[k + 1, jj, ii, 0])
+                        v = 0.25 * (uv[k, j, i, 1] + uv[k + 1, j, i, 1]
+                                    + uv[k, jj, ii, 1] + uv[k + 1, jj, ii, 1])
+                        tot = _arc_power(mode, u, v, np.hypot(u, v), sn, cs, spd, P, ax,
+                                         u_max_table, env, env_ax)
                     else:
-                        if spd > u_max_table:
-                            continue
-                        if sp > 0.0:
-                            c = -(u * np.sin(psi) + v * np.cos(psi)) / sp
-                            twa = np.degrees(np.arccos(min(max(c, -1.0), 1.0)))
-                        else:
-                            twa = 0.0
-                        p = trilinear_scalar(P, ax[0], ax[1], ax[2], ax[3], ax[4], ax[5], sp,
-                                             twa, spd)
-                    if not np.isfinite(p):
+                        sn = sin_h[j, i, s]
+                        cs = cos_h[j, i, s]
+                        # spatio-temporal midpoint rule (DES-860 §6.1.1): wind at the arc
+                        # midpoint, at the middle of the m steps; reward = m * P(midpoint)
+                        fj = j + 0.5 * dj[s]
+                        fi = i + 0.5 * di[s]
+                        kq = k + (m - 1) // 2
+                        u, v = _wind_mid(uvm, kq, fj, fi)
+                        if m % 2 == 0:
+                            u2, v2 = _wind_mid(uvm, kq + 1, fj, fi)
+                            u = 0.5 * (u + u2)
+                            v = 0.5 * (v + v2)
+                        tot = m * _arc_power(mode, u, v, np.sqrt(u * u + v * v), sn, cs, spd, P,
+                                             ax, u_max_table, env, env_ax)
+                    if not np.isfinite(tot):
                         continue
-                    cand = p * dth + vn
+                    cand = tot * dth + vn
                     if cand > best:
                         best = cand
                         bs = s
