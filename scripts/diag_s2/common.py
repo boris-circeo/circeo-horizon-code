@@ -1,10 +1,11 @@
 import numpy as np
+
 from horizon.geo.coast import build_basin_coast
 from horizon.geo.grid import Grid
 from horizon.polar import hold_power_curve, synthetic_polar
 from horizon.polar.envelope import build_envelope
 from horizon.sim import DirectPowerModel, EnvelopePowerModel
-from horizon.weather.synthetic import SyntheticWeather
+
 EPOCH = np.datetime64("2026-01-01T00:00:00", "s")
 DAY = 86400.0
 START = (-6.5, 47.0)

@@ -1,12 +1,17 @@
 """H4b: how different are ENS decisions from B1_15d / control? v_bar vs control value-to-go at split."""
-import sys, pickle, numpy as np
+import pickle
+import sys
+
+import numpy as np
+
 sys.path.insert(0, "/home/claude/horizon/scripts/diag_s2")
 from common import *
 from scipy.stats import spearmanr
+
 from horizon.dp import build_stencil, solve_dp
-from horizon.dp.stochastic import solve_stochastic_dp, RiskSpec
+from horizon.dp.stochastic import RiskSpec, solve_stochastic_dp
 from horizon.ensemble import reduce_ensemble
-from horizon.sim.policies import _nearest_cell
+
 grid, coast, polar, hold, pm = setup()
 st = build_stencil(grid, 10800.0)
 wx = SyntheticWeather(grid, EPOCH, 30*DAY, seed=101)

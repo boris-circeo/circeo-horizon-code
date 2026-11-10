@@ -1,5 +1,8 @@
 """H4: plan optimism = predicted value at t0 - realised energy over the same window (S2 pickles)."""
-import pickle, numpy as np
+import pickle
+
+import numpy as np
+
 R = "/home/claude/horizon/outputs/s2_runs/"
 H = {"B1_5d": 5, "B1_15d": 15, "ENS_g0": 15, "ENS_g03": 15}
 print("policy seed  windows  pred[MWh] real[MWh] optimism[MWh] (pred/real-1)   [windows t<=15d, window = min(H, T-t)]")

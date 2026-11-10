@@ -1,10 +1,15 @@
 """H3/H5: 10-day missions, horizons NOT truncated at mission end (wrapper). Usage: h3_horizon.py SEED POL [POL...]"""
-import sys, json, time, numpy as np
+import json
+import sys
+import time
+
 sys.path.insert(0, "/home/claude/horizon/scripts/diag_s2")
 from common import *
-from horizon.sim import DeterministicMPCPolicy, OraclePolicy, run_mission, mission_metrics
+
+from horizon.sim import DeterministicMPCPolicy, OraclePolicy, run_mission
 from horizon.sim.policies_ens import EnsembleMPCPolicy
 from horizon.sim.simulator import ForecastProvider
+
 
 class NoTrunc:
     def __init__(self, pol): self.pol = pol

@@ -1,11 +1,16 @@
 """H1: ENS with all members == control and gamma=0 must reproduce the deterministic 15 d trunk."""
-import sys, numpy as np
+import sys
+
+import numpy as np
+
 sys.path.insert(0, "/home/claude/horizon/scripts/diag_s2")
 from common import *
+
 from horizon.sim import DeterministicMPCPolicy
 from horizon.sim.policies_ens import EnsembleMPCPolicy
 from horizon.sim.simulator import ForecastProvider
 from horizon.weather.fields import Ensemble
+
 
 class CloneWx:
     def __init__(self, wx): self._wx, self.grid = wx, wx.grid

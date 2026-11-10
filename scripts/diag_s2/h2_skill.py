@@ -1,7 +1,11 @@
 """H2: skill / spread / rank histogram of the synthetic ensemble (speed at sea cells)."""
-import sys, numpy as np, time
+import sys
+
+import numpy as np
+
 sys.path.insert(0, "/home/claude/horizon/scripts/diag_s2")
 from common import *
+
 grid, coast, polar, hold, pm = setup()
 sea = coast.sdf >= 100e3
 M = 12
