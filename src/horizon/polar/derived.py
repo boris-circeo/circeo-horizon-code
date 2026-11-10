@@ -157,6 +157,7 @@ def hold_power_curve(
     t_leg_s: float = 2700.0,
     k_leeway: float = 0.03,
     u_min: float = 0.5,
+    include_stopped: bool = False,
 ) -> HoldCurve:
     """Mean power in station-keeping by alternating beam-reach tacks (DES-860 §2.2.6, §2.6).
 
@@ -177,6 +178,13 @@ def hold_power_curve(
     t_leg_s : float  [s]  Productive leg duration (default 45 min).
     k_leeway : float  [-]  Leeway coefficient (default 0.03, CONVENTIONS §5).
     u_min : float  [m/s]  Smallest admissible leg speed.
+    include_stopped : bool
+        Also consider the stopped ship (``U = 0``, head to or down wind: zero velocity and zero
+        leeway, no manoeuvres, hence no ``f_avail``); chosen where better (``u_star = 0``,
+        ``twa_b`` = 0 or 180). Relevant for the real polar in strong wind. Default False
+        (synthetic behaviour unchanged).
+
+    Infeasible polar nodes (NaN) are never chosen; ``p_hold`` is NaN if none is feasible.
 
     Returns
     -------
@@ -187,16 +195,29 @@ def hold_power_curve(
     ws = polar.tws[:, None]
     theta = station_keeping_twa(cand[None, :], ws, k_leeway)  # (nTWS, nU)
     p = polar(ws, theta, cand[None, :])
-    k = np.argmax(p, axis=1)
+    k = np.argmax(np.where(np.isfinite(p), p, -np.inf), axis=1)
     rows = np.arange(polar.tws.size)
     theta_b = theta[rows, k]
-    p_beam = polar(polar.tws[:, None], 90.0, polar.u[None, :]).max(axis=1)
+    p_hold = fa * p[rows, k]
+    u_star = cand[k]
+    if include_stopped:
+        for th0 in (180.0, 0.0):
+            ps = polar(polar.tws, th0, 0.0)
+            better = np.isfinite(ps) & ~(ps <= np.where(np.isfinite(p_hold), p_hold, -np.inf))
+            p_hold = np.where(better, ps, p_hold)
+            theta_b = np.where(better, th0, theta_b)
+            u_star = np.where(better, 0.0, u_star)
+    with np.errstate(invalid="ignore"):
+        p_beam = np.nanmax(
+            np.where(np.isfinite(pb := polar(polar.tws[:, None], 90.0, polar.u[None, :])), pb,
+                     -np.inf), axis=1)
+    p_beam = np.where(np.isfinite(p_beam), p_beam, np.nan)
     return HoldCurve(
         tws=polar.tws.copy(),
-        p_hold=(fa * p[rows, k]).astype(np.float32),
+        p_hold=p_hold.astype(np.float32),
         twa_b=theta_b.astype(np.float32),
         twa_b_prime=theta_b.astype(np.float32),
-        u_star=cand[k].astype(np.float32),
+        u_star=u_star.astype(np.float32),
         p_beam=p_beam.astype(np.float32),
         f_avail=fa,
     )

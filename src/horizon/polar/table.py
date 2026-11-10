@@ -61,7 +61,8 @@ def trilinear_scalar(P, x0, dx, y0, dy, z0, dz, tws, twa, u):  # pragma: no cove
     Returns
     -------
     float
-        Interpolated power [kW]; NaN if any input is non-finite.
+        Interpolated power [kW]; NaN if any input is non-finite or any corner with non-zero weight
+        is NaN (infeasible).
     """
     nx, ny, nz = P.shape
     y = abs(twa)
@@ -70,19 +71,31 @@ def trilinear_scalar(P, x0, dx, y0, dy, z0, dz, tws, twa, u):  # pragma: no cove
     fx = min(max((tws - x0) / dx, 0.0), nx - 1.0)
     fy = min(max((y - y0) / dy, 0.0), ny - 1.0)
     fz = min(max((u - z0) / dz, 0.0), nz - 1.0)
+    # snap to nodes (1e-6 cells) so that on-node queries never touch a neighbouring NaN
+    fx = np.round(fx) if abs(fx - np.round(fx)) < 1e-6 else fx
+    fy = np.round(fy) if abs(fy - np.round(fy)) < 1e-6 else fy
+    fz = np.round(fz) if abs(fz - np.round(fz)) < 1e-6 else fz
     i = min(int(fx), nx - 2)
     j = min(int(fy), ny - 2)
     k = min(int(fz), nz - 2)
     ax = fx - i
     ay = fy - j
     az = fz - k
-    c00 = P[i, j, k] * (1 - az) + P[i, j, k + 1] * az
-    c01 = P[i, j + 1, k] * (1 - az) + P[i, j + 1, k + 1] * az
-    c10 = P[i + 1, j, k] * (1 - az) + P[i + 1, j, k + 1] * az
-    c11 = P[i + 1, j + 1, k] * (1 - az) + P[i + 1, j + 1, k + 1] * az
-    c0 = c00 * (1 - ay) + c01 * ay
-    c1 = c10 * (1 - ay) + c11 * ay
-    return c0 * (1 - ax) + c1 * ax
+    out = 0.0
+    for di in range(2):
+        wx = ax if di else 1.0 - ax
+        if wx == 0.0:
+            continue
+        for dj in range(2):
+            wy = ay if dj else 1.0 - ay
+            if wy == 0.0:
+                continue
+            for dk in range(2):
+                wz = az if dk else 1.0 - az
+                if wz == 0.0:
+                    continue  # zero-weight corners are skipped: a NaN there must not leak
+                out += wx * wy * wz * P[i + di, j + dj, k + dk]
+    return out
 
 
 @njit(cache=True)
@@ -119,6 +132,16 @@ class PolarTable:
     strict : bool
         If True (default) values outside [-500, 3000] kW or non-finite raise ``ValueError``;
         otherwise a warning is emitted.
+    feasible : array_like of bool, shape (nTWS, nTWA, nU), optional
+        Feasibility mask (False = (TWS, TWA, U) combination not reachable, e.g. speed not
+        attainable at that angle). Default: all True. ``p`` is forced to NaN where infeasible, so
+        interpolation touching an infeasible node returns NaN (= infeasible), never a fake value.
+        Only feasible values are range-checked.
+    meta : dict, optional
+        Free-form metadata (provenance, vessel parameters, hypotheses flags).
+    p_bounds : (float, float)  [kW]
+        Sanity range of feasible values (default ``(-500, 3000)`` as in CONVENTIONS §1; the real
+        BETA polar needs about ``(-3500, 3000)``).
 
     Notes
     -----
@@ -130,6 +153,9 @@ class PolarTable:
     twa: np.ndarray
     u: np.ndarray
     strict: bool = True
+    feasible: np.ndarray | None = None
+    meta: dict | None = None
+    p_bounds: tuple[float, float] = (P_MIN_KW, P_MAX_KW)
 
     def __post_init__(self) -> None:
         self.p = np.ascontiguousarray(self.p, dtype=np.float32)
@@ -141,6 +167,14 @@ class PolarTable:
                 f"p shape {self.p.shape} does not match axes "
                 f"({self.tws.size}, {self.twa.size}, {self.u.size})"
             )
+        if self.feasible is None:
+            self.feasible = np.ones(self.p.shape, dtype=bool)
+        else:
+            self.feasible = np.ascontiguousarray(self.feasible, dtype=bool)
+            if self.feasible.shape != self.p.shape:
+                raise ValueError("feasible mask shape does not match p")
+            self.p[~self.feasible] = np.nan
+        self.meta = dict(self.meta) if self.meta else {}
         self.d_tws = _check_uniform("tws", self.tws)
         self.d_twa = _check_uniform("twa", self.twa)
         self.d_u = _check_uniform("u", self.u)
@@ -152,12 +186,14 @@ class PolarTable:
 
     def _validate_values(self) -> None:
         msg = None
-        if not np.all(np.isfinite(self.p)):
-            msg = "polar contains non-finite values"
-        else:
-            lo, hi = float(self.p.min()), float(self.p.max())
-            if lo < P_MIN_KW or hi > P_MAX_KW:
-                msg = f"polar values [{lo:.1f}, {hi:.1f}] kW outside [{P_MIN_KW}, {P_MAX_KW}] kW"
+        v = self.p[self.feasible]
+        if not np.all(np.isfinite(v)):
+            msg = "polar contains non-finite values at feasible nodes"
+        elif v.size:
+            lo, hi = float(v.min()), float(v.max())
+            b0, b1 = self.p_bounds
+            if lo < b0 or hi > b1:
+                msg = f"polar values [{lo:.1f}, {hi:.1f}] kW outside [{b0}, {b1}] kW"
         if msg:
             if self.strict:
                 raise ValueError(msg)
@@ -213,25 +249,27 @@ class PolarTable:
         Returns
         -------
         p_dagger : numpy.ndarray, shape (nTWS, nTWA)
-            ``max_U P`` [kW], float32.
+            ``max_U P`` [kW] over feasible U, float32 (NaN where no feasible U).
         u_dagger : numpy.ndarray, shape (nTWS, nTWA)
             Argmax ship speed [m/s], float32 (first maximum on ties).
         """
-        k = np.argmax(self.p, axis=2)
+        k = np.argmax(np.where(self.feasible, self.p, -np.inf), axis=2)
         p_dag = np.take_along_axis(self.p, k[..., None], axis=2)[..., 0]
         return p_dag, self.u[k].astype(np.float32)
 
     def save_npz(self, path: str | Path) -> None:
         """Write the table and axes to a compressed ``.npz`` file."""
         np.savez_compressed(
-            path, p=self.p, tws=self.tws, twa=self.twa, u=self.u, format_version=np.int32(1)
+            path, p=self.p, tws=self.tws, twa=self.twa, u=self.u, feasible=self.feasible,
+            format_version=np.int32(2),
         )
 
     @classmethod
     def load_npz(cls, path: str | Path, strict: bool = True) -> PolarTable:
         """Load a table written by :meth:`save_npz`."""
         with np.load(path) as f:
-            return cls(f["p"], f["tws"], f["twa"], f["u"], strict=strict)
+            feas = f["feasible"] if "feasible" in f.files else None
+            return cls(f["p"], f["tws"], f["twa"], f["u"], strict=strict, feasible=feas)
 
     @classmethod
     def from_long_csv(cls, path: str | Path, strict: bool = True) -> PolarTable:

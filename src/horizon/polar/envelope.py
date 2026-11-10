@@ -9,7 +9,10 @@ Sample points: for each TWS node and each polar (TWA, U) node the *ground* veloc
 ``U (cos th, sin th) + k_L TWS sin(th) (-sin th, cos th)`` (heading plus the smooth leeway of
 ``horizon.core.kinematics.leeway_vector``), power ``P``. The envelope is built with a 3-D convex
 hull (upper facets) and tabulated on a regular velocity grid. Velocities outside the convex hull
-of reachable velocities are NaN (infeasible).
+of reachable velocities are NaN (infeasible). Nodes flagged infeasible in ``PolarTable.feasible``
+(real polars) are excluded from the hull, so the envelope only mixes attainable operating points;
+a stopped ship (``U = 0``, ``TWA`` = 0 or 180 deg: zero velocity, zero leeway) is a direct sample
+at ``v = 0`` and therefore captured naturally as a hold mode.
 
 Manoeuvre cost: the envelope value of a mixture of headings is multiplied by
 ``f_avail(t_leg, tau_m, rho_m)``; the reward is ``max(P_direct, f_avail * E)`` where ``P_direct`` is
@@ -92,8 +95,9 @@ def build_envelope(polar: PolarTable, tau_m_s: float = 240.0, rho_m: float = 0.3
         lw = k_leeway * polar.tws[it] * np.sin(th)
         vp = uu * np.cos(th) - lw * np.sin(th)
         vq = uu * np.sin(th) + lw * np.cos(th)
-        pts.append((vp.ravel(), vq.ravel(), polar.p[it].ravel().astype(np.float64)))
-        vmax = max(vmax, float(np.abs(vp).max()), float(np.abs(vq).max()))
+        ok = polar.feasible[it].ravel()  # infeasible nodes never enter the hull
+        pts.append((vp.ravel()[ok], vq.ravel()[ok], polar.p[it].ravel()[ok].astype(np.float64)))
+        vmax = max(vmax, float(np.abs(vp.ravel()[ok]).max()), float(np.abs(vq.ravel()[ok]).max()))
     nv = int(np.ceil(vmax / dv))
     ax_p = dv * np.arange(-nv, nv + 1)
     ax_q = dv * np.arange(0, nv + 1)
@@ -116,8 +120,11 @@ def build_envelope(polar: PolarTable, tau_m_s: float = 240.0, rho_m: float = 0.3
         inside = np.all(q @ h2[:, :2].T + h2[:, 2] <= 1e-9, axis=1)
         env = np.where(inside, env, np.nan)
         # remove duplicate sample positions (U = 0 etc.) for the interpolator
+        # (coincident positions, e.g. stopped ship at several headings: keep the best power)
         key = np.round(xyz[:, :2], 9)
-        _, idx = np.unique(key, axis=0, return_index=True)
+        order = np.argsort(-z, kind="stable")
+        _, first = np.unique(key[order], axis=0, return_index=True)
+        idx = order[first]
         direct = LinearNDInterpolator(xyz[idx, :2], z[idx])(q)
         direct = np.where(inside, direct, np.nan)
         env = np.where(np.isfinite(direct), np.maximum(env, direct), env)

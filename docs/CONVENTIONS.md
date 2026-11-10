@@ -70,6 +70,10 @@ turbine. The polar `P[TWS, TWA, U]` is **net** electrical power [kW]: turbine gr
 propulsion consumption (Flettner rotors + auxiliary propeller). Net power can therefore be negative
 (close-hauled, high ship speed). Client statement, 2026-11-10.
 
+BETA polars (real client data, `horizon.polar.beta`) already include generator limitation and derating — no
+overlay applied (client, 2026-11-10); the 25/35 kn derating/cut-out is a property of the synthetic polar only.
+In the BETA files `Psi_rad` = TWA of §3 directly (0 = head to wind), verified from AWS/AWA consistency.
+
 ## 7. Code style
 
 * Python ≥ 3.11, English everywhere (code, comments, docstrings, commit messages).
