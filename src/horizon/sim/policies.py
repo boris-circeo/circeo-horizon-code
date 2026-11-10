@@ -14,7 +14,7 @@ import numpy as np
 from pyproj import Geod
 
 from horizon.dp import build_stencil, solve_dp
-from horizon.geo.coast import CoastModel
+from horizon.geo.coast import SDF_TOL_M, CoastModel
 from horizon.geo.grid import Grid
 from horizon.polar.derived import HoldCurve
 from horizon.polar.table import PolarTable
@@ -75,6 +75,46 @@ def _nearest_cell(grid: Grid, mask: np.ndarray, x: float, y: float) -> tuple[int
     d2 = np.where(mask, (X - x) ** 2 + (Y - y) ** 2, np.inf)
     j, i = np.unravel_index(int(np.argmin(d2)), d2.shape)
     return int(j), int(i)
+
+
+def _safe_start(coast: CoastModel, d_min: float, finite: np.ndarray, path_fn, x: float, y: float,
+                n_try: int = 24):
+    """Start cell + path whose FIRST chord (actual position -> first plan node) is coast-clear.
+
+    The DP routes start at a cell centre but the ship is off-grid (refined tracks, port, mission
+    start): the chord from ``(x, y)`` to the first plan node is not covered by the DP arc check.
+    Candidate start cells (``finite`` mask) are tried by increasing distance, up to ``n_try``; the
+    first whose first chord has ``SDF >= d_min`` (exact bilinear minimum) is returned. If the ship
+    is itself below ``d_min`` (e.g. mission start inside a port without corridor) the nearest
+    candidate is accepted. Returns ``(j0, i0, path)`` or ``None`` (caller holds position).
+    """
+    g = coast.grid
+    X, Y = g.xy_mesh()
+    d2 = np.where(finite, (X - x) ** 2 + (Y - y) ** 2, np.inf)
+    order = np.argsort(d2, axis=None)[:n_try]
+    here_ok = bool(coast.sdf_at(x, y) >= d_min - SDF_TOL_M)
+    first = None
+    for flat in order:
+        if not np.isfinite(d2.flat[flat]):
+            break
+        j0, i0 = (int(v) for v in np.unravel_index(int(flat), d2.shape))
+        try:
+            path = path_fn(j0, i0)
+        except ValueError:
+            continue
+        if first is None:
+            first = (j0, i0, path)
+        if not here_ok:
+            return first
+        xe, ye = g.x0 + g.dx * path.i_end[0], g.y0 + g.dx * path.j_end[0]
+        if coast.segment_min(x, y, xe, ye) >= d_min - SDF_TOL_M:
+            return j0, i0, path
+    return None
+
+
+def _hold_plan(t_s: float, dt_s: float, x: float, y: float) -> Plan:
+    """Plan that keeps the current position (safety fallback)."""
+    return Plan(t_s, dt_s, np.array([x]), np.array([y]))
 
 
 def _plan_from_path(grid: Grid, path, t0_s: float, dt_s: float, value: float) -> Plan:
@@ -156,10 +196,7 @@ def best_climatological_point(truths: list[WindField], power_model: PowerModel, 
         if not np.isfinite(cand[j, i]):
             break
         x, y = grid.x0 + i * grid.dx, grid.y0 + j * grid.dx
-        m = max(int(np.ceil(np.hypot(x - start_xy[0], y - start_xy[1]) / (0.5 * grid.dx))), 1)
-        f = np.linspace(0.0, 1.0, m + 1)
-        sdf = coast.sdf_at(start_xy[0] + f * (x - start_xy[0]), start_xy[1] + f * (y - start_xy[1]))
-        if np.all(sdf >= d_min_m):
+        if coast.segment_min(start_xy[0], start_xy[1], x, y) >= d_min_m - SDF_TOL_M:
             return float(x), float(y), float(mean[j, i])
     raise ValueError("no admissible hold point")
 
@@ -209,9 +246,12 @@ class DeterministicMPCPolicy:
                        terminal=term, d_min=self.d_min, stencil=self._stencil,
                        reward_model=self.reward_model)
         self.last_result = res
-        j0, i0 = _nearest_cell(self.coast.grid, np.isfinite(res.V[0]), x, y)
-        return _plan_from_path(self.coast.grid, res.path(j0, i0, 0), t_s, self.dt_s,
-                               float(res.V[0, j0, i0]))
+        st = _safe_start(self.coast, self.d_min, np.isfinite(res.V[0]),
+                         lambda j, i: res.path(j, i, 0), x, y)
+        if st is None:
+            return _hold_plan(t_s, self.dt_s, x, y)
+        j0, i0, path = st
+        return _plan_from_path(self.coast.grid, path, t_s, self.dt_s, float(res.V[0, j0, i0]))
 
 
 class OraclePolicy:
@@ -245,7 +285,11 @@ class OraclePolicy:
             n = int(np.ceil(self.duration_s / self.dt_s))
             res = solve_dp(self.truth, t_s, n, self.dt_s, self.polar, self.hold, self.coast,
                            d_min=self.d_min, reward_model=self.reward_model)
-            j0, i0 = _nearest_cell(self.coast.grid, np.isfinite(res.V[0]), x, y)
-            self._plan = _plan_from_path(self.coast.grid, res.path(j0, i0, 0), t_s, self.dt_s,
+            st = _safe_start(self.coast, self.d_min, np.isfinite(res.V[0]),
+                             lambda j, i: res.path(j, i, 0), x, y)
+            if st is None:
+                return _hold_plan(t_s, self.dt_s, x, y)
+            j0, i0, path = st
+            self._plan = _plan_from_path(self.coast.grid, path, t_s, self.dt_s,
                                          float(res.V[0, j0, i0]))
         return self._plan

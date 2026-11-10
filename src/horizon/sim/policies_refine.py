@@ -13,10 +13,11 @@ from __future__ import annotations
 import numpy as np
 
 from horizon.dp.solver import _envelope_for
+from horizon.geo.coast import SDF_TOL_M
 from horizon.refine import refine_plan
 from horizon.sim.policies import Plan
 
-__all__ = ["RefinedMPCPolicy"]
+__all__ = ["OracleHorizonRefinedPolicy", "OracleRefinedPolicy", "RefinedMPCPolicy"]
 
 
 class RefinedMPCPolicy:
@@ -49,6 +50,7 @@ class RefinedMPCPolicy:
         self.envelope = _envelope_for(base_policy.polar, base_policy.hold.f_avail)
         self.last_refine = None
         self.results: list = []
+        self.n_dp_fallback = 0  # plans replaced by the (coast-checked) DP plan, see plan()
 
     def plan(self, t_s, x, y, provider) -> Plan:
         base_plan = self.base.plan(t_s, x, y, provider)
@@ -73,6 +75,11 @@ class RefinedMPCPolicy:
                         margin_m=self.margin_m)
         self.last_refine = r
         self.results.append(r)
+        if not r.min_sdf_m >= self.base.d_min - SDF_TOL_M:
+            # neither the refined plan nor its warm start keeps the exact bilinear SDF >= d_min
+            # along its chords (e.g. first chord from an off-grid position): use the DP plan
+            self.n_dp_fallback += 1
+            return base_plan
         return Plan(t_s, self.dt_s, r.x[1:], r.y[1:], r.objective_kwh)
 
 
@@ -121,3 +128,67 @@ class OracleRefinedPolicy:
 
     def plan(self, t_s, x, y, provider) -> Plan:
         return self.refined.plan(t_s, x, y, _TruthProvider(self.truth, provider.mission_end_s))
+
+
+class _WeatherTruthProvider:
+    """Provider whose "forecast" is the truth read from the weather source (hindsight), streamed
+    for the requested window only (no full-mission truth array), truncated at the mission end."""
+
+    def __init__(self, weather, mission_end_s: float):
+        self.weather = weather
+        self.mission_end_s = float(mission_end_s)
+
+    def forecast(self, issue_s, horizon_s, n_members=1, dt_s=10800.0, seed_offset=0):
+        from horizon.sim.simulator import truncate_horizon
+        from horizon.weather.fields import Ensemble
+
+        h = truncate_horizon(issue_s, horizon_s, dt_s, self.mission_end_s)
+        wf = self.weather.truth(dt_s=dt_s, start_s=float(issue_s), end_s=float(issue_s + h))
+        return Ensemble(wf.grid, wf.epoch, float(issue_s), np.asarray(wf.times_s), wf.uv[None],
+                        np.ones(1))
+
+
+class OracleHorizonRefinedPolicy:
+    """``Oracle_REF_H``: hindsight MPC with the TRUTH over a rolling horizon + refiner (year runs).
+
+    At every replan: DP on the true wind over ``horizon_days`` (default 15 d, truncated at the end
+    of the data) with the climatological hold-power terminal value, then refinement of the first
+    48 h on the truth, exactly as :class:`RefinedMPCPolicy`. It plays the role of the hindsight
+    reference for missions too long for a single full-mission DP (e.g. 365 d): it is an
+    APPROXIMATE bound only (finite look-ahead + climatological terminal value: a policy that
+    knows the weather beyond ``horizon_days`` could do better; it also uses the 3 h / 48 h
+    discretisations of the DP and the refiner). It is not causal: it reads the truth from
+    ``weather.truth(dt_s, start_s, end_s)`` for the window only (memory-safe).
+
+    Parameters
+    ----------
+    weather : source with ``truth(dt_s, start_s, end_s)`` (e.g. ``ERA5ForecastWeather``).
+    polar, hold_curve, coast : see :func:`horizon.dp.solve_dp`.
+    horizon_days : float  [d]  Truth look-ahead of the DP.
+    terminal_clim_kw, terminal_days : climatological terminal value (as B1c), see
+        :class:`~horizon.sim.policies.DeterministicMPCPolicy`.
+    d_min_m : float  [m]. Other keywords go to :class:`RefinedMPCPolicy`.
+    """
+
+    def __init__(self, weather, polar, hold_curve, coast, horizon_days: float = 15.0,
+                 terminal_clim_kw=None, terminal_days: float = 5.0, d_min_m: float = 20e3,
+                 **refine_kw):
+        from horizon.sim.policies import DeterministicMPCPolicy
+
+        self.weather = weather
+        base = DeterministicMPCPolicy(polar, hold_curve, coast, horizon_days=horizon_days,
+                                      d_min_m=d_min_m, terminal_clim_kw=terminal_clim_kw,
+                                      terminal_days=terminal_days)
+        self.refined = RefinedMPCPolicy(base, **refine_kw)
+
+    @property
+    def results(self):
+        return self.refined.results
+
+    @property
+    def n_dp_fallback(self):
+        return self.refined.n_dp_fallback
+
+    def plan(self, t_s, x, y, provider) -> Plan:
+        return self.refined.plan(t_s, x, y, _WeatherTruthProvider(self.weather,
+                                                                  provider.mission_end_s))

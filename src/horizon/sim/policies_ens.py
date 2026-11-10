@@ -13,7 +13,7 @@ from horizon.ensemble import reduce_ensemble
 from horizon.geo.coast import CoastModel
 from horizon.polar.derived import HoldCurve
 from horizon.polar.table import PolarTable
-from horizon.sim.policies import DT_PLAN_S, _nearest_cell, _plan_from_path
+from horizon.sim.policies import DT_PLAN_S, _hold_plan, _plan_from_path, _safe_start
 
 __all__ = ["EnsembleMPCPolicy"]
 
@@ -91,11 +91,14 @@ class EnsembleMPCPolicy:
             res = solve_dp(control, t_s, n, self.dt_s, terminal=term, **common)
             tm["dp"] = time.perf_counter() - t
             self.last_result = res
-            j0, i0 = _nearest_cell(grid, np.isfinite(res.V[0]), x, y)
+            st = _safe_start(self.coast, self.d_min, np.isfinite(res.V[0]),
+                             lambda j, i: res.path(j, i, 0), x, y)
+            if st is None:
+                return _hold_plan(t_s, self.dt_s, x, y)
+            j0, i0, path = st
             self.last_diagnostics = {"issue_s": float(t_s), "members": [0], "weights": [1.0],
                                      "v_t0_kwh": float(res.V[0, j0, i0]), "timing_s": tm}
-            return _plan_from_path(grid, res.path(j0, i0, 0), t_s, self.dt_s,
-                                   float(res.V[0, j0, i0]))
+            return _plan_from_path(grid, path, t_s, self.dt_s, float(res.V[0, j0, i0]))
         t = time.perf_counter()
         red = reduce_ensemble(ens, self.k, window_s=(t_s + n_split * self.dt_s, ens.times_s[-1]),
                               tau_s=self.tau_s)
@@ -106,8 +109,11 @@ class EnsembleMPCPolicy:
                                   terminal=term, **common)
         tm["dp"] = time.perf_counter() - t
         self.last_result = res.short
-        j0, i0 = _nearest_cell(grid, np.isfinite(res.v_t0), x, y)
-        path = res.path(j0, i0)
+        st = _safe_start(self.coast, self.d_min, np.isfinite(res.v_t0),
+                         lambda j, i: res.path(j, i), x, y)
+        if st is None:
+            return _hold_plan(t_s, self.dt_s, x, y)
+        j0, i0, path = st
         je, ie = int(path.j_end[-1]), int(path.i_end[-1])
         vb = res.v_bar[np.isfinite(res.v_bar)]
         self.last_diagnostics = {

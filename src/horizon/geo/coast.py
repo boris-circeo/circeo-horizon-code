@@ -33,7 +33,10 @@ from horizon.geo.grid import Grid
 
 __all__ = [
     "CoastModel",
+    "SDF_TOL_M",
     "bilinear_sdf",
+    "port_corridor",
+    "segment_min_bilinear",
     "build_basin_coast",
     "load_land_polygons",
     "rasterize_land",
@@ -46,6 +49,7 @@ _ASSET_DIR = Path(__file__).parent / "assets"
 _NE_DIR = _REPO / "data" / "external" / "naturalearth"
 _CACHE_DIR = _REPO / "data" / "cache"
 DEFAULT_BBOX = (-45.0, 5.0, 35.0, 65.0)  # lon_min, lon_max, lat_min, lat_max [deg]
+SDF_TOL_M = 1e-3  # [m] numerical tolerance of every ``SDF >= d_min`` test (float round-off only)
 
 
 # ---------------------------------------------------------------------------------------- land
@@ -205,6 +209,96 @@ def bilinear_sdf(field, x0, y0, dx, x, y):
 
 
 @njit(cache=True)
+def segment_min_bilinear(field, x0, y0, dx, xa, ya, xb, yb):
+    """EXACT minimum of the bilinear interpolant of ``field`` along the segment ``a -> b``.
+
+    Inside one grid cell the bilinear interpolant restricted to a straight line is a quadratic in
+    the line parameter; the segment is cut at every grid line it crosses and the minimum of each
+    quadratic piece (end points and vertex) is taken. This is the single "SDF along a chord"
+    primitive shared by the DP arc feasibility, the refiner verification, the simulator guard and
+    the tests, so that all of them evaluate the SAME (bilinear) field with no sampling gap.
+
+    Returns ``nan`` if an end point lies outside the cell-centre extent of the grid.
+    """
+    ny, nx = field.shape
+    fa = (xa - x0) / dx
+    ga = (ya - y0) / dx
+    fb = (xb - x0) / dx
+    gb = (yb - y0) / dx
+    ok = (fa >= 0.0 and ga >= 0.0 and fb >= 0.0 and gb >= 0.0 and fa <= nx - 1 and fb <= nx - 1
+          and ga <= ny - 1 and gb <= ny - 1)
+    if not ok:
+        return np.nan
+    di = fb - fa
+    dj = gb - ga
+    cap = int(abs(di)) + int(abs(dj)) + 6
+    ts = np.empty(cap)
+    n = 0
+    ts[n] = 0.0
+    n += 1
+    ts[n] = 1.0
+    n += 1
+    if di != 0.0:
+        k0 = int(np.ceil(min(fa, fb)))
+        k1 = int(np.floor(max(fa, fb)))
+        for k in range(k0, k1 + 1):
+            t = (k - fa) / di
+            if t > 0.0 and t < 1.0 and n < cap:
+                ts[n] = t
+                n += 1
+    if dj != 0.0:
+        k0 = int(np.ceil(min(ga, gb)))
+        k1 = int(np.floor(max(ga, gb)))
+        for k in range(k0, k1 + 1):
+            t = (k - ga) / dj
+            if t > 0.0 and t < 1.0 and n < cap:
+                ts[n] = t
+                n += 1
+    ts = np.sort(ts[:n])
+    best = np.inf
+    for p in range(n - 1):
+        t0 = ts[p]
+        t1 = ts[p + 1]
+        if t1 <= t0:
+            continue
+        tm = 0.5 * (t0 + t1)
+        i = min(max(int(fa + di * tm), 0), nx - 2)
+        j = min(max(int(ga + dj * tm), 0), ny - 2)
+        a0 = fa + di * t0 - i
+        b0 = ga + dj * t0 - j
+        f00 = field[j, i]
+        f10 = field[j, i + 1]
+        f01 = field[j + 1, i]
+        f11 = field[j + 1, i + 1]
+        cb = f10 - f00
+        cc = f01 - f00
+        cd = f11 - f10 - f01 + f00
+        da = di * (t1 - t0)
+        db = dj * (t1 - t0)
+        c0 = f00 + cb * a0 + cc * b0 + cd * a0 * b0
+        c1 = cb * da + cc * db + cd * (a0 * db + b0 * da)
+        c2 = cd * da * db
+        v1 = c0 + c1 + c2
+        if c0 < best:
+            best = c0
+        if v1 < best:
+            best = v1
+        if c2 > 0.0:
+            sv = -c1 / (2.0 * c2)
+            if sv > 0.0 and sv < 1.0:
+                vv = c0 + c1 * sv + c2 * sv * sv
+                if vv < best:
+                    best = vv
+    return best
+
+
+@njit(cache=True)
+def _segmin_many(field, x0, y0, dx, xa, ya, xb, yb, out):
+    for k in range(xa.size):
+        out[k] = segment_min_bilinear(field, x0, y0, dx, xa[k], ya[k], xb[k], yb[k])
+
+
+@njit(cache=True)
 def _bilinear_many(field, x0, y0, dx, xs, ys, out):
     for k in range(xs.size):
         out[k] = bilinear_sdf(field, x0, y0, dx, xs[k], ys[k])
@@ -223,6 +317,13 @@ class CoastModel:
 
     grid: Grid
     sdf: np.ndarray
+    relax: np.ndarray | None = None
+
+    @property
+    def true_sdf(self) -> np.ndarray:
+        """Physical SDF [m] (``sdf`` minus the harbour-corridor relaxation, see
+        :func:`port_corridor`); equals ``sdf`` if there is no corridor."""
+        return self.sdf if self.relax is None else self.sdf - self.relax
 
     @property
     def land_mask(self) -> np.ndarray:
@@ -238,6 +339,16 @@ class CoastModel:
                        np.ascontiguousarray(ya.ravel()), out)
         return out.reshape(xa.shape)
 
+    def segment_min(self, xa, ya, xb, yb) -> np.ndarray:
+        """EXACT minimum [m] of the bilinear SDF along straight (grid-frame) chords ``a -> b``;
+        ``nan`` if an end point is outside the grid (see :func:`segment_min_bilinear`)."""
+        xa, ya, xb, yb = np.broadcast_arrays(*(np.asarray(v, float) for v in (xa, ya, xb, yb)))
+        out = np.empty(xa.size)
+        g = self.grid
+        _segmin_many(self.sdf, g.x0, g.y0, g.dx, *(np.ascontiguousarray(v.ravel())
+                                                   for v in (xa, ya, xb, yb)), out)
+        return out.reshape(xa.shape)
+
     def sdf_at_lonlat(self, lon, lat) -> np.ndarray:
         """Bilinear SDF [m] at geographic points [deg]."""
         x, y = self.grid.to_xy(lon, lat)
@@ -245,7 +356,7 @@ class CoastModel:
 
     def is_navigable(self, x, y, d_min: float) -> np.ndarray:
         """True where ``SDF >= d_min`` [m] (DES-860 A.1); False outside the grid."""
-        return self.sdf_at(x, y) >= d_min
+        return self.sdf_at(x, y) >= d_min - SDF_TOL_M
 
     def save_npz(self, path) -> None:
         """Write grid definition and SDF to a compressed ``.npz``."""
@@ -310,3 +421,54 @@ def build_basin_coast(dx=10_000.0, bbox=DEFAULT_BBOX, source=None, supersample=1
         _CACHE_DIR.mkdir(parents=True, exist_ok=True)
         model.save_npz(_CACHE_DIR / name)
     return model
+
+
+# ------------------------------------------------------------------------------ harbour corridor
+def port_corridor(coast: CoastModel, lon: float, lat: float, d_min: float = 20e3,
+                  d_port: float = 1e3, ramp_m: float = 40e3) -> CoastModel:
+    """Coast model whose clearance requirement ramps from ``d_port`` at a port to ``d_min``.
+
+    The position-dependent requirement ``SDF(x) >= d_req(x)`` with
+    ``d_req(x) = d_port + (d_min - d_port) min(r(x) / ramp_m, 1)``, ``r`` the grid-frame distance
+    to the port [m], is represented by an SDF *relaxation*: ``sdf' = sdf + relax`` with
+    ``relax = d_min - d_req`` so that ``sdf' >= d_min  <=>  sdf >= d_req``. Everything downstream
+    (DP arc feasibility, refiner, simulator guard and violation metric) keeps testing
+    ``sdf' >= d_min`` on the bilinear interpolant of ``sdf'`` and needs no other change; the
+    relaxation vanishes beyond ``ramp_m`` (+ half a cell) so the nominal SDF is untouched there.
+    Land stays unreachable because the effective requirement never drops below ``d_port``
+    (``> 0``) or the physical SDF at the port.
+
+    Grid resolution. ``relax`` lives on the grid nodes and is interpolated bilinearly like the SDF
+    (that is what makes it consistent everywhere). A cone with a 40 km base cannot be resolved on
+    a 40 km grid, so the node values are the design ramp at the node and the four corners of the
+    cell containing the port get the full relaxation so that the port itself is always feasible.
+    The effective ramp is therefore the bilinear interpolant: it ends at about
+    ``ramp_m + 1.5 dx`` from the port and is accurate to about one cell (use a finer grid or a
+    larger ``ramp_m`` for a sharper corridor).
+
+    Parameters
+    ----------
+    coast : CoastModel  Nominal coast (without corridor).
+    lon, lat : float  [deg]  Port.
+    d_min : float [m]  Nominal clearance. d_port : float [m]  Clearance at the port; reduced to the
+        physical SDF at the port if that is smaller (non-negative required).
+    ramp_m : float [m]  Distance from the port at which the nominal clearance is reached.
+    """
+    g = coast.grid
+    px, py = g.to_xy(lon, lat)
+    s_port = float(coast.sdf_at(px, py))
+    if not s_port > 0.0:
+        raise ValueError(f"port at ({lon}, {lat}) is not at sea on this grid (SDF {s_port:.0f} m)")
+    d0 = min(float(d_port), s_port)
+    X, Y = g.xy_mesh()
+    r = np.hypot(X - px, Y - py)
+    relax = (d_min - d0) * np.clip(1.0 - r / ramp_m, 0.0, 1.0)
+    fi, fj = (px - g.x0) / g.dx, (py - g.y0) / g.dx
+    i0, j0 = min(int(fi), g.nx - 2), min(int(fj), g.ny - 2)
+    relax[j0:j0 + 2, i0:i0 + 2] = d_min - d0
+    relax = relax.astype(np.float32)
+    base = coast.true_sdf
+    out = CoastModel(g, (base + relax).astype(np.float32), relax)
+    if not float(out.sdf_at(px, py)) >= d_min - SDF_TOL_M:  # pragma: no cover - by construction
+        raise ValueError("port not feasible in the relaxed field")
+    return out

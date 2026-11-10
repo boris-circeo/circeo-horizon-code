@@ -69,6 +69,11 @@ class RefineResult:
     iterations : int. setup_time_s, solve_time_s : float [s]. max_violation : float
         Largest constraint violation of the returned plan (dynamics [km], speed [m/s],
         SDF [km]).
+    min_sdf_m : float [m]
+        EXACT minimum of the bilinear SDF of ``coast`` along the straight chords between the
+        returned nodes (including the first chord from the start), i.e. along the path the
+        simulator executes. ``>= d_min`` for every plan the refiner returns as refined.
+    coast_rounds : int  Number of coast re-solves (local margin tightening, see Notes).
     """
 
     t_s: np.ndarray
@@ -89,6 +94,8 @@ class RefineResult:
     setup_time_s: float
     solve_time_s: float
     max_violation: float
+    min_sdf_m: float = float("nan")
+    coast_rounds: int = 0
 
     @property
     def objective_kwh(self) -> float:
@@ -180,7 +187,7 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
                 EnvelopeTable, coast: CoastModel, warm_start, horizon_s: float = 48 * 3600.0,
                 dt_s: float = 1800.0, d_min: float = 20e3, rho=(100.0, 100.0), u_max: float = 8.0,
                 margin_m: float = 120e3, max_iter: int = 200, max_cpu_s: float = 20.0,
-                safety_m: float = 2e3,
+                safety_m: float = 2e3, verify_m: float = 100.0, max_coast_rounds: int = 4,
                 ipopt_options: dict | None = None) -> RefineResult:
     """Refine a route by multiple-shooting NLP (module docstring), with warm-start fallback.
 
@@ -201,6 +208,16 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
         penalties. u_max : float [m/s]  Ground-speed bound.
     margin_m : float [m]  Bounding-box margin around the warm start (positions are confined to
         it). max_iter, max_cpu_s : IPOPT limits. ipopt_options : dict  Extra ``ipopt.*`` options.
+
+    Notes
+    -----
+    The NLP constrains a cubic-spline surrogate of the SDF (smooth for IPOPT), which differs from
+    the bilinear SDF used by the DP and the simulator by up to several km next to a coast. After
+    each solve the chords between nodes are checked EXACTLY on the bilinear SDF
+    (:meth:`CoastModel.segment_min`); stages whose chord dips below ``d_min + verify_m`` get a
+    local extra margin (deficit + 0.5 km) on their spline constraints and the problem is
+    re-solved from the current iterate (at most ``max_coast_rounds`` times). A plan that still
+    fails is NOT returned as refined: the warm start is returned (``used_warm_start=True``).
 
     Returns
     -------
@@ -291,6 +308,7 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     xq3 = 0.25 * X[:, :-1] + 0.75 * X[:, 1:]
     xy_all = ca.horzcat(X[:, 1:], xm, xq1, xq3)
     g_sdf = sdf_fn.map(4 * n)(ca.vertcat(xy_all[1, :], xy_all[0, :])).T - (d_min + safety_m) / km
+    # (blocks of n: stage end nodes, mid-points, quarter, three-quarter points)
     g_spd = (V[0, :]**2 + V[1, :]**2).T / u_max**2 - 1.0
     gcons = ca.vertcat(g_dyn, g_sdf, g_spd)
     f = -(energy + term - pen) / 1e3
@@ -319,14 +337,24 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     lbx = np.concatenate([np.tile([xa[0], ya[0]], n + 1), np.full(2 * n, -u_max)])
     ubx = np.concatenate([np.tile([xa[-1], ya[-1]], n + 1), np.full(2 * n, u_max)])
     lbx[:2] = ubx[:2] = (x0 / km, y0 / km)
-    lbg = np.concatenate([np.zeros(2 * n), np.zeros(4 * n), np.full(n, -np.inf)])
+    extra = np.zeros(4 * n)  # local extra SDF margin per constraint point [km]
     ubg = np.concatenate([np.zeros(2 * n), np.full(4 * n, np.inf), np.zeros(n)])
     cons_fn = ca.Function("cons", [X, V], [gcons])
 
-    def violation(Xa, Va):
+    def lbg_of(ex):
+        return np.concatenate([np.zeros(2 * n), ex, np.full(n, -np.inf)])
+
+    def violation(Xa, Va, ex=None):
         c = np.asarray(cons_fn(Xa, Va)).ravel()
-        return float(max(np.abs(c[:2 * n]).max(), -c[2 * n:6 * n].min(), c[6 * n:].max() * u_max,
-                         0.0))
+        ex = extra if ex is None else ex
+        return float(max(np.abs(c[:2 * n]).max(), (ex - c[2 * n:6 * n]).max(),
+                         c[6 * n:].max() * u_max, 0.0))
+
+    def chord_min(Xa):
+        """Exact bilinear-SDF minimum [m] along each chord, shape (n,)."""
+        px = np.concatenate([[x0], Xa[0, 1:] * km])
+        py = np.concatenate([[y0], Xa[1, 1:] * km])
+        return coast.segment_min(px[:-1], py[:-1], px[1:], py[1:])
 
     def evaluate(Xa, Va):
         e, t_, p_, pw_ = obj_fn(Xa, Va, list(rho))
@@ -342,31 +370,52 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     iters, converged, best = 0, False, None  # best = (obj, X, V, status)
     status = "exception"
     attempts = [(1.0, {}), (5.0, {"ipopt.mu_strategy": "adaptive", "ipopt.mu_init": 1e-1})]
-    for scale, extra in attempts:
-        try:
-            solver = make_solver(extra)
-            sol = solver(x0=z0, p=[scale * rho[0], scale * rho[1]], lbx=lbx, ubx=ubx, lbg=lbg,
-                         ubg=ubg)
-            st = solver.stats()
-            status = str(st["return_status"])
-            iters += int(st.get("iter_count", 0))
-            zs = np.asarray(sol["x"]).ravel()
-            Xs = zs[:2 * (n + 1)].reshape(2, n + 1, order="F")
-            Vs = zs[2 * (n + 1):].reshape(2, n, order="F")
-        except RuntimeError as exc:  # pragma: no cover - defensive
-            status = f"exception: {exc}"
-            continue
-        if not (np.all(np.isfinite(Xs)) and np.all(np.isfinite(Vs))):
-            continue
-        es, ts, ps, _ = evaluate(Xs, Vs)
-        obj = es + ts - ps
-        if (violation(Xs, Vs) <= 1e-3 and obj >= warm_obj - 1e-9
-                and _in_hull(envelope, wind_fn, tw, tmid, Xs, Vs, n)
-                and (best is None or obj > best[0])):
-            best = (obj, Xs, Vs, status)
-            converged = bool(st["success"]) or status == "Solved_To_Acceptable_Level"
-            if converged:
-                break
+    thr = d_min + verify_m
+    rounds = 0
+    z_init = z0
+    for rnd in range(max_coast_rounds + 1):
+        best, converged = None, False
+        for scale, ext in attempts:
+            try:
+                solver = make_solver(ext)
+                sol = solver(x0=z_init, p=[scale * rho[0], scale * rho[1]], lbx=lbx, ubx=ubx,
+                             lbg=lbg_of(extra), ubg=ubg)
+                st = solver.stats()
+                status = str(st["return_status"])
+                iters += int(st.get("iter_count", 0))
+                zs = np.asarray(sol["x"]).ravel()
+                Xs = zs[:2 * (n + 1)].reshape(2, n + 1, order="F")
+                Vs = zs[2 * (n + 1):].reshape(2, n, order="F")
+            except RuntimeError as exc:  # pragma: no cover - defensive
+                status = f"exception: {exc}"
+                continue
+            if not (np.all(np.isfinite(Xs)) and np.all(np.isfinite(Vs))):
+                continue
+            es, ts, ps, _ = evaluate(Xs, Vs)
+            obj = es + ts - ps
+            if (violation(Xs, Vs) <= 1e-3 and obj >= warm_obj - 1e-9
+                    and _in_hull(envelope, wind_fn, tw, tmid, Xs, Vs, n)
+                    and (best is None or obj > best[0])):
+                best = (obj, Xs, Vs, status)
+                converged = bool(st["success"]) or status == "Solved_To_Acceptable_Level"
+                if converged:
+                    break
+        if best is None:
+            break
+        # exact bilinear verification of the executed chords; tighten locally and re-solve
+        cm = chord_min(best[1])
+        bad = ~(cm >= thr)
+        if not bad.any():
+            break
+        if rnd == max_coast_rounds:
+            best = None  # still violating: fall back to the warm start
+            break
+        rounds += 1
+        deficit = np.where(bad, np.nan_to_num(thr - cm, nan=5e3) + 500.0, 0.0) / km
+        for blk in range(4):
+            extra[blk * n:(blk + 1) * n] += deficit
+        extra[0:n - 1] += deficit[1:]  # start node of stage i = end node of stage i - 1
+        z_init = np.concatenate([best[1].ravel(order="F"), best[2].ravel(order="F")])
     solve = time.perf_counter() - t_solve
     use_warm = best is None
     if best is not None:
@@ -374,10 +423,11 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     else:
         Xs, Vs = Xw, Vw
     es, ts, ps, pw_k = evaluate(Xs, Vs)
+    cmin = float(np.nanmin(chord_min(Xs))) if n else float("nan")
     return RefineResult(
         t0_s + dt_s * np.arange(n + 1), Xs[0] * km, Xs[1] * km, Vs[0], Vs[1], pw_k, es, ts, ps,
         warm_obj, ew, status, converged and not use_warm, use_warm, iters, setup, solve,
-        violation(Xs, Vs))
+        violation(Xs, Vs, np.zeros(4 * n)), cmin, rounds)
 
 
 def _widen(lo, hi, n, minw=5):

@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 from numba import njit, prange
 
-from horizon.geo.coast import bilinear_sdf
+from horizon.geo.coast import SDF_TOL_M, segment_min_bilinear
 from horizon.polar.envelope import envelope_lookup
 from horizon.polar.table import trilinear_scalar
 
@@ -24,8 +24,11 @@ __all__ = ["arc_feasibility", "backward_recursion"]
 def arc_feasibility(valid, di, dj, length, sdf, x0, y0, dx, d_min):  # pragma: no cover - jitted
     """Time-independent arc mask: stencil validity + coast clearance along the arc.
 
-    An arc is kept if both end cells and every sample along the straight grid segment (spacing
-    <= dx/8, finer than the simulator's 900 s steps at u_max) have ``SDF >= d_min`` [m].
+    An arc is kept if its two end cells and the WHOLE straight grid-frame segment between them
+    have ``SDF >= d_min`` [m] on the bilinear SDF: the minimum along the segment is computed
+    exactly (:func:`horizon.geo.coast.segment_min_bilinear`, S4: the former dx/8 sampling let
+    chords dip 0.25 km below ``d_min`` between samples). The simulator executes exactly these
+    chords and evaluates the same bilinear field.
 
     Returns
     -------
@@ -33,9 +36,10 @@ def arc_feasibility(valid, di, dj, length, sdf, x0, y0, dx, d_min):  # pragma: n
     """
     ny, nx, k = valid.shape
     ok = np.zeros((ny, nx, k), dtype=np.bool_)
+    thr = d_min - SDF_TOL_M
     for j in prange(ny):
         for i in range(nx):
-            if not sdf[j, i] >= d_min:
+            if not sdf[j, i] >= thr:
                 continue
             ok[j, i, 0] = True
             for s in range(1, k):
@@ -43,19 +47,11 @@ def arc_feasibility(valid, di, dj, length, sdf, x0, y0, dx, d_min):  # pragma: n
                     continue
                 jj = j + dj[s]
                 ii = i + di[s]
-                if not sdf[jj, ii] >= d_min:
+                if not sdf[jj, ii] >= thr:
                     continue
-                # sample spacing <= dx/8 along the arc
-                m = int(np.ceil(8.0 * np.hypot(di[s], dj[s]))) - 1
-                good = True
-                for q in range(1, m + 1):
-                    f = q / (m + 1.0)
-                    v = bilinear_sdf(sdf, x0, y0, dx, x0 + (i + f * di[s]) * dx,
-                                     y0 + (j + f * dj[s]) * dx)
-                    if not v >= d_min:
-                        good = False
-                        break
-                ok[j, i, s] = good
+                m = segment_min_bilinear(sdf, x0, y0, dx, x0 + i * dx, y0 + j * dx,
+                                         x0 + ii * dx, y0 + jj * dx)
+                ok[j, i, s] = m >= thr
     return ok
 
 

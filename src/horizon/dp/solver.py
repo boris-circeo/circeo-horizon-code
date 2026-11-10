@@ -9,7 +9,7 @@ import numpy as np
 
 from horizon.dp.kernel import arc_feasibility, backward_recursion
 from horizon.dp.stencil import Stencil, build_stencil
-from horizon.geo.coast import CoastModel
+from horizon.geo.coast import SDF_TOL_M, CoastModel
 from horizon.geo.grid import Grid
 from horizon.polar.derived import HoldCurve
 from horizon.polar.envelope import EnvelopeTable, build_envelope
@@ -223,7 +223,7 @@ def solve_dp(wind: WindField, t0_s: float, n_steps: int, dt_s: float, polar: Pol
     st = stencil if stencil is not None else build_stencil(grid, dt_s, u_bounds, max_span=max_span)
     times = t0_s + dt_s * np.arange(n_steps + 1)
     uv = np.ascontiguousarray(resample_wind(wind, times))
-    nav = np.ascontiguousarray(coast.sdf >= d_min)
+    nav = np.ascontiguousarray(coast.sdf >= d_min - SDF_TOL_M)
     ok = arc_feasibility(st.valid, st.di, st.dj, st.length_m, coast.sdf, grid.x0, grid.y0,
                          grid.dx, float(d_min))
     V = np.empty((n_steps + 1, grid.ny, grid.nx), dtype=np.float32)

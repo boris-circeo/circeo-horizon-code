@@ -15,11 +15,19 @@ from horizon.sim.power import (
     FeasiblePowerModel,
     PowerModel,
 )
-from horizon.sim.simulator import CausalityError, ForecastProvider, MissionResult, run_mission
+from horizon.sim.simulator import (
+    CausalityError,
+    ForecastProvider,
+    MissionResult,
+    SimState,
+    advance,
+    energy_on_truth,
+    run_mission,
+)
 
 __all__ = [
     "CausalityError", "DeterministicMPCPolicy", "DirectPowerModel", "EnvelopePowerModel",
     "FeasiblePowerModel", "ForecastProvider", "HoldAtPointPolicy", "MissionMetrics",
-    "MissionResult", "OraclePolicy", "Plan", "Policy", "PowerModel",
-    "best_climatological_point", "mission_metrics", "run_mission",
+    "MissionResult", "SimState", "OraclePolicy", "Plan", "Policy", "PowerModel",
+    "advance", "best_climatological_point", "energy_on_truth", "mission_metrics", "run_mission",
 ]
