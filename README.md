@@ -4,7 +4,7 @@ Proof of concept of the HORIZON routing architecture (CIRCEO design note DES-860
 in this repository): a learned policy-consistent value function (offline), an ensemble stochastic
 dynamic programme on a spatio-temporal graph (online), and a continuous optimal-control refiner.
 
-**Status:** Sprint 2 done — ensembles + CVaR, continuous refiner, results inspector (scripts/build_inspector.py). See docs/sprints/
+**Status:** Sprint 3 done — real data (ERA5 2015 + BETA polar), macro-arc stencil, Oracle_REF, inspector 4K + Polar tab. See docs/sprints/
 
 ## Layout
 

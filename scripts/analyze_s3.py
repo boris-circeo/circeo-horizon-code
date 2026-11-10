@@ -26,9 +26,10 @@ from horizon.viz import SeedRun, export_backtest, save_export  # noqa: E402
 from horizon.weather.forecast_model import ERA5ForecastWeather  # noqa: E402
 
 ROOT = R.ROOT
-ORDER = ["Oracle", "B0", "B1_5d", "B1_5d_REF", "B1c_5d_REF", "ENS_g0", "ENS_g0_REF"]
+ORDER = ["Oracle", "Oracle_REF", "B0", "B1_5d", "B1_5d_REF", "B1c_5d_REF", "ENS_g0", "ENS_g0_REF"]
 COLORS = {
     "Oracle": "k",
+    "Oracle_REF": "tab:purple",
     "B0": "0.5",
     "B1_5d": "tab:blue",
     "B1_5d_REF": "tab:cyan",
@@ -100,9 +101,10 @@ def main():
     a = ap.parse_args()
     ctx = R.Ctx()
     runs = load_runs()
-    dates = [d for d in R.MISSIONS if ("Oracle", d) in runs]
+    dates = [d for d in R.MISSIONS if ("Oracle", d) in runs and ("Oracle_REF", d) in runs]
     pols = [p for p in ORDER if any((p, d) in runs for d in dates)]
     J = {k: v["metrics"]["energy_kwh"] for k, v in runs.items()}
+    JH = {d: max(J[("Oracle", d)], J.get(("Oracle_REF", d), -np.inf)) for d in dates}
     out = {"missions": dates, "policies": pols, "per_mission": {}, "diagnostics": {}}
     for d in dates:
         row = {}
@@ -113,7 +115,7 @@ def main():
             m = r["metrics"]
             row[p] = {
                 **m,
-                "regret": 1 - m["energy_kwh"] / J[("Oracle", d)],
+                "regret": 1 - m["energy_kwh"] / JH[d],
                 "coast_violations": r["coast_violations"],
                 "n_replans": r["n_replans"],
                 "outside_steps": r["extra"]["outside_steps"],
@@ -166,20 +168,55 @@ def main():
         "total_outside_steps": int(sum(r["extra"]["outside_steps"] for r in runs.values())),
         "min_sdf_km": float(min(r["extra"]["min_sdf_km"] for r in runs.values())),
         "total_wrapped_requests": int(sum(r["extra"]["wrapped_requests"] for r in runs.values())),
-        "oracle_best": {
-            d: bool(all(J[("Oracle", d)] >= J[(p, d)] - 1e-6 for p in pols if (p, d) in J))
+        "j_hind_mwh": {d: JH[d] / 1e3 for d in dates},
+        "j_hind_is": {
+            d: "Oracle_REF" if J.get(("Oracle_REF", d), -1) >= J[("Oracle", d)] else "Oracle"
             for d in dates
+        },
+        "max_causal_minus_j_hind_mwh": {
+            d: max(
+                (J[(p, d)] - JH[d]) / 1e3
+                for p in pols
+                if p not in ("Oracle", "Oracle_REF") and (p, d) in J
+            )
+            for d in dates
+        },
+        "oracle_ref_minus_oracle_mwh": {
+            d: (J.get(("Oracle_REF", d), np.nan) - J[("Oracle", d)]) / 1e3 for d in dates
         },
         "wall_s_by_policy": {
             p: float(np.mean([r["wall_s"] for (n, _), r in runs.items() if n == p])) for p in pols
         },
         "members": sorted({r["members"] for (n, _), r in runs.items() if n.startswith("ENS")}),
     }
+    pre = {}
+    for f in sorted((R.RUNS / "pre_coastfix").glob("*.pkl")):
+        d_ = pickle.load(open(f, "rb"))
+        pre[(d_["name"], d_["date"])] = d_
+    out["coastfix"] = {}
+    for p_ in sorted({k[0] for k in pre}):
+        ks = [k for k in pre if k[0] == p_ and k in runs]
+        dl = np.array([(J[k] - pre[k]["metrics"]["energy_kwh"]) / 1e3 for k in ks])
+        out["coastfix"][p_] = {
+            "n": len(ks),
+            "mean_delta_mwh": float(dl.mean()),
+            "std_delta_mwh": float(dl.std(ddof=1)),
+            "pre_violation_steps": int(sum(pre[k]["coast_violations"] for k in ks)),
+            "pre_min_sdf_km": float(min(pre[k]["extra"]["min_sdf_km"] for k in ks)),
+            "per_mission_mwh": {k[1]: float(x) for k, x in zip(ks, dl, strict=True)},
+        }
+    out["checks"]["violation_steps_by_policy"] = {
+        p_: int(sum(r["coast_violations"] for (n_, _), r in runs.items() if n_ == p_)) for p_ in pols
+    }
+    out["checks"]["min_sdf_km_by_policy"] = {
+        p_: float(min(r["extra"]["min_sdf_km"] for (n_, _), r in runs.items() if n_ == p_))
+        for p_ in pols
+    }
     (ROOT / "outputs" / "S3_results.json").write_text(json.dumps(out, indent=1))
     write_md(out)
     figures(ctx, runs, out, a.track_mission)
     if not a.no_inspector:
-        inspector(ctx, runs, [d for d in a.inspector_missions if ("Oracle", d) in runs])
+        inspector(ctx, runs, [d for d in a.inspector_missions if d in dates])
     print("done")
 
 
@@ -208,9 +245,15 @@ NOTES = """### Method notes and anomalies
 * **Power model.** The BETA envelope has holes (e.g. fast upwind): the refiner occasionally commands a
   velocity with undefined power (NaN). `FeasiblePowerModel` evaluates such samples at a slightly reduced
   ground speed (4 samples in one run, B1c Jan 1; kinematics unchanged).
-* **Oracle not best.** The Oracle is a 3 h-step DP on truth; the continuous refiner (30 min steps) and
-  coarse-DP effects let REF policies beat it on 5 of 10 missions (negative regret); the Oracle is therefore
-  not a strict upper bound for continuous policies.
+* **Hindsight reference.** The 3 h DP Oracle was beaten by REF policies; regrets are therefore computed
+  against J_hind = max(Oracle, Oracle_REF) per mission (Oracle_REF = DP on truth to mission end + 48 h
+  refinement on truth at every 6 h replan). See `checks.max_causal_minus_j_hind_mwh` (<= 0 means no causal
+  policy beats J_hind).
+* **Coast-margin fix (post-S3).** The refiner now enforces SDF >= d_min + 2 km at nodes, quarter points and
+  mid-points and the DP arc check samples every <= dx/8. B1_5d_REF, B1c_5d_REF and ENS_g0_REF were re-run after the fix (old results kept in
+  `outputs/s3_runs/pre_coastfix`, see table above); B0, B1_5d and the DP Oracle are unaffected by the refiner
+  but were run with the old DP arc sampling; regression tests in
+  `tests/test_refine.py`.
 * **Coast.** No track enters land or the outside region. Strict-SDF violations (< 20 km) come from DP
   macro arcs cutting corners (min 19.75 km, Oracle too) and from the refiner (down to 17.0 km:
   B1_5d_REF Nov 1; 17.95 km ENS_g0_REF Jan 1; 18.5 km B1_5d_REF Mar 1).
@@ -235,7 +278,7 @@ def write_md(o):
     for title, key, sc, f in (
         ("Net energy J [MWh]", "energy_kwh", 1e-3, ".1f"),
         ("Capacity factor [-]", "capacity_factor", 1, ".3f"),
-        ("Regret vs Oracle [%]", "regret", 100, ".1f"),
+        ("Regret vs J_hind = max(Oracle, Oracle_REF) [%]", "regret", 100, ".1f"),
     ):
         L += [
             f"### {title}",
@@ -318,6 +361,13 @@ def write_md(o):
         s = o["summary"][p]
         L.append(f"| {p} | {s['hold_fraction']['mean']:.2f} | {s['distance_km']['mean']:.0f} |")
     L.append("")
+    L += ["### Pre/post coast-fix (REF policies re-run with SDF >= d_min + 2 km, quarter-point sampling)", "",
+          "| Policy | n | mean delta J [MWh] (post - pre) | std | pre violation steps | pre min SDF [km] |",
+          "|---|---|---|---|---|---|"]
+    for p_, v in o["coastfix"].items():
+        L.append(f"| {p_} | {v['n']} | {v['mean_delta_mwh']:+.1f} | {v['std_delta_mwh']:.1f} | "
+                 f"{v['pre_violation_steps']} | {v['pre_min_sdf_km']:.2f} |")
+    L.append("")
     L.append(NOTES)
     (ROOT / "docs" / "sprints" / "S3_results.md").write_text("\n".join(L))
 
@@ -364,7 +414,7 @@ def figures(ctx, runs, o, track_date):
             r["res"].x / 1e3,
             r["res"].y / 1e3,
             color=COLORS[p],
-            lw=1.4 if p != "Oracle" else 2.2,
+            lw=1.4 if p not in ("Oracle", "Oracle_REF") else 2.2,
             label=f"{p} ({r['metrics']['energy_kwh'] / 1e3:.0f} MWh)",
             alpha=0.9,
         )
@@ -389,7 +439,7 @@ def figures(ctx, runs, o, track_date):
     fig, ax = plt.subplots(figsize=(9, 9))
     t0, t1 = 8 * 86400.0, 13 * 86400.0
     allx, ally = [], []
-    for p in ("Oracle", "B1_5d", "B1_5d_REF", "ENS_g0_REF"):
+    for p in ("Oracle", "Oracle_REF", "B1_5d_REF", "ENS_g0_REF"):
         r = runs.get((p, track_date))
         if r is None:
             continue
@@ -409,7 +459,7 @@ def figures(ctx, runs, o, track_date):
     plt.close(fig)
     # regret bars
     dates = o["missions"]
-    pp = [p for p in o["policies"] if p != "Oracle"]
+    pp = [p for p in o["policies"] if p not in ("Oracle", "Oracle_REF")]
     fig, ax = plt.subplots(figsize=(13, 5))
     wdt = 0.8 / len(pp)
     for k, p in enumerate(pp):
@@ -447,6 +497,7 @@ def inspector(ctx, runs, dates):
         seed_runs.append(SeedRun(R.mission_id(d), truth, res, wx, rec, label=d[:7] + " " + d[5:]))
     info = {
         "Oracle": {"label": "Oracle (hindsight DP)"},
+        "Oracle_REF": {"label": "Oracle + refiner (hindsight)"},
         "B0": {"label": "B0 best fixed point"},
         "B1_5d": {"label": "B1 5 d DP"},
         "B1_5d_REF": {"label": "B1 5 d + refiner"},
@@ -460,6 +511,7 @@ def inspector(ctx, runs, dates):
         title="HORIZON S3 - ERA5 2015 inspector",
         start_lonlat=R.START,
         policy_info=info,
+        reference="Oracle_REF",
         params={
             "grid_km": 40,
             "replan_h": 6,
