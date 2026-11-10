@@ -1,0 +1,357 @@
+{
+ "defs": {
+  "TWS": {
+   "en": "True wind speed: speed of the wind relative to the sea surface (not the apparent wind felt on board). Unit: knots here. Power peaks between 18 and 26 kn.",
+   "fr": "Vitesse du vent vrai : vitesse du vent par rapport à la mer (pas le vent apparent ressenti à bord). Unité : nœuds. La puissance est maximale entre 18 et 26 nœuds.",
+   "more": "problem"
+  },
+  "TWA": {
+   "en": "True wind angle: angle between the course and the direction the wind comes from, folded to 0-180 degrees (0 = headwind, 90 = beam, 180 = dead downwind). Productive band: 75-105. Undefined while holding.",
+   "fr": "Angle de vent vrai : angle entre la route et la direction d'où vient le vent, ramené à 0-180 degrés (0 = vent debout, 90 = de travers, 180 = vent arrière). Bande productive : 75-105. Indéfini à l'arrêt.",
+   "more": "problem"
+  },
+  "productive band": {
+   "en": "Time with TWS in 18-26 kn AND TWA in 75-105 degrees. While holding, the ship sails beam-reach tacks, so hold time counts as in the TWA band: only TWS matters then.",
+   "fr": "Temps avec TWS entre 18 et 26 nœuds ET TWA entre 75 et 105 degrés. En attente, le navire louvoie de travers : le temps d'attente compte dans la bande de TWA, seul le TWS compte alors.",
+   "more": "problem"
+  },
+  "regret": {
+   "en": "Relative energy shortfall against the reference: (J_ref - J) / J_ref, in %. 0 = as good as the oracle. About 2 points optimistic because the oracle itself is discretised.",
+   "fr": "Manque d'énergie relatif à la référence : (J_ref - J) / J_ref, en %. 0 = aussi bon que l'oracle. Optimiste d'environ 2 points car l'oracle est lui-même discrétisé.",
+   "more": "limits"
+  },
+  "oracle": {
+   "en": "Hindsight router: it is given the true wind of the whole mission and solves one optimisation. Not causal; it is a benchmark, not a competitor.",
+   "fr": "Routeur a posteriori : il reçoit le vent réel de toute la mission et résout une seule optimisation. Non causal ; c'est un étalon, pas un concurrent.",
+   "more": "r-Oracle"
+  },
+  "capacity factor": {
+   "en": "Energy J divided by what the ship would give at rated power for the whole mission (rated power x duration). 0.85 means 85 % of the maximum.",
+   "fr": "Énergie J divisée par ce que donnerait le navire à puissance nominale pendant toute la mission. 0,85 = 85 % du maximum."
+  },
+  "hold": {
+   "en": "Station-keeping: ground speed below 0.5 m/s. The ship stays around a point (racetrack or tacking pattern) and still produces power, at a penalty compared with sailing.",
+   "fr": "Tenue de position : vitesse sol inférieure à 0,5 m/s. Le navire reste autour d'un point (hippodrome ou louvoyage) et produit encore de l'énergie, avec une pénalité par rapport à la navigation."
+  },
+  "racetrack": {
+   "en": "Closed loop sailed to stay near a point while keeping the apparent wind useful.",
+   "fr": "Boucle fermée parcourue pour rester près d'un point tout en gardant un vent apparent utile."
+  },
+  "envelope": {
+   "en": "Best power reachable for a given mean ground velocity when mixing headings (zig-zag or tacking). It lets the optimiser treat transit and hold with one model.",
+   "fr": "Meilleure puissance atteignable pour une vitesse sol moyenne donnée en mélangeant les caps (zigzag ou louvoyage). Permet à l'optimiseur de traiter transit et attente avec un seul modèle."
+  },
+  "CVaR": {
+   "en": "Conditional value at risk: the mean outcome over the worst fraction (here the worst 20 %) of scenarios. Used to penalise plans that fail badly in some scenarios.",
+   "fr": "Valeur à risque conditionnelle : résultat moyen sur la fraction la plus défavorable (ici les 20 % pires) des scénarios. Sert à pénaliser les plans qui échouent fortement dans certains scénarios.",
+   "more": "r-ENS"
+  },
+  "non-anticipativity": {
+   "en": "Rule that the decisions of the common trunk cannot depend on which scenario will occur: the router does not know the future, so all branches share the same first decisions.",
+   "fr": "Règle selon laquelle les décisions du tronc commun ne peuvent pas dépendre du scénario qui se réalisera : le routeur ne connaît pas l'avenir, donc toutes les branches partagent les mêmes premières décisions.",
+   "more": "r-ENS"
+  },
+  "medoid": {
+   "en": "A real ensemble member chosen to represent a cluster of similar members (not an average, so it stays a physical wind field). Its weight is the share of members it represents.",
+   "fr": "Membre réel de l'ensemble choisi pour représenter un groupe de membres semblables (pas une moyenne, donc un champ de vent physique). Son poids est la part des membres qu'il représente.",
+   "more": "r-ENS"
+  },
+  "MPC": {
+   "en": "Model predictive control: plan over a horizon, apply only the first part, replan with fresh forecasts.",
+   "fr": "Commande prédictive : planifier sur un horizon, n'appliquer que le début, replanifier avec des prévisions à jour.",
+   "more": "r-B1"
+  },
+  "DP": {
+   "en": "Dynamic programming: exact search of the best path on the grid and time steps by working backwards from the end of the horizon.",
+   "fr": "Programmation dynamique : recherche exacte du meilleur chemin sur la grille et les pas de temps en remontant depuis la fin de l'horizon.",
+   "more": "r-B1"
+  },
+  "terminal value": {
+   "en": "Value given to the position reached at the end of the planning horizon. Zero means the router does not care where it ends up, which can strand it in poor wind.",
+   "fr": "Valeur attribuée à la position atteinte en fin d'horizon de planification. Zéro signifie que le routeur ne se soucie pas de où il finit, ce qui peut l'échouer dans un vent pauvre.",
+   "more": "r-B1"
+  },
+  "SDF": {
+   "en": "Signed distance to the coast: positive at sea, negative on land. Routers must keep it above 20 km.",
+   "fr": "Distance signée à la côte : positive en mer, négative à terre. Les routeurs doivent la garder au-dessus de 20 km."
+  },
+  "seed": {
+   "en": "One simulated winter (weather realisation). Same seed = same weather for every router, so comparisons are paired.",
+   "fr": "Un hiver simulé (réalisation météo). Même tirage = même météo pour tous les routeurs, donc comparaisons appariées."
+  },
+  "replan": {
+   "en": "Moment when the router receives a fresh forecast and issues a new plan (every 6 h here).",
+   "fr": "Moment où le routeur reçoit une prévision à jour et émet un nouveau plan (toutes les 6 h ici)."
+  },
+  "spread": {
+   "en": "Dispersion of the ensemble members around their mean: large spread = uncertain forecast.",
+   "fr": "Dispersion des membres de l'ensemble autour de leur moyenne : forte dispersion = prévision incertaine."
+  },
+  "explained variance": {
+   "en": "Share of the ensemble variability captured by the main modes used for the reduction. Close to 1 = few modes suffice.",
+   "fr": "Part de la variabilité de l'ensemble capturée par les modes principaux utilisés pour la réduction. Proche de 1 = peu de modes suffisent.",
+   "more": "r-ENS"
+  },
+  "plan optimism": {
+   "en": "Planned energy minus the energy really harvested over the same horizon. Persistently positive = the router believes forecasts that do not verify.",
+   "fr": "Énergie planifiée moins énergie réellement récoltée sur le même horizon. Durablement positif = le routeur croit des prévisions qui ne se vérifient pas.",
+   "more": "expect"
+  },
+  "stencil": {
+   "en": "Set of directions the DP may take from each grid cell. Few directions give staircase tracks.",
+   "fr": "Ensemble des directions que la DP peut prendre depuis chaque cellule. Peu de directions donnent des trajectoires en escalier.",
+   "more": "limits"
+  },
+  "m_J": {
+   "en": "Net energy harvested over the mission, in MWh (power x time, on the true wind). Higher is better. Typical here: 1000-2000 MWh over 30 days.",
+   "fr": "Énergie nette récoltée sur la mission, en MWh (puissance x temps, sur le vent réel). Plus c'est haut, mieux c'est. Typique ici : 1000-2000 MWh sur 30 jours."
+  },
+  "m_CF": {
+   "en": "J / (rated power x duration), between 0 and 1. Good: above 0.7 here; the oracle gets about 0.84.",
+   "fr": "J / (puissance nominale x durée), entre 0 et 1. Bon : au-dessus de 0,7 ici ; l'oracle atteint environ 0,84."
+  },
+  "m_REG": {
+   "en": "(J_ref - J) / J_ref in %, against the reference policy of the bar above. Lower is better; the reference itself is 0.",
+   "fr": "(J_ref - J) / J_ref en %, par rapport à la politique de référence de la barre ci-dessus. Plus bas = mieux ; la référence vaut 0.",
+   "more": "regret"
+  },
+  "m_HOLD": {
+   "en": "Share of time with ground speed below 0.5 m/s. A static router is at about 95 %; an active one holds only when the wind is right there.",
+   "fr": "Part du temps avec vitesse sol sous 0,5 m/s. Un routeur statique est vers 95 % ; un routeur actif n'attend que si le vent est bon sur place."
+  },
+  "m_PROD": {
+   "en": "Share of time with TWS 18-26 kn and TWA 75-105 degrees. Hold time counts as in the TWA band (beam-reach tacks), so there only the wind speed matters. Higher is better.",
+   "fr": "Part du temps avec TWS 18-26 nœuds et TWA 75-105 degrés. Le temps d'attente compte dans la bande de TWA (louvoyage de travers) : seul le vent compte alors. Plus haut = mieux.",
+   "more": "problem"
+  },
+  "m_TWSB": {
+   "en": "Share of time with TWS inside 18-26 kn, whatever the angle. Compare with the productive share to see losses due to angle.",
+   "fr": "Part du temps avec TWS dans 18-26 nœuds, quel que soit l'angle. À comparer à la part productive pour voir les pertes dues à l'angle."
+  },
+  "m_TWAB": {
+   "en": "Share of time with TWA in 75-105 degrees (hold counts as inside).",
+   "fr": "Part du temps avec TWA dans 75-105 degrés (l'attente compte comme dedans)."
+  },
+  "m_SPD": {
+   "en": "Mean commanded ground speed in knots, including hold. Optimum ship speed is about 7 kn; faster is not better.",
+   "fr": "Vitesse sol moyenne commandée en nœuds, attente comprise. La vitesse optimale est d'environ 7 nœuds ; plus vite n'est pas mieux."
+  },
+  "m_DIST": {
+   "en": "Ground distance sailed in km. Large distance is not a goal in itself; it is the price of chasing wind.",
+   "fr": "Distance sol parcourue en km. Une grande distance n'est pas un but ; c'est le prix de la chasse au vent."
+  },
+  "m_TWS": {
+   "en": "Mean true wind speed actually experienced along the track, in kn. Higher is not always better: above 25 kn the output is derated.",
+   "fr": "Vitesse moyenne du vent vrai réellement subi le long de la trace, en nœuds. Plus haut n'est pas toujours mieux : au-delà de 25 nœuds la puissance est réduite."
+  },
+  "m_REPL": {
+   "en": "Number of replans performed (every 6 h over 30 days = 120).",
+   "fr": "Nombre de replanifications effectuées (toutes les 6 h sur 30 jours = 120)."
+  },
+  "m_VIOL": {
+   "en": "Number of positions closer than 20 km to the coast. Must be 0.",
+   "fr": "Nombre de positions à moins de 20 km de la côte. Doit valoir 0."
+  },
+  "c_ref": {
+   "en": "Policy used as the yardstick for regret and for the accumulated gap. Normally the hindsight oracle.",
+   "fr": "Politique servant d'étalon pour le regret et l'écart cumulé. Normalement l'oracle a posteriori.",
+   "more": "regret"
+  },
+  "c_smooth": {
+   "en": "Moving-average window applied to power and TWS curves. Does not change energy figures.",
+   "fr": "Fenêtre de moyenne glissante appliquée aux courbes de puissance et de TWS. Ne change pas les énergies."
+  },
+  "c_pair": {
+   "en": "Same seed means same weather, so the difference A - B per seed is a paired measure. Delta > 0: A harvested more.",
+   "fr": "Même tirage = même météo, donc la différence A - B par tirage est une mesure appariée. Delta > 0 : A a récolté plus."
+  },
+  "c_ts": {
+   "en": "Panels, top to bottom: power; cumulative energy; accumulated gap to the reference (rising = losing); TWS and TWA experienced with their productive bands; plan optimism; hold/transit strips. Click or drag to move the cursor.",
+   "fr": "Panneaux de haut en bas : puissance ; énergie cumulée ; écart cumulé à la référence (qui monte = perd) ; TWS et TWA subis avec leurs bandes productives ; optimisme de plan ; bandes attente/transit. Cliquer ou glisser pour déplacer le curseur."
+  }
+ },
+ "captions": {
+  "summary": {
+   "en": "One row per router, averaged over seeds. Green marks the best non-reference value; [[regret]] is measured against the [[oracle]].",
+   "fr": "Une ligne par routeur, moyennée sur les tirages. Le vert marque la meilleure valeur hors référence ; le [[regret]] est mesuré par rapport à l'[[oracle]]."
+  },
+  "perseed": {
+   "en": "The same metric seed by seed; click a value to open that [[seed]] in the Explorer.",
+   "fr": "La même métrique tirage par tirage ; cliquer une valeur ouvre ce [[seed|tirage]] dans l'Explorer."
+  },
+  "chart": {
+   "en": "Bars = mean, whisker = spread over seeds, circles = individual seeds. Overlapping circles mean no clear winner.",
+   "fr": "Barres = moyenne, moustache = dispersion entre tirages, cercles = tirages. Cercles qui se chevauchent = pas de vainqueur net."
+  },
+  "paired": {
+   "en": "Same weather for both routers, so the per-seed difference is meaningful. Few seeds: read it as a hint, not a proof.",
+   "fr": "Même météo pour les deux routeurs, donc la différence par tirage est parlante. Peu de tirages : un indice, pas une preuve."
+  },
+  "map": {
+   "en": "Wind at the cursor time on a map; amber = productive speed band. Dots = ships, dashed = latest plan, rings = storm centres.",
+   "fr": "Vent à l'instant du curseur ; ambre = vitesses productives. Points = navires, pointillé = dernier plan, anneaux = centres de tempête."
+  },
+  "replan": {
+   "en": "What each router thought at its last [[replan]]: planned energy and, for ensemble routers, the scenario weights and [[explained variance]].",
+   "fr": "Ce que chaque routeur pensait à sa dernière [[replan|replanification]] : énergie planifiée et, pour les routeurs d'ensemble, poids des scénarios et [[explained variance|variance expliquée]]."
+  },
+  "ts": {
+   "en": "Curves share the time axis with the map cursor. The gap-to-reference curve shows WHEN a router loses energy: steep = bad period.",
+   "fr": "Les courbes partagent l'axe du temps avec le curseur de la carte. La courbe d'écart à la référence montre QUAND un routeur perd : pente forte = mauvaise période."
+  },
+  "diagtab": {
+   "en": "Numbers for this seed: how long each router stayed in the [[productive band]], in [[hold]], and how far it sailed.",
+   "fr": "Chiffres pour ce tirage : durée dans la [[productive band|bande productive]], en [[hold|attente]], et distance parcourue."
+  },
+  "h1": {
+   "en": "Where each router spent its time in wind speed. The best routers pile up inside the amber 18-26 kn band.",
+   "fr": "Où chaque routeur a passé son temps en vitesse de vent. Les meilleurs s'accumulent dans la bande ambre 18-26 nœuds."
+  },
+  "h2": {
+   "en": "Wind angle while sailing. A peak near 90 degrees is good; a peak near 180 means running downwind.",
+   "fr": "Angle de vent en navigation. Un pic vers 90 degrés est bon ; un pic vers 180 signifie vent arrière."
+  },
+  "dl": {
+   "en": "Energy lost each day relative to the reference. Tall bars = a few costly days (often a storm).",
+   "fr": "Énergie perdue chaque jour par rapport à la référence. Barres hautes = quelques jours coûteux (souvent une tempête)."
+  },
+  "tl": {
+   "en": "The windows where the chosen router lost most; click to jump there and look at the map.",
+   "fr": "Les fenêtres où le routeur choisi a le plus perdu ; cliquer pour y sauter et regarder la carte."
+  },
+  "fe": {
+   "en": "How wrong the control forecast was at the ship position, by lead time. Error growing with lead explains why long horizons mislead.",
+   "fr": "Erreur de la prévision de contrôle à la position du navire, selon l'échéance. Une erreur croissante explique pourquoi les longs horizons trompent."
+  }
+ },
+ "ui": {
+  "tab-ov": {
+   "en": "Overview",
+   "fr": "Aperçu"
+  },
+  "tab-ex": {
+   "en": "Explorer",
+   "fr": "Explorateur"
+  },
+  "guide": {
+   "en": "Guide",
+   "fr": "Guide"
+  },
+  "dark": {
+   "en": "Dark",
+   "fr": "Sombre"
+  },
+  "light": {
+   "en": "Light",
+   "fr": "Clair"
+  },
+  "policies": {
+   "en": "Policies",
+   "fr": "Politiques"
+  },
+  "reference": {
+   "en": "Reference (regret / gap)",
+   "fr": "Référence (regret / écart)"
+  },
+  "more": {
+   "en": "Learn more",
+   "fr": "En savoir plus"
+  },
+  "next": {
+   "en": "Next",
+   "fr": "Suivant"
+  },
+  "skip": {
+   "en": "Skip",
+   "fr": "Passer"
+  },
+  "done": {
+   "en": "Got it",
+   "fr": "Compris"
+  },
+  "tour": {
+   "en": "Tour",
+   "fr": "Visite"
+  },
+  "close": {
+   "en": "Close",
+   "fr": "Fermer"
+  },
+  "attention": {
+   "en": "Points of attention",
+   "fr": "Points d'attention"
+  },
+  "in_export": {
+   "en": "in this export",
+   "fr": "dans cet export"
+  },
+  "not_in_export": {
+   "en": "not in this export",
+   "fr": "absent de cet export"
+  }
+ },
+ "chips": {
+  "b1long": {
+   "en": "{a} is worse than {b} on {k}/{n} seeds: a longer deterministic horizon trusts less reliable forecasts.",
+   "fr": "{a} est moins bon que {b} sur {k}/{n} tirages : un horizon déterministe plus long s'appuie sur des prévisions moins fiables.",
+   "more": "r-B1"
+  },
+  "optim": {
+   "en": "Regret is about 2 points optimistic: the oracle only sees the truth every 3 h.",
+   "fr": "Le regret est optimiste d'environ 2 points : l'oracle ne voit le vent réel que toutes les 3 h.",
+   "more": "limits"
+  },
+  "synth": {
+   "en": "Synthetic weather and polar: read relative behaviour, not absolute MWh. The B0 location is not representative.",
+   "fr": "Météo et polaire synthétiques : lire les comportements relatifs, pas les MWh absolus. L'emplacement de B0 n'est pas représentatif.",
+   "more": "hyp"
+  },
+  "fewseeds": {
+   "en": "Only {n} seeds: differences of a few percent are not conclusive.",
+   "fr": "Seulement {n} tirages : des écarts de quelques pourcents ne sont pas concluants.",
+   "more": "limits"
+  },
+  "holdheavy": {
+   "en": "{a} holds position {p} % of the time: its productive share only reflects the wind at its location.",
+   "fr": "{a} tient position {p} % du temps : sa part productive ne reflète que le vent à son emplacement.",
+   "more": "r-B0"
+  },
+  "concentr": {
+   "en": "{a} loses {p} % of its deficit in its 3 worst days: look at seed {s} in the Explorer.",
+   "fr": "{a} perd {p} % de son déficit en ses 3 pires jours : voir le tirage {s} dans l'Explorer.",
+   "more": "path"
+  },
+  "ensdiag": {
+   "en": "Ensemble diagnostics are available: see the replan panel in the Explorer.",
+   "fr": "Diagnostics d'ensemble disponibles : voir le panneau de replanification dans l'Explorer.",
+   "more": "r-ENS"
+  }
+ },
+ "tour": [
+  {
+   "target": "#tab-ov",
+   "en": "Overview compares routers over all seeds; Explorer shows where and when one loses energy.",
+   "fr": "Overview compare les routeurs sur tous les tirages ; Explorer montre où et quand l'un perd de l'énergie."
+  },
+  {
+   "target": "#chips",
+   "en": "These chips flag points of attention computed from the data. Click one for the explanation.",
+   "fr": "Ces pastilles signalent des points d'attention calculés sur les données. Un clic ouvre l'explication."
+  },
+  {
+   "target": "#app .card",
+   "en": "Each panel has a grey line saying how to read it; small i icons and dotted terms explain themselves on hover.",
+   "fr": "Chaque panneau a une ligne grise expliquant comment le lire ; les icônes i et les termes en pointillés s'expliquent au survol."
+  },
+  {
+   "target": "#guide-btn",
+   "en": "The Guide holds the problem statement, each router, the capability matrix, hypotheses and limitations.",
+   "fr": "Le Guide contient l'énoncé du problème, chaque routeur, la matrice des capacités, les hypothèses et les limites."
+  },
+  {
+   "target": "#lang",
+   "en": "Switch between French and English here. Start with the reading path in the Guide.",
+   "fr": "Basculez entre français et anglais ici. Commencez par le parcours de lecture dans le Guide."
+  }
+ ]
+}

@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><!--__TITLE__--></title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1d2330;--mute:#667085;--line:#e1e5ec;--grid:#e9ecf2;--accent:#2f5fd0;
+--land:#b9b4a8;--buf:#8d887c;--band:rgba(245,170,20,.16);--sea:#eaf0f7;--hl:#fff7d6;--bad:#c4332b;--good:#1d7a4c}
+body.dark{--bg:#12151c;--card:#1b2029;--ink:#e6e9f0;--mute:#98a2b3;--line:#2b3240;--grid:#262c38;--accent:#7aa2ff;
+--land:#4a4a46;--buf:#3a3a36;--band:rgba(245,170,20,.14);--sea:#1b2433;--hl:#3a3320;--bad:#ff7b72;--good:#58d68d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+h1{font-size:16px;margin:0}
+.meta{color:var(--mute);font-size:12px}
+.tabs{display:flex;gap:4px;margin-left:auto}
+button,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button:hover{border-color:var(--accent)}
+.bar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 6px;border:1px solid var(--line);border-radius:99px;cursor:pointer;user-select:none}
+.chip.off{opacity:.4}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+main{padding:12px 16px;max-width:1700px;margin:0 auto}
+.grid2{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px}
+@media(max-width:1050px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px;min-width:0}
+.card h2{font-size:13px;margin:0 0 6px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.card h2 small{font-weight:400;color:var(--mute)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:3px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:600;font-size:12px}
+td.best{font-weight:700;color:var(--good)}
+td.worst{color:var(--bad)}
+tr.clk{cursor:pointer}tr.clk:hover{background:var(--hl)}
+.tw{overflow-x:auto}
+canvas{width:100%;display:block;border-radius:6px;border:1px solid var(--line)}
+svg{display:block;width:100%;overflow:visible}
+svg text{fill:var(--mute);font-size:10.5px}
+svg .ax{stroke:var(--line)}svg .gl{stroke:var(--grid)}
+svg .cur{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 2;pointer-events:none}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0}
+input[type=range]{flex:1;min-width:160px}
+.ro{font-variant-numeric:tabular-nums}
+.hint{color:var(--mute);font-size:11.5px;margin:2px 0 6px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--mute)}
+label.ck{display:inline-flex;gap:4px;align-items:center;cursor:pointer}
+.mini{display:inline-block;vertical-align:middle}
+.kv td{padding:1px 6px}
+.err{padding:30px;color:var(--bad);font-size:15px}
+.cap{color:var(--mute);font-size:11.5px;margin:-2px 0 6px;line-height:1.35}
+.ii{display:inline-block;width:13px;height:13px;border:1px solid var(--mute);border-radius:50%;font:italic 600 9px/11px Georgia,serif;text-align:center;color:var(--mute);cursor:help;margin-left:4px;vertical-align:middle;font-weight:600}
+.ii:hover{color:var(--accent);border-color:var(--accent)}
+.term{border-bottom:1px dotted var(--mute);cursor:help}
+#pop{position:fixed;z-index:60;max-width:320px;background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 18px rgba(0,0,0,.25);border-radius:8px;padding:8px 10px;font-size:12px;display:none}
+#pop a,.gbody a{color:var(--accent);cursor:pointer;text-decoration:underline}
+#chips{display:flex;flex-wrap:nowrap;gap:6px;padding:6px 16px 0;align-items:center;overflow:hidden}
+#chips:empty{display:none}
+.chip2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;font-size:11.5px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-left:3px solid #d6a21e;border-radius:6px;padding:2px 8px;cursor:pointer}
+.chip2:hover{border-color:var(--accent)}
+#guide{position:fixed;top:0;right:0;bottom:0;width:min(500px,94vw);background:var(--card);border-left:1px solid var(--line);box-shadow:-6px 0 24px rgba(0,0,0,.18);z-index:40;transform:translateX(105%);transition:transform .2s;display:flex;flex-direction:column}
+#guide.open{transform:none}
+.ghead{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.gnav{display:flex;flex-wrap:wrap;gap:4px 10px;padding:6px 14px;border-bottom:1px solid var(--line);font-size:11.5px}
+.gnav a{color:var(--accent);cursor:pointer}
+.gbody{overflow:auto;padding:4px 16px 40px;font-size:13px;line-height:1.5}
+.gbody h2{font-size:15px;margin:20px 0 6px;padding-top:6px;border-top:1px solid var(--line)}
+.gbody h3{font-size:13px;margin:14px 0 4px}
+.gbody p{margin:4px 0}.gbody ul,.gbody ol{margin:4px 0;padding-left:20px}
+.gbody table{font-size:11.5px;margin:6px 0}.gbody th,.gbody td{text-align:left;white-space:normal}
+.gbody .flash{background:var(--hl)}
+.badge{font-size:10.5px;font-weight:400;color:var(--good);border:1px solid var(--line);border-radius:99px;padding:0 6px;margin-left:6px}
+.badge.no{color:var(--mute)}
+#tour{position:fixed;right:16px;bottom:16px;z-index:70;width:320px;background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.3);display:none}
+#tour .row{justify-content:flex-end;margin-bottom:0}
+.tour-hl{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.q{font-size:10px;color:var(--mute);border:1px solid var(--line);border-radius:50%;width:13px;height:13px;display:inline-block;text-align:center;line-height:11px;margin-left:3px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="ttl"></h1><span class="meta" id="meta"></span>
+  <span class="tabs"><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button>
+  <button id="guide-btn" data-ui="guide">Guide</button><button id="tourbtn" data-ui="tour" title="Tour">Tour</button><button id="lang">EN</button>
+  <button id="theme" title="Toggle dark mode">Dark</button></span>
+</header>
+<div class="bar" id="bar"></div>
+<div id="chips"></div>
+<main id="app"><div class="err" id="loading" style="color:var(--mute)">Decoding data...</div></main>
+<!--__DATA__-->
+<aside id="guide"><div class="ghead"><b style="flex:1" data-ui="guide">Guide</b><button id="gclose" data-ui="close">Close</button></div><div class="gnav" id="gnav"></div><div class="gbody" id="gbody"></div></aside>
+<div id="pop"></div>
+<div id="tour"></div>
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const fmt = (v, d = 1) => (v === null || v === undefined || !isFinite(v)) ? "-" : v.toFixed(d);
+const KN = 1852 / 3600, DAY = 86400;
+const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+const std = a => a.length < 2 ? 0 : Math.sqrt(a.reduce((s, v) => s + (v - mean(a)) ** 2, 0) / (a.length - 1));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const PAL = ["#7b4ea3", "#8c564b", "#1b9aaa", "#b08900", "#c2185b", "#455a64"];
+const FIXED = {Oracle: "#d62728", B0: "#7f7f7f", B0_spec: "#e377c2", B1_5d: "#1f77b4", B1_15d: "#17806d"};
+let D, S, G;   // data, state, content (guide + glossary)
+const L = o => (o && (o[S.lang] || o.en)) || "";
+const ui = k => L(G.ui[k]);
+const termKey = k => G.defs[k] ? k : (G.defs[k.toLowerCase()] ? k.toLowerCase() : null);
+/* inline rich text: **bold**, [[term]] or [[term|label]] -> glossary term, [label](#section) -> guide link */
+function rich(t) {
+  return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (m, k, lab) => {
+    const key = termKey(k); return key ? `<span class="term" data-d="${esc(key)}">${lab || k}</span>` : (lab || k);
+  }).replace(/\[([^\]]+)\]\(#([\w-]+)\)/g, '<a data-guide="$2">$1</a>');
+}
+const cap = id => G.captions[id] ? `<div class="cap">${rich(L(G.captions[id]))}</div>` : "";
+const info = k => G.defs[k] ? `<i class="ii" data-d="${esc(k)}">i</i>` : "";
+
+// ------------------------------------------------------------------ data loading
+function b64bytes(b64) {
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+async function loadData() {
+  const el = document.getElementById("hz-data");
+  if (el.dataset.enc === "json") return JSON.parse(el.textContent);
+  if (typeof DecompressionStream === "undefined") throw new Error("This browser lacks DecompressionStream; use a current Chrome, Edge, Firefox or Safari.");
+  const ds = new Blob([b64bytes(el.textContent.trim())]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(ds).text());
+}
+const nz = a => Float64Array.from(a, v => v === null ? NaN : v);
+function prepare(d) {
+  const mp = d.map;
+  mp.SDF = new Int16Array(b64bytes(mp.sdf.b64).buffer);
+  const g = mp.grid;
+  mp.xmin = g.x0_km - g.dx_km / 2; mp.xmax = g.x0_km + (g.nx - 0.5) * g.dx_km;
+  mp.ymin = g.y0_km - g.dx_km / 2; mp.ymax = g.y0_km + (g.ny - 0.5) * g.dx_km;
+  d.pnames = d.policies.map(p => p.name);
+  d.color = {}; let k = 0;
+  d.pnames.forEach(n => { d.color[n] = FIXED[n] || PAL[k++ % PAL.length]; });
+  d.label = {}; d.policies.forEach(p => { d.label[p.name] = p.label || p.name; });
+  for (const s of d.seeds) {
+    const w = s.wind;
+    w.U = new Int8Array(b64bytes(w.u.b64).buffer); w.V = new Int8Array(b64bytes(w.v.b64).buffer);
+    w.TH = new Float32Array(b64bytes(w.theta.b64).buffer);
+    s.T = nz(s.t_s); s.n = s.T.length;
+    for (const [name, r] of Object.entries(s.runs)) {
+      r.name = name;
+      r.X = nz(r.x_km); r.Y = nz(r.y_km); r.E = nz(r.energy_kwh);
+      r.P = nz(r.power_kw); r.H = nz(r.hold_frac); r.TWS = nz(r.tws_ms); r.TWA = nz(r.twa_deg);
+      r.plans = r.replans.filter(q => q.plan);
+    }
+  }
+}
+
+// ------------------------------------------------------------------ derived quantities
+const dtS = () => D.meta.export_dt_s;
+const seed = () => D.seeds[S.si];
+const run = (s, n) => s.runs[n];
+function refRun(s) { return s.runs[S.ref] || null; }
+function jRef(s) { const r = refRun(s); return r ? r.metrics.energy_kwh : NaN; }
+const METRICS = {
+  J: {label: "Energy J [MWh]", d: 1, hi: true, f: (r, s) => r.metrics.energy_kwh / 1e3},
+  CF: {label: "Capacity factor", d: 3, hi: true, f: r => r.metrics.capacity_factor},
+  REG: {label: "Regret vs reference [%]", d: 1, hi: false, f: (r, s) => 100 * (jRef(s) - r.metrics.energy_kwh) / jRef(s)},
+  HOLD: {label: "Time in hold [%]", d: 0, hi: null, f: r => 100 * r.diag.hold_share},
+  PROD: {label: "Productive band [% time]", d: 1, hi: true, f: r => 100 * r.diag.productive_share},
+  TWSB: {label: "TWS 18-26 kn [% time]", d: 1, hi: true, f: r => 100 * r.diag.tws_band_share},
+  SPD: {label: "Mean speed [kn]", d: 2, hi: null, f: r => r.diag.mean_speed_ms / KN},
+  DIST: {label: "Distance [km]", d: 0, hi: null, f: r => r.metrics.distance_km},
+  TWS: {label: "Mean experienced TWS [kn]", d: 1, hi: true, f: r => r.diag.mean_tws_ms / KN}
+};
+function metricVals(name, key) { // per seed values (NaN if missing)
+  return D.seeds.map(s => s.runs[name] ? METRICS[key].f(s.runs[name], s) : NaN);
+}
+const fin = a => a.filter(isFinite);
+function interp(arr, tf) { // arr indexed by export step; fractional index
+  const i = clamp(Math.floor(tf), 0, arr.length - 2), a = clamp(tf - i, 0, 1);
+  return arr[i] * (1 - a) + arr[i + 1] * a;
+}
+function movavg(a, w) {
+  if (w <= 1) return a;
+  const out = new Float64Array(a.length), h = Math.floor(w / 2);
+  for (let i = 0; i < a.length; i++) {
+    let s = 0, c = 0;
+    for (let j = Math.max(0, i - h); j <= Math.min(a.length - 1, i + h); j++) if (isFinite(a[j])) { s += a[j]; c++; }
+    out[i] = c ? s / c : NaN;
+  }
+  return out;
+}
+function gap(s, n) { // accumulated energy lost vs reference [kWh] at each sample
+  const r = run(s, n), ref = refRun(s);
+  if (!r || !ref) return null;
+  return ref.E.map((v, i) => v - r.E[i]);
+}
+function dailyLoss(s, n) {
+  const g = gap(s, n); if (!g) return null;
+  const per = Math.round(DAY / dtS()), out = [];
+  for (let d = 0; d * per < g.length - 1; d++) out.push(g[Math.min((d + 1) * per, g.length - 1)] - g[d * per]);
+  return out;
+}
+function topLosses(s, n, wH, k = 5) {
+  const g = gap(s, n); if (!g) return [];
+  const w = Math.max(1, Math.round(wH * 3600 / dtS())), L = [];
+  for (let i = 0; i + w < g.length; i++) L.push([g[i + w] - g[i], i]);
+  L.sort((a, b) => b[0] - a[0]);
+  const picked = [];
+  for (const [v, i] of L) {
+    if (v <= 0 || picked.length >= k) break;
+    if (picked.every(p => Math.abs(p.i - i) >= w)) picked.push({loss: v, i, w});
+  }
+  const r = run(s, n), ref = refRun(s);
+  for (const p of picked) {
+    const sl = a => { let m = 0, c = 0; for (let j = p.i; j < p.i + p.w; j++) if (isFinite(a[j])) { m += a[j]; c++; } return c ? m / c : NaN; };
+    p.hold = sl(r.H); p.tws = sl(r.TWS) / KN; p.pw = sl(r.P); p.pref = sl(ref.P); p.twsref = sl(ref.TWS) / KN;
+  }
+  return picked;
+}
+const dayStr = i => (i * dtS() / DAY).toFixed(2);
+function clock(tf) {
+  const t0 = Date.parse(D.meta.epoch), d = new Date(t0 + tf * dtS() * 1000);
+  return d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+}
+
+// ------------------------------------------------------------------ SVG chart helpers
+function niceTicks(lo, hi, n = 5) {
+  if (!(hi > lo)) { hi = lo + 1; }
+  const raw = (hi - lo) / n, p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+  const st = (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
+  const out = []; for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st) out.push(+v.toFixed(10));
+  return out;
+}
+function pathOf(xs, ys, X, Y) {
+  let d = "", pen = false;
+  for (let i = 0; i < xs.length; i++) {
+    if (!isFinite(ys[i])) { pen = false; continue; }
+    d += (pen ? "L" : "M") + X(xs[i]).toFixed(1) + " " + Y(ys[i]).toFixed(1); pen = true;
+  }
+  return d;
+}
+const ML = 54, MR = 10;
+function chartW(el) { return Math.max(300, el.clientWidth || 600); }
+/* Time-series chart. opts: series[{name,color,y,w,dash}], bands[[y0,y1]], zero, height, title, ylabel, x (days), xmax, ticksX, shade[[x0,x1]] */
+function tsChart(el, o) {
+  const W = chartW(el), H = o.height || 120, T = 8, B = o.xaxis ? 20 : 4, pw = W - ML - MR, ph = H - T - B;
+  let lo = Infinity, hi = -Infinity;
+  for (const s of o.series) for (const v of s.y) if (isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (o.ymin !== undefined) lo = o.ymin; if (o.ymax !== undefined) hi = o.ymax;
+  if (!isFinite(lo)) { lo = 0; hi = 1; }
+  if (o.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  const pad = (hi - lo) * 0.05 || 1; if (o.ymin === undefined) lo -= pad; if (o.ymax === undefined) hi += pad;
+  const X = x => ML + x / o.xmax * pw, Y = y => T + (1 - (y - lo) / (hi - lo)) * ph;
+  let g = "";
+  for (const t of niceTicks(lo, hi, Math.max(2, Math.floor(ph / 28)))) g += `<line class="gl" x1="${ML}" x2="${W - MR}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${ML - 4}" y="${Y(t) + 3}" text-anchor="end">${+t.toFixed(3)}</text>`;
+  for (const t of niceTicks(0, o.xmax, 10)) {
+    g += `<line class="gl" x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${T + ph}"/>`;
+    if (o.xaxis) g += `<text x="${X(t)}" y="${H - 5}" text-anchor="middle">${t}</text>`;
+  }
+  if (o.xaxis) g += `<text x="${W - MR}" y="${H - 5}" text-anchor="end" style="font-weight:600">days</text>`;
+  for (const b of o.bands || []) g += `<rect x="${ML}" width="${pw}" y="${Y(b[1])}" height="${Math.abs(Y(b[0]) - Y(b[1]))}" fill="var(--band)"/>`;
+  for (const sh of o.shade || []) g += `<rect x="${X(sh[0])}" width="${Math.max(2, X(sh[1]) - X(sh[0]))}" y="${T}" height="${ph}" fill="${sh[2] || "#f5aa14"}" opacity=".22"/>`;
+  if (o.zero) g += `<line class="ax" x1="${ML}" x2="${W - MR}" y1="${Y(0)}" y2="${Y(0)}"/>`;
+  for (const s of o.series) {
+    const xs = s.x || o.x;
+    if (o.dots) g += xs.map((x, i) => isFinite(s.y[i]) ? `<circle cx="${X(x).toFixed(1)}" cy="${Y(s.y[i]).toFixed(1)}" r="2.3" fill="${s.color}"/>` : "").join("");
+    else g += `<path d="${pathOf(xs, s.y, X, Y)}" fill="none" stroke="${s.color}" stroke-width="${s.w || 1.5}" ${s.dash ? 'stroke-dasharray="4 3"' : ""} stroke-linejoin="round"/>`;
+  }
+  g += `<text x="${ML + 4}" y="${T + 10}" style="font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--card);stroke-width:3px">${o.title}</text>`;
+  if (o.ylabel) g += `<text x="${W - MR - 2}" y="${T + 10}" text-anchor="end">${o.ylabel}</text>`;
+  g += `<line class="cur" y1="${T}" y2="${T + ph}" x1="0" x2="0"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" style="touch-action:none;cursor:crosshair" data-ml="${ML}" data-pw="${pw}" data-xmax="${o.xmax}">${g}</svg>`;
+}
+/* Generic bar/line chart with categories; returns svg string. */
+function barsSvg(W, H, cats, series, o = {}) { // series: [{name,color,v:[per cat]}]
+  const L = 44, R = 8, T = 10, B = o.labelH || 22, pw = W - L - R, ph = H - T - B;
+  let lo = 0, hi = -Infinity, mn = 0;
+  for (const s of series) for (const v of s.v) if (isFinite(v)) { hi = Math.max(hi, v); mn = Math.min(mn, v); }
+  lo = mn; if (!isFinite(hi)) hi = 1; if (hi === lo) hi = lo + 1;
+  const Y = v => T + (1 - (v - lo) / (hi - lo)) * ph;
+  let g = "";
+  for (const t of niceTicks(lo, hi, 4)) g += `<line class="gl" x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${L - 4}" y="${Y(t) + 3}" text-anchor="end">${+t.toFixed(3)}</text>`;
+  const gw = pw / cats.length, bw = Math.min(26, gw * 0.8 / series.length);
+  cats.forEach((c, ci) => {
+    const x0 = L + ci * gw + gw / 2 - bw * series.length / 2;
+    series.forEach((s, si) => {
+      const v = s.v[ci]; if (!isFinite(v)) return;
+      const y1 = Y(Math.max(v, 0)), y2 = Y(Math.min(v, 0));
+      g += `<rect x="${x0 + si * bw}" y="${y1}" width="${bw - 1}" height="${Math.max(0.5, y2 - y1)}" fill="${s.colors ? s.colors[ci] : s.color}" ${s.opacity ? 'fill-opacity="' + s.opacity + '"' : ""}><title>${esc(s.name)} ${esc(c)}: ${v.toFixed(2)}</title></rect>`;
+      if (s.err && isFinite(s.err[ci])) g += `<line x1="${x0 + si * bw + bw / 2}" x2="${x0 + si * bw + bw / 2}" y1="${Y(v - s.err[ci])}" y2="${Y(v + s.err[ci])}" stroke="var(--ink)"/>`;
+      if (s.pts) for (const p of s.pts[ci]) if (isFinite(p)) g += `<circle cx="${x0 + si * bw + bw / 2}" cy="${Y(p)}" r="2.4" fill="var(--card)" stroke="var(--ink)"/>`;
+    });
+    if (!o.noLabels || ci % o.noLabels === 0) g += `<text x="${L + ci * gw + gw / 2}" y="${H - 6}" text-anchor="middle">${esc(c)}</text>`;
+  });
+  g += `<line class="ax" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}</svg>`;
+}
+/* histogram lines: edges (centres), series values */
+function histSvg(W, H, centres, series, band, xlab, pct = true) {
+  const L = 40, R = 8, T = 8, B = 32, pw = W - L - R, ph = H - T - B;
+  let hi = 0; for (const s of series) for (const v of s.v) hi = Math.max(hi, v);
+  hi = hi * 1.08 || 1;
+  const x0 = centres[0], x1 = centres[centres.length - 1], bw = (centres[1] - centres[0]);
+  const X = x => L + (x - (x0 - bw / 2)) / (x1 - x0 + bw) * pw, Y = v => T + (1 - v / hi) * ph;
+  let g = `<rect x="${X(band[0])}" width="${X(band[1]) - X(band[0])}" y="${T}" height="${ph}" fill="var(--band)"/>`;
+  for (const t of niceTicks(0, hi * 100, 4)) g += `<line class="gl" x1="${L}" x2="${W - R}" y1="${Y(t / 100)}" y2="${Y(t / 100)}"/><text x="${L - 4}" y="${Y(t / 100) + 3}" text-anchor="end">${pct ? t + "%" : +(t / 100).toFixed(2)}</text>`;
+  for (const t of niceTicks(x0 - bw / 2, x1 + bw / 2, 8)) g += `<text x="${X(t)}" y="${H - 18}" text-anchor="middle">${t}</text>`;
+  g += `<text x="${W - R}" y="${H - 4}" text-anchor="end" style="font-weight:600">${xlab}</text>`;
+  for (const s of series) {
+    let d = "";
+    centres.forEach((c, i) => { d += (i ? "L" : "M") + X(c).toFixed(1) + " " + Y(s.v[i]).toFixed(1); });
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="1.6"/>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}</svg>`;
+}
+
+// ------------------------------------------------------------------ top-level UI
+function selNames(s) { return D.pnames.filter(n => S.sel.has(n) && (!s || s.runs[n])); }
+function renderBar() {
+  const chips = D.pnames.map(n => `<span class="chip ${S.sel.has(n) ? "" : "off"}" data-p="${esc(n)}" title="${esc(D.label[n])}"><span class="dot" style="background:${D.color[n]}"></span>${esc(n)}<span class="q" data-guide="${routerKey(n)}" title="?">?</span></span>`).join("");
+  $("#bar").innerHTML = `<b>${ui("policies")}</b>${chips}<span style="margin-left:auto">${ui("reference")}${info("c_ref")} <select id="refsel">${D.pnames.map(n => `<option ${n === S.ref ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></span>`;
+  $("#bar").querySelectorAll(".chip").forEach(c => c.onclick = e => {
+    if (e.target.dataset.guide) { openGuide(e.target.dataset.guide); return; }
+    const n = c.dataset.p; S.sel.has(n) ? S.sel.delete(n) : S.sel.add(n); renderAll();
+  });
+  $("#refsel").onchange = e => { S.ref = e.target.value; renderAll(); };
+}
+function renderAll() { renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : renderExplorer(); }
+function setTab(t) {
+  S.tab = t; $("#tab-ov").classList.toggle("on", t === "ov"); $("#tab-ex").classList.toggle("on", t === "ex");
+  S.play = false; renderAll();
+}
+
+// ------------------------------------------------------------------ overview
+function renderOverview() {
+  const names = D.pnames.filter(n => S.sel.has(n)), ns = D.seeds.length;
+  const sumKeys = ["J", "CF", "REG", "HOLD", "PROD", "SPD", "DIST", "TWS"];
+  let t1 = `<tr><th>Policy</th>${sumKeys.map(k => `<th>${METRICS[k].label}${info("m_" + k)}</th>`).join("")}</tr>`;
+  const stats = {};
+  for (const n of names) stats[n] = Object.fromEntries(sumKeys.map(k => { const v = fin(metricVals(n, k)); return [k, {m: v.length ? mean(v) : NaN, s: std(v), n: v.length}]; }));
+  const best = {};
+  for (const k of sumKeys) if (METRICS[k].hi !== null) {
+    const ms = names.filter(n => n !== S.ref).map(n => stats[n][k].m).filter(isFinite);
+    if (ms.length) best[k] = METRICS[k].hi ? Math.max(...ms) : Math.min(...ms);
+  }
+  for (const n of names) t1 += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b> <span class="meta">${esc(D.label[n] === n ? "" : D.label[n])}</span></td>${sumKeys.map(k => {
+    const x = stats[n][k], cls = n !== S.ref && best[k] !== undefined && Math.abs(x.m - best[k]) < 1e-9 ? "best" : "";
+    return `<td class="${cls}">${fmt(x.m, METRICS[k].d)} &plusmn; ${fmt(x.s, METRICS[k].d)}${x.n < ns ? ` <span class="meta">(n=${x.n})</span>` : ""}</td>`;
+  }).join("")}</tr>`;
+  const mk = S.metric;
+  let t2 = `<tr><th>Policy</th>${D.seeds.map((s, i) => `<th>seed ${s.seed}</th>`).join("")}<th>mean &plusmn; std</th></tr>`;
+  const colBest = D.seeds.map((s, i) => { const v = names.filter(n => n !== S.ref).map(n => metricVals(n, mk)[i]).filter(isFinite); return METRICS[mk].hi === null || !v.length ? NaN : (METRICS[mk].hi ? Math.max(...v) : Math.min(...v)); });
+  for (const n of names) {
+    const v = metricVals(n, mk), f = fin(v);
+    t2 += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</td>${v.map((x, i) => `<td class="${n !== S.ref && Math.abs(x - colBest[i]) < 1e-9 ? "best" : ""} clk" data-s="${i}" style="cursor:pointer" title="Open seed in Explorer">${fmt(x, METRICS[mk].d)}</td>`).join("")}<td><b>${fmt(f.length ? mean(f) : NaN, METRICS[mk].d)}</b> &plusmn; ${fmt(std(f), METRICS[mk].d)}</td></tr>`;
+  }
+  const cats = names, W = 560;
+  const bar = barsSvg(W, 230, cats, [{name: METRICS[mk].label, color: "var(--accent)", opacity: 0.6, colors: names.map(n => D.color[n]), v: names.map(n => stats[n] && fin(metricVals(n, mk)).length ? mean(fin(metricVals(n, mk))) : NaN), err: names.map(n => std(fin(metricVals(n, mk)))), pts: names.map(n => metricVals(n, mk))}]);
+  // paired comparison
+  const A = S.A, B = S.B;
+  let t3 = `<tr><th>Seed</th><th>J ${esc(A)} [MWh]</th><th>J ${esc(B)} [MWh]</th><th>&Delta; = A &minus; B [MWh]</th><th>&Delta; [%]</th><th>Winner</th></tr>`;
+  const dl = [], dp = []; let wa = 0, wb = 0, ties = 0;
+  D.seeds.forEach(s => {
+    if (!s.runs[A] || !s.runs[B]) return;
+    const ja = s.runs[A].metrics.energy_kwh / 1e3, jb = s.runs[B].metrics.energy_kwh / 1e3, d = ja - jb;
+    dl.push(d); dp.push(100 * d / jb); d > 0 ? wa++ : d < 0 ? wb++ : ties++;
+    t3 += `<tr class="clk" data-s="${D.seeds.indexOf(s)}"><td>${s.seed}</td><td>${fmt(ja)}</td><td>${fmt(jb)}</td><td class="${d > 0 ? "best" : "worst"}">${d > 0 ? "+" : ""}${fmt(d)}</td><td>${fmt(100 * d / jb)}</td><td>${d > 0 ? esc(A) : d < 0 ? esc(B) : "tie"}</td></tr>`;
+  });
+  t3 += `<tr><td><b>mean &plusmn; std</b></td><td></td><td></td><td><b>${fmt(dl.length ? mean(dl) : NaN)}</b> &plusmn; ${fmt(std(dl))}</td><td>${fmt(dp.length ? mean(dp) : NaN)} &plusmn; ${fmt(std(dp))}</td><td><b>${esc(A)} ${wa} - ${wb} ${esc(B)}</b>${ties ? ` (${ties} ties)` : ""}</td></tr>`;
+  const opt = v => D.pnames.map(n => `<option ${n === v ? "selected" : ""}>${esc(n)}</option>`).join("");
+  $("#app").innerHTML = `
+  <div class="card"><h2>Summary <small>mean &plusmn; std over ${ns} seeds; regret vs <b>${esc(S.ref)}</b></small></h2>${cap("summary")}<div class="tw"><table>${t1}</table></div></div>
+  <div class="grid2">
+   <div class="card"><h2>Per-seed table
+     <select id="msel">${Object.entries(METRICS).map(([k, m]) => `<option value="${k}" ${k === mk ? "selected" : ""}>${m.label}</option>`).join("")}</select>
+     </h2>${cap("perseed")}<div class="tw"><table>${t2}</table></div></div>
+   <div class="card"><h2>${esc(METRICS[mk].label)}${info("m_" + mk)}</h2>${cap("chart")}${bar}</div>
+  </div>
+  <div class="card"><h2>Paired comparison
+    A <select id="asel">${opt(A)}</select> vs B <select id="bsel">${opt(B)}</select>
+    ${info("c_pair")}</h2>${cap("paired")}
+    <div class="tw"><table>${t3}</table></div>
+    <div class="hint">n = ${dl.length}.</div></div>`;
+  $("#msel").onchange = e => { S.metric = e.target.value; renderOverview(); };
+  $("#asel").onchange = e => { S.A = e.target.value; renderOverview(); };
+  $("#bsel").onchange = e => { S.B = e.target.value; renderOverview(); };
+  document.querySelectorAll("[data-s]").forEach(el => el.onclick = () => { S.si = +el.dataset.s; setTab("ex"); });
+}
+
+// ------------------------------------------------------------------ explorer
+function renderExplorer() {
+  const s = seed(), names = selNames(s), nT = s.n - 1;
+  S.tf = clamp(S.tf, 0, nT);
+  $("#app").innerHTML = `
+  <div class="row"><b>Seed</b><select id="ssel">${D.seeds.map((q, i) => `<option value="${i}" ${i === S.si ? "selected" : ""}>${q.seed}</option>`).join("")}</select>
+   <span class="meta">weather: mean TWS ${fmt(s.weather.mean_tws_ms / KN)} kn, ${fmt(100 * s.weather.frac_18_26kn, 0)} % of sea cell-hours in 18-26 kn</span></div>
+  <div class="grid2">
+   <div>
+    <div class="card"><h2>Map <small id="clock"></small></h2>${cap("map")}
+     <canvas id="map"></canvas>
+     <div class="row"><button id="play">Play</button><input type="range" id="sl" min="0" max="${nT}" step="1" value="${Math.round(S.tf)}">
+       <select id="spd"><option value="6">6 h/s</option><option value="24">1 d/s</option><option value="72">3 d/s</option></select></div>
+     <div class="row legend">
+       <label class="ck"><input type="checkbox" data-l="wind" ${S.layers.wind ? "checked" : ""}>wind speed</label>
+       <label class="ck"><input type="checkbox" data-l="band" ${S.layers.band ? "checked" : ""}>only 18-26 kn</label>
+       <label class="ck"><input type="checkbox" data-l="arrows" ${S.layers.arrows ? "checked" : ""}>arrows</label>
+       <label class="ck"><input type="checkbox" data-l="storms" ${S.layers.storms ? "checked" : ""}>storm centres</label>
+       <label class="ck"><input type="checkbox" data-l="plans" ${S.layers.plans ? "checked" : ""}>current plan</label>
+       <label class="ck"><input type="checkbox" data-l="full" ${S.layers.full ? "checked" : ""}>full tracks</label>
+       <span class="ro" id="mouse"></span></div>
+     <div class="hint">Shaded coast band = within 20 km of land (infeasible for the DP). Dashed line = plan of the latest replan. Arrow keys step the time, space plays.</div>
+     <div class="tw"><table class="ro" id="readout"></table></div>
+    </div>
+    <div class="card"><h2>Replan diagnostics at the selected time</h2>${cap("replan")}<div id="replan"></div></div>
+   </div>
+   <div class="card"><h2>Time series ${info("c_ts")} <small>smoothing ${info("c_smooth")}
+       <select id="smooth"><option value="1">none</option><option value="6">6 h</option><option value="24">24 h</option></select></small></h2>${cap("ts")}
+     <div id="ts"></div></div>
+  </div>
+  <div class="grid3">
+   <div class="card" style="grid-column:1/-1"><h2>Diagnostics <small>seed ${s.seed}</small></h2>${cap("diagtab")}<div class="tw" id="dtab"></div></div>
+   <div class="card"><h2>TWS experienced ${info("TWS")}</h2>${cap("h1")}<div id="h1"></div><div class="legend" id="lg1"></div></div>
+   <div class="card"><h2>TWA experienced ${info("TWA")}</h2>${cap("h2")}<div id="h2"></div></div>
+   <div class="card"><h2>Energy lost vs <b>${esc(S.ref)}</b> by day <small>MWh per day</small></h2>${cap("dl")}<div id="dl"></div></div>
+   <div class="card"><h2>Biggest losses vs ${esc(S.ref)}
+       <select id="fsel">${names.filter(n => n !== S.ref).map(n => `<option ${n === S.focus ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+       <select id="wsel">${[12, 24, 48].map(w => `<option value="${w}" ${w === S.win ? "selected" : ""}>${w} h windows</option>`).join("")}</select>
+       </h2>${cap("tl")}<div id="tl"></div></div>
+   <div class="card"><h2>Forecast error at the ship <small>mean |TWS error| [kn]</small></h2>${cap("fe")}<div id="fe"></div></div>
+  </div>`;
+  $("#ssel").onchange = e => { S.si = +e.target.value; renderExplorer(); };
+  $("#sl").oninput = e => { S.play = false; $("#play").textContent = "Play"; setTf(+e.target.value); };
+  $("#spd").value = S.speed; $("#spd").onchange = e => S.speed = +e.target.value;
+  $("#smooth").value = S.smooth; $("#smooth").onchange = e => { S.smooth = +e.target.value; buildTS(); moveCursor(); };
+  $("#play").onclick = () => { S.play = !S.play; $("#play").textContent = S.play ? "Pause" : "Play"; if (S.play) { S.last = performance.now(); requestAnimationFrame(tick); } };
+  document.querySelectorAll("[data-l]").forEach(c => c.onchange = () => { S.layers[c.dataset.l] = c.checked; drawMap(); });
+  $("#fsel").onchange = e => { S.focus = e.target.value; buildTS(); buildLosses(); moveCursor(); };
+  $("#wsel").onchange = e => { S.win = +e.target.value; buildTS(); buildLosses(); moveCursor(); };
+  S.focus = names.includes(S.focus) && S.focus !== S.ref ? S.focus : names.find(n => n !== S.ref);
+  if (S.focus) $("#fsel").value = S.focus;
+  const cv = $("#map");
+  cv.onmousemove = e => mapHover(e); cv.onmouseleave = () => { $("#mouse").textContent = ""; };
+  buildStatic(); buildDiagnostics(); buildTS(); buildLosses(); buildForecast(); setTf(S.tf);
+}
+function tick(now) {
+  if (!S.play || S.tab !== "ex") return;
+  const dh = (now - S.last) / 1000 * S.speed; S.last = now;
+  let tf = S.tf + dh * 3600 / dtS();
+  if (tf >= seed().n - 1) { tf = seed().n - 1; S.play = false; const b = $("#play"); if (b) b.textContent = "Play"; }
+  setTf(tf); if (S.play) requestAnimationFrame(tick);
+}
+function setTf(tf) {
+  S.tf = clamp(tf, 0, seed().n - 1);
+  const sl = $("#sl"); if (sl && Math.abs(+sl.value - S.tf) >= 0.5) sl.value = Math.round(S.tf);
+  drawMap(); moveCursor(); updateReadout(); updateReplan();
+}
+
+// -- time series
+function buildTS() {
+  const s = seed(), names = selNames(s), el = $("#ts"), ref = refRun(s);
+  const days = Array.from(s.T, t => t / DAY), xmax = days[days.length - 1], tb = Array.from({length: s.n - 1}, (_, i) => (i + 0.5) * dtS() / DAY);
+  const sm = Math.max(1, Math.round(S.smooth * 3600 / dtS()));
+  el.innerHTML = ["power", "energy", "gap", "tws", "twa", "opt", "mode"].map(k => `<div id="ts-${k}"></div>`).join("");
+  const mkS = (f, x, o = {}) => names.map(n => ({name: n, color: D.color[n], y: f(s.runs[n], n), x, ...o}));
+  const lossWin = S.focus ? topLosses(s, S.focus, S.win).map(p => [p.i * dtS() / DAY, (p.i + p.w) * dtS() / DAY]) : [];
+  tsChart($("#ts-power"), {title: "Power", ylabel: "kW", series: mkS(r => movavg(r.P, sm), tb), x: tb, xmax, height: 110});
+  tsChart($("#ts-energy"), {title: "Cumulative energy", ylabel: "MWh", series: mkS(r => r.E.map(v => v / 1e3), days), x: days, xmax, height: 110});
+  tsChart($("#ts-gap"), {title: "Gap to " + S.ref + " (accumulated)", ylabel: "MWh lost - rising = losing energy", zero: true, shade: lossWin,
+    series: mkS((r, n) => { const g = gap(s, n); return g ? g.map(v => v / 1e3) : r.E.map(() => NaN); }, days).filter(q => q.name !== S.ref), x: days, xmax, height: 120});
+  tsChart($("#ts-tws"), {title: "TWS experienced", ylabel: "kn", series: mkS(r => movavg(r.TWS, sm).map(v => v / KN), tb), bands: [D.meta.productive.tws_kn], x: tb, xmax, height: 110, ymin: 0});
+  tsChart($("#ts-twa"), {title: "TWA experienced (course vs wind)", ylabel: "deg, gaps = hold", series: mkS(r => movavg(r.TWA, sm), tb), bands: [D.meta.productive.twa_deg], x: tb, xmax, height: 110, ymin: 0, ymax: 180});
+  // plan optimism: planned - realised over the plan horizon at each replan
+  const optS = names.map(n => {
+    const r = s.runs[n], xs = [], ys = [];
+    for (const q of r.plans) {
+      if (q.planned_value_kwh === null) continue;
+      const i0 = q.t_s / dtS(), H = q.plan.x_km.length * q.plan.dt_s / dtS(), i1 = Math.min(i0 + H, s.n - 1);
+      if (i1 <= i0) continue;
+      xs.push(q.t_s / DAY); ys.push((q.planned_value_kwh - (interp(r.E, i1) - interp(r.E, i0))) / 1e3);
+    }
+    return {name: n, color: D.color[n], x: xs, y: ys};
+  }).filter(q => q.x.length > 1 && q.name !== S.ref);
+  if (optS.length) tsChart($("#ts-opt"), {title: "Plan optimism: planned - realised energy over the plan horizon", ylabel: "MWh", series: optS, dots: true, zero: true, xmax, height: 110, x: days});
+  else $("#ts-opt").remove();
+  // mode strip
+  const W = chartW(el), rh = 11, H = names.length * (rh + 3) + 34, pw = W - ML - MR, X = d => ML + d / xmax * pw;
+  let g = "";
+  names.forEach((n, i) => {
+    const y = 4 + i * (rh + 3), r = s.runs[n];
+    g += `<rect x="${ML}" y="${y}" width="${pw}" height="${rh}" fill="var(--grid)"/><text x="${ML - 4}" y="${y + rh - 2}" text-anchor="end">${esc(n)}</text>`;
+    let a = -1;
+    for (let k = 0; k <= r.H.length; k++) {
+      const h = k < r.H.length && r.H[k] > 0.5;
+      if (h && a < 0) a = k; if (!h && a >= 0) { g += `<rect x="${X(a * dtS() / DAY)}" y="${y}" width="${Math.max(1, X(k * dtS() / DAY) - X(a * dtS() / DAY))}" height="${rh}" fill="${D.color[n]}"/>`; a = -1; }
+    }
+  });
+  for (const t of niceTicks(0, xmax, 10)) g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${t}</text>`;
+  g += `<text x="${W - MR}" y="${H - 18}" text-anchor="end" style="font-weight:600">days</text><text x="${ML + 4}" y="${H - 18}" style="fill:var(--ink)">Mode: coloured = hold (station-keeping), grey = transit</text><line class="cur" y1="0" y2="${H - 24}" x1="0" x2="0"/>`;
+  $("#ts-mode").innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" data-ml="${ML}" data-pw="${pw}" data-xmax="${xmax}" style="touch-action:none;cursor:crosshair">${g}</svg>`;
+  // the last chart carries the x axis labels
+  const last = el.querySelector("#ts-opt svg") || el.querySelector("#ts-twa svg");
+  void last;
+  el.querySelectorAll("svg").forEach(sv => {
+    const f = e => { const r = sv.getBoundingClientRect(), W2 = +sv.viewBox.baseVal.width, x = (e.clientX - r.left) / r.width * W2, ml = +sv.dataset.ml, pw2 = +sv.dataset.pw, xm = +sv.dataset.xmax; setTf(clamp((x - ml) / pw2, 0, 1) * xm * DAY / dtS()); };
+    sv.onpointerdown = e => { S.play = false; sv.setPointerCapture(e.pointerId); f(e); sv.onpointermove = f; };
+    sv.onpointerup = () => { sv.onpointermove = null; };
+  });
+}
+function moveCursor() {
+  document.querySelectorAll("#ts svg").forEach(sv => {
+    const l = sv.querySelector(".cur"); if (!l) return;
+    const x = +sv.dataset.ml + S.tf * dtS() / DAY / +sv.dataset.xmax * +sv.dataset.pw;
+    l.setAttribute("x1", x); l.setAttribute("x2", x);
+  });
+}
+function updateReadout() {
+  const s = seed(), names = selNames(s), tf = S.tf, i = clamp(Math.floor(tf), 0, s.n - 2);
+  $("#clock").textContent = `day ${(tf * dtS() / DAY).toFixed(2)} - ${clock(tf)}`;
+  let h = `<tr><th>Policy</th><th>Power [MW]</th><th>Energy [MWh]</th><th>Gap vs ${esc(S.ref)} [MWh]</th><th>TWS [kn]</th><th>TWA [deg]</th><th>Mode</th></tr>`;
+  const ref = refRun(s);
+  for (const n of names) {
+    const r = s.runs[n], e = interp(r.E, tf), gp = ref ? interp(ref.E, tf) - e : NaN;
+    h += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</td><td>${fmt(r.P[i] / 1e3, 2)}</td><td>${fmt(e / 1e3)}</td><td>${n === S.ref ? "-" : fmt(gp / 1e3)}</td><td>${fmt(r.TWS[i] / KN)}</td><td>${fmt(r.TWA[i], 0)}</td><td>${r.H[i] > 0.5 ? "hold" : "transit"}</td></tr>`;
+  }
+  $("#readout").innerHTML = h;
+}
+
+// -- map
+let LAND = null, WL = null;
+function themeVar(n) { return getComputedStyle(document.body).getPropertyValue(n).trim(); }
+const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+const STOPS = [[0, "#f6f8fb"], [10, "#d3e0ee"], [17.99, "#a9bcd3"], [18, "#fff0b0"], [22, "#ffc83a"], [26, "#f08a00"], [26.01, "#9a86c9"], [36, "#52409a"], [50, "#241a55"]];
+const LUT = (() => { // speed in 0.25 kn steps
+  const out = new Uint8ClampedArray(241 * 3);
+  for (let i = 0; i <= 240; i++) {
+    const v = i / 4; let k = 0; while (k < STOPS.length - 2 && v > STOPS[k + 1][0]) k++;
+    const [a, ca] = STOPS[k], [b, cb] = STOPS[k + 1], f = clamp((v - a) / (b - a), 0, 1), A = hex(ca), B = hex(cb);
+    for (let c = 0; c < 3; c++) out[i * 3 + c] = A[c] + (B[c] - A[c]) * f;
+  }
+  return out;
+})();
+function mapGeom() {
+  const m = D.map, cv = $("#map"), W = Math.max(320, cv.parentElement.clientWidth - 2), H = Math.round(W * (m.ymax - m.ymin) / (m.xmax - m.xmin));
+  return {W, H, sx: W / (m.xmax - m.xmin), PX: x => (x - m.xmin) / (m.xmax - m.xmin) * W, PY: y => H - (y - m.ymin) / (m.ymax - m.ymin) * H};
+}
+function sdfAt(xk, yk) {
+  const m = D.map, g = m.grid, fi = clamp((xk - g.x0_km) / g.dx_km, 0, g.nx - 1.001), fj = clamp((yk - g.y0_km) / g.dx_km, 0, g.ny - 1.001);
+  const i = Math.floor(fi), j = Math.floor(fj), a = fi - i, b = fj - j, S0 = m.SDF, n = g.nx;
+  return 0.1 * ((1 - a) * (1 - b) * S0[j * n + i] + a * (1 - b) * S0[j * n + i + 1] + (1 - a) * b * S0[(j + 1) * n + i] + a * b * S0[(j + 1) * n + i + 1]);
+}
+function buildStatic() { // land layer + graticule, rebuilt on resize / theme
+  const m = D.map, G = mapGeom(), R = 3, w = Math.round(G.W / R), h = Math.round(G.H / R);
+  const oc = document.createElement("canvas"); oc.width = w; oc.height = h;
+  const cx = oc.getContext("2d"), im = cx.createImageData(w, h), land = hex(themeVar("--land")), buf = hex(themeVar("--buf"));
+  for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+    const xk = m.xmin + (px + 0.5) / w * (m.xmax - m.xmin), yk = m.ymax - (py + 0.5) / h * (m.ymax - m.ymin), d = sdfAt(xk, yk), o = (py * w + px) * 4;
+    if (d < 0) { im.data.set([land[0], land[1], land[2], 255], o); }
+    else if (d < 20) { im.data.set([buf[0], buf[1], buf[2], 90], o); }
+  }
+  cx.putImageData(im, 0, 0); LAND = oc; LAND.key = G.W;
+}
+function windFrame(s, tsec, W, H) { // returns small canvas with wind colours (null if layer off)
+  const w = s.wind, m = D.map, f = tsec / w.dt_s, k0 = clamp(Math.floor(f), 0, w.nt - 2), a = clamp(f - k0, 0, 1);
+  const R = 4, cw = Math.round(W / R), ch = Math.round(H / R);
+  if (!WL || WL.width !== cw || WL.height !== ch) { WL = document.createElement("canvas"); WL.width = cw; WL.height = ch; }
+  const cx = WL.getContext("2d"), im = cx.createImageData(cw, ch), nx = w.nx, ny = w.ny, sc = w.scale_ms / KN, onlyBand = S.layers.band;
+  const o0 = k0 * nx * ny, o1 = (k0 + 1) * nx * ny;
+  for (let py = 0; py < ch; py++) {
+    const yk = m.ymax - (py + 0.5) / ch * (m.ymax - m.ymin), fj = clamp((yk - w.y0_km) / w.dx_km, 0, ny - 1.001), j = Math.floor(fj), b = fj - j;
+    for (let px = 0; px < cw; px++) {
+      const xk = m.xmin + (px + 0.5) / cw * (m.xmax - m.xmin), fi = clamp((xk - w.x0_km) / w.dx_km, 0, nx - 1.001), i = Math.floor(fi), c = fi - i;
+      const p = j * nx + i, w00 = (1 - c) * (1 - b), w10 = c * (1 - b), w01 = (1 - c) * b, w11 = c * b;
+      const u = (1 - a) * (w00 * w.U[o0 + p] + w10 * w.U[o0 + p + 1] + w01 * w.U[o0 + p + nx] + w11 * w.U[o0 + p + nx + 1]) + a * (w00 * w.U[o1 + p] + w10 * w.U[o1 + p + 1] + w01 * w.U[o1 + p + nx] + w11 * w.U[o1 + p + nx + 1]);
+      const v = (1 - a) * (w00 * w.V[o0 + p] + w10 * w.V[o0 + p + 1] + w01 * w.V[o0 + p + nx] + w11 * w.V[o0 + p + nx + 1]) + a * (w00 * w.V[o1 + p] + w10 * w.V[o1 + p + 1] + w01 * w.V[o1 + p + nx] + w11 * w.V[o1 + p + nx + 1]);
+      const kn = Math.hypot(u, v) * sc, q = Math.min(240, Math.round(kn * 4)) * 3, o = (py * cw + px) * 4;
+      if (onlyBand && (kn < 18 || kn > 26)) { im.data[o] = 246; im.data[o + 1] = 248; im.data[o + 2] = 251; }
+      else { im.data[o] = LUT[q]; im.data[o + 1] = LUT[q + 1]; im.data[o + 2] = LUT[q + 2]; }
+      im.data[o + 3] = 255;
+    }
+  }
+  cx.putImageData(im, 0, 0); return WL;
+}
+function windVec(s, tsec, xk, yk) { // m/s east/north at a point
+  const w = s.wind, f = tsec / w.dt_s, k0 = clamp(Math.floor(f), 0, w.nt - 2), a = clamp(f - k0, 0, 1);
+  const fi = clamp((xk - w.x0_km) / w.dx_km, 0, w.nx - 1.001), fj = clamp((yk - w.y0_km) / w.dx_km, 0, w.ny - 1.001), i = Math.floor(fi), j = Math.floor(fj), c = fi - i, b = fj - j;
+  const out = [0, 0, 0], n = w.nx * w.ny;
+  for (const [arr, idx] of [[w.U, 0], [w.V, 1]]) {
+    let t = 0;
+    for (const [kk, wt] of [[k0, 1 - a], [k0 + 1, a]]) { const p = kk * n + j * w.nx + i; t += wt * ((1 - c) * (1 - b) * arr[p] + c * (1 - b) * arr[p + 1] + (1 - c) * b * arr[p + w.nx] + c * b * arr[p + w.nx + 1]); }
+    out[idx] = t * w.scale_ms;
+  }
+  out[2] = w.TH[j * w.nx + i]; return out;
+}
+function arrow(cx, x, y, ang, len) {
+  const dx = Math.cos(ang) * len, dy = -Math.sin(ang) * len, hx = Math.cos(ang + 2.6) * 4, hy = -Math.sin(ang + 2.6) * 4, kx = Math.cos(ang - 2.6) * 4, ky = -Math.sin(ang - 2.6) * 4;
+  cx.beginPath(); cx.moveTo(x - dx / 2, y - dy / 2); cx.lineTo(x + dx / 2, y + dy / 2);
+  cx.moveTo(x + dx / 2 + hx, y + dy / 2 + hy); cx.lineTo(x + dx / 2, y + dy / 2); cx.lineTo(x + dx / 2 + kx, y + dy / 2 + ky); cx.stroke();
+}
+function drawMap() {
+  const cv = $("#map"); if (!cv) return;
+  const s = seed(), m = D.map, G = mapGeom(), dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(G.W * dpr) || cv.height !== Math.round(G.H * dpr)) { cv.width = Math.round(G.W * dpr); cv.height = Math.round(G.H * dpr); cv.style.height = G.H + "px"; }
+  if (!LAND || LAND.key !== G.W) buildStatic();
+  const cx = cv.getContext("2d"); cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const tsec = S.tf * dtS();
+  cx.fillStyle = themeVar("--sea"); cx.fillRect(0, 0, G.W, G.H);
+  cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+  if (S.layers.wind) cx.drawImage(windFrame(s, tsec, G.W, G.H), 0, 0, G.W, G.H);
+  cx.drawImage(LAND, 0, 0, G.W, G.H);
+  // graticule
+  cx.strokeStyle = "rgba(90,100,120,.35)"; cx.lineWidth = 0.7; cx.fillStyle = "rgba(60,70,90,.8)"; cx.font = "10px system-ui";
+  for (const gl of m.graticule) {
+    cx.beginPath(); let ins = false, lx = 0, ly = 0;
+    gl.x_km.forEach((x, i) => { const px = G.PX(x), py = G.PY(gl.y_km[i]); if (i === 0) cx.moveTo(px, py); else cx.lineTo(px, py); lx = px; ly = py; });
+    cx.stroke(); void ins;
+    const x0 = G.PX(gl.x_km[0]), y0 = G.PY(gl.y_km[0]);
+    if (gl.label.endsWith("N")) { if (x0 > 0 && x0 < G.W) cx.fillText(gl.label, Math.max(3, x0 + 3), clamp(y0 - 3, 10, G.H - 3)); } else if (x0 > 0 && x0 < G.W - 34) cx.fillText(gl.label, x0 + 3, G.H - 4);
+  }
+  // arrows
+  if (S.layers.arrows) {
+    const w = s.wind; cx.strokeStyle = "rgba(25,30,45,.55)"; cx.lineWidth = 1;
+    for (let j = 0; j < w.ny; j += 2) for (let i = 0; i < w.nx; i += 2) {
+      const xk = w.x0_km + i * w.dx_km, yk = w.y0_km + j * w.dx_km;
+      const [u, v, th] = windVec(s, tsec, xk, yk), kn = Math.hypot(u, v) / KN;
+      if (kn < 2 || sdfAt(xk, yk) < 0) continue;
+      if (S.layers.band && (kn < 18 || kn > 26)) continue;
+      arrow(cx, G.PX(xk), G.PY(yk), Math.atan2(u * Math.sin(th) + v * Math.cos(th), u * Math.cos(th) - v * Math.sin(th)), clamp(6 + kn * 0.55, 8, 24));
+    }
+  }
+  // markers
+  cx.font = "11px system-ui";
+  const mk = [...m.markers, ...(m.start ? [m.start] : [])];
+  for (const q of mk) {
+    const px = G.PX(q.x_km), py = G.PY(q.y_km); cx.fillStyle = "#111"; cx.strokeStyle = "#fff"; cx.lineWidth = 2;
+    cx.beginPath(); cx.rect(px - 4, py - 4, 8, 8); cx.stroke(); cx.fill(); cx.fillStyle = "#111"; cx.fillText(q.name, px + 7, py + 4);
+  }
+  // storms
+  if (S.layers.storms && s.storms.length) {
+    const k = clamp(Math.round(tsec / s.wind.dt_s), 0, s.storms.length - 1);
+    for (const [x, y] of s.storms[k]) {
+      const px = G.PX(x), py = G.PY(y); cx.strokeStyle = "#8a1c7c"; cx.fillStyle = "rgba(138,28,124,.18)"; cx.lineWidth = 1.5;
+      cx.beginPath(); cx.arc(px, py, 9, 0, 7); cx.fill(); cx.stroke(); cx.beginPath(); cx.arc(px, py, 3, 0, 7); cx.stroke();
+    }
+  }
+  // tracks, plans, ships
+  const names = selNames(s);
+  for (const n of names) {
+    const r = s.runs[n], col = D.color[n], i = Math.floor(S.tf);
+    const trace = (a, b) => { cx.beginPath(); for (let k = a; k <= b; k++) { const px = G.PX(r.X[k]), py = G.PY(r.Y[k]); k === a ? cx.moveTo(px, py) : cx.lineTo(px, py); } cx.stroke(); };
+    if (S.layers.full) { cx.strokeStyle = col; cx.globalAlpha = 0.3; cx.lineWidth = 1.2; trace(0, r.X.length - 1); cx.globalAlpha = 1; }
+    if (i > 0) {
+      cx.strokeStyle = "rgba(255,255,255,.85)"; cx.lineWidth = 4.2; trace(0, i); cx.strokeStyle = col; cx.lineWidth = 2.4; trace(0, i);
+    }
+    const px = G.PX(interp(r.X, S.tf)), py = G.PY(interp(r.Y, S.tf));
+    if (S.layers.plans) {
+      let pq = null; for (const q of r.plans) { if (q.t_s <= tsec + 1e-6) pq = q; else break; }
+      if (pq) {
+        cx.strokeStyle = col; cx.lineWidth = 1.6; cx.setLineDash([5, 4]); cx.beginPath(); cx.moveTo(px, py);
+        pq.plan.x_km.forEach((x, k) => { if (pq.plan.t0_s + (k + 1) * pq.plan.dt_s > tsec) cx.lineTo(G.PX(x), G.PY(pq.plan.y_km[k])); });
+        cx.stroke(); cx.setLineDash([]);
+      }
+    }
+    cx.fillStyle = col; cx.strokeStyle = "#fff"; cx.lineWidth = 2; cx.beginPath(); cx.arc(px, py, 5.5, 0, 7); cx.stroke(); cx.fill();
+    cx.fillStyle = "#111"; cx.font = "bold 11px system-ui"; cx.lineWidth = 3; cx.strokeStyle = "rgba(255,255,255,.85)"; cx.strokeText(n, px + 8, py - 6); cx.fillText(n, px + 8, py - 6);
+  }
+  // colour bar
+  const bx = 10, by = G.H - 30, bw = Math.min(220, G.W * 0.35);
+  cx.fillStyle = "rgba(255,255,255,.8)"; cx.fillRect(bx - 4, by - 16, bw + 8, 40);
+  for (let k = 0; k < bw; k++) { const q = Math.min(240, Math.round(k / bw * 40 * 4)) * 3; cx.fillStyle = `rgb(${LUT[q]},${LUT[q + 1]},${LUT[q + 2]})`; cx.fillRect(bx + k, by, 1, 10); }
+  cx.fillStyle = "#222"; cx.font = "10px system-ui";
+  for (const v of [0, 10, 18, 26, 40]) cx.fillText(v, bx + v / 40 * bw - 4, by + 21);
+  cx.fillText("TWS [kn]; 18-26 productive", bx, by - 5);
+  cx.strokeStyle = "#222"; cx.lineWidth = 1; cx.strokeRect(bx + 18 / 40 * bw, by - 1, 8 / 40 * bw, 12);
+}
+function mapHover(e) {
+  const m = D.map, cv = $("#map"), r = cv.getBoundingClientRect(), xk = m.xmin + (e.clientX - r.left) / r.width * (m.xmax - m.xmin), yk = m.ymax - (e.clientY - r.top) / r.height * (m.ymax - m.ymin);
+  const [u, v] = windVec(seed(), S.tf * dtS(), xk, yk);
+  $("#mouse").textContent = `x ${xk.toFixed(0)} km, y ${yk.toFixed(0)} km: TWS ${(Math.hypot(u, v) / KN).toFixed(1)} kn, from ${((Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360).toFixed(0)}° (true)`;
+}
+
+// -- diagnostics panels
+function buildDiagnostics() {
+  const s = seed(), names = selNames(s), ref = refRun(s);
+  let h = `<table><tr><th>Policy</th><th>J [MWh]</th><th>Regret [%]${info("m_REG")}</th><th>CF${info("m_CF")}</th><th>Productive [% t]${info("m_PROD")}</th><th>TWS band [% t]${info("m_TWSB")}</th><th>TWA band [% t]${info("m_TWAB")}</th><th>Hold [% t]${info("m_HOLD")}</th><th>Mean speed [kn]${info("m_SPD")}</th><th>Distance [km]${info("m_DIST")}</th><th>Mean TWS [kn]${info("m_TWS")}</th><th>Replans${info("m_REPL")}</th><th>Coast viol.${info("m_VIOL")}</th></tr>`;
+  for (const n of names) {
+    const r = s.runs[n], d = r.diag, m = r.metrics;
+    h += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></td><td>${fmt(m.energy_kwh / 1e3)}</td><td>${ref ? fmt(METRICS.REG.f(r, s)) : "-"}</td><td>${fmt(m.capacity_factor, 3)}</td><td>${fmt(100 * d.productive_share)}</td><td>${fmt(100 * d.tws_band_share)}</td><td>${fmt(100 * d.twa_band_share)}</td><td>${fmt(100 * d.hold_share, 0)}</td><td>${fmt(d.mean_speed_ms / KN, 2)}</td><td>${fmt(m.distance_km, 0)}</td><td>${fmt(d.mean_tws_ms / KN)}</td><td>${m.n_replans}</td><td>${m.coast_violations}</td></tr>`;
+  }
+  $("#dtab").innerHTML = h + "</table>";
+  const W = Math.max(300, $("#h1").clientWidth);
+  const c1 = Array.from({length: 25}, (_, i) => 2 * i + 1), c2 = Array.from({length: 18}, (_, i) => 10 * i + 5);
+  $("#h1").innerHTML = histSvg(W, 170, c1, names.map(n => ({color: D.color[n], v: s.runs[n].diag.tws_hist})), D.meta.productive.tws_kn, "kn");
+  $("#h2").innerHTML = histSvg(W, 170, c2, names.map(n => ({color: D.color[n], v: s.runs[n].diag.twa_hist})), D.meta.productive.twa_deg, "deg");
+  $("#lg1").innerHTML = names.map(n => `<span><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</span>`).join("");
+  const dn = names.filter(n => n !== S.ref), nd = Math.ceil(D.meta.duration_s / DAY);
+  $("#dl").innerHTML = ref ? `${barsSvg(W, 190, Array.from({length: nd}, (_, i) => i + 1), dn.map(n => ({name: n, color: D.color[n], v: (dailyLoss(s, n) || []).map(v => v / 1e3)})), {noLabels: 3})}<div class="legend">${dn.map(n => `<span><span class="dot" style="background:${D.color[n]}"></span> ${esc(n)}</span>`).join("")}<span>x: mission day</span></div>` : "<div class='hint'>Reference policy not available for this seed.</div>";
+}
+function buildLosses() {
+  const s = seed(), el = $("#tl"); if (!S.focus || !s.runs[S.focus] || !refRun(s)) { el.innerHTML = "<div class='hint'>Select a non-reference policy.</div>"; return; }
+  const L = topLosses(s, S.focus, S.win);
+  el.innerHTML = `<div class="tw"><table><tr><th>#</th><th>Window (days)</th><th>Lost [MWh]</th><th>Own power / ref [MW]</th><th>Own TWS / ref [kn]</th><th>Hold [%]</th></tr>${L.map((p, k) => `<tr class="clk" data-i="${p.i}"><td>${k + 1}</td><td>${dayStr(p.i)} - ${dayStr(p.i + p.w)}</td><td class="worst">${fmt(p.loss / 1e3)}</td><td>${fmt(p.pw / 1e3, 2)} / ${fmt(p.pref / 1e3, 2)}</td><td>${fmt(p.tws)} / ${fmt(p.twsref)}</td><td>${fmt(100 * p.hold, 0)}</td></tr>`).join("")}</table></div><div class="hint">Windows are non-overlapping, ranked by energy lost relative to ${esc(S.ref)}; they are shaded on the gap chart.</div>`;
+  el.querySelectorAll("tr.clk").forEach(tr => tr.onclick = () => { S.play = false; $("#play").textContent = "Play"; setTf(+tr.dataset.i + S.win * 1800 / dtS()); });
+}
+function buildForecast() {
+  const s = seed(), el = $("#fe"), fe = s.forecast_error;
+  if (!fe) { el.innerHTML = "<div class='hint'>Not exported (needs the weather generator).</div>"; return; }
+  const names = selNames(s).filter(n => fe.by_policy[n]), W = Math.max(300, el.clientWidth);
+  el.innerHTML = histSvg(W, 170, fe.lead_h, names.map(n => ({color: D.color[n], v: nzA(fe.by_policy[n].mae_tws_ms).map(v => v / KN)})), [0, 0], "forecast lead [h]", false);
+}
+const nzA = a => Array.from(a, v => v === null ? 0 : v);
+
+// -- replan panel
+function diagHtml(o, depth = 0) {
+  let h = "";
+  for (const [k, v] of Object.entries(o)) {
+    if (v === null) continue;
+    if (typeof v === "number") h += `<tr><td>${esc(k)}</td><td>${Number.isInteger(v) ? v : v.toPrecision(4)}</td></tr>`;
+    else if (typeof v === "string" || typeof v === "boolean") h += `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`;
+    else if (Array.isArray(v) && v.every(x => typeof x === "number" || x === null)) {
+      const w = /weight|prob/i.test(k), vs = v.map(x => x === null ? 0 : x), mx = Math.max(...vs.map(Math.abs), 1e-12), bw = Math.max(3, Math.min(14, 200 / vs.length));
+      const bars = vs.map((x, i) => `<rect x="${i * (bw + 1)}" y="${34 - 34 * Math.abs(x) / mx}" width="${bw}" height="${34 * Math.abs(x) / mx}" fill="var(--accent)"><title>#${i}: ${x}</title></rect>`).join("");
+      h += `<tr><td>${esc(k)}</td><td><svg class="mini" width="${vs.length * (bw + 1)}" height="36" style="width:${vs.length * (bw + 1)}px">${bars}</svg> <span class="meta">${vs.length <= 12 ? vs.map(x => w ? (100 * x).toFixed(0) + "%" : (Number.isInteger(x) ? x : x.toPrecision(3))).join(", ") : "n=" + vs.length}</span></td></tr>`;
+    } else if (Array.isArray(v)) h += `<tr><td>${esc(k)}</td><td class="meta">${v.length} items</td></tr>`;
+    else if (typeof v === "object" && depth < 2) h += `<tr><td colspan="2"><b>${esc(k)}</b><table class="kv" style="margin-left:10px">${diagHtml(v, depth + 1)}</table></td></tr>`;
+  }
+  return h;
+}
+function updateReplan() {
+  const el = $("#replan"); if (!el) return;
+  const s = seed(), names = selNames(s), tsec = S.tf * dtS();
+  let h = "";
+  for (const n of names) {
+    const r = s.runs[n]; let q = null; for (const x of r.replans) { if (x.t_s <= tsec + 1e-6) q = x; else break; }
+    if (!q) continue;
+    const own = q.plan ? "" : "";
+    h += `<div style="margin-bottom:8px"><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b> <span class="meta">replan at day ${(q.t_s / DAY).toFixed(2)} (${((tsec - q.t_s) / 3600).toFixed(1)} h ago); planned value ${q.planned_value_kwh === null ? "-" : fmt(q.planned_value_kwh / 1e3) + " MWh"}${own}</span>`;
+    h += q.diag ? `<table class="kv">${diagHtml(q.diag)}</table>` : `<div class="hint">no per-replan diagnostics exported for this policy</div>`;
+    h += "</div>";
+  }
+  el.innerHTML = h || "<div class='hint'>No replan before this time.</div>";
+}
+
+// ------------------------------------------------------------------ pedagogy: popovers, chips, guide, tour
+function routerKey(n) {
+  return /^B0_spec/.test(n) ? "r-B0_spec" : /^B0/.test(n) ? "r-B0" : /^B1/.test(n) ? "r-B1" : /^Oracle/i.test(n) ? "r-Oracle" : /^ENS/.test(n) ? "r-ENS" : /^REF/.test(n) ? "r-REF" : "r-generic";
+}
+let popTimer = null;
+function showPop(t) {
+  clearTimeout(popTimer);
+  const k = t.dataset.d, d = G.defs[k]; if (!d) return;
+  const pop = $("#pop");
+  pop.innerHTML = `<b>${esc(k.replace(/^[mc]_/, ""))}</b><br>${esc(L(d))}${d.more ? `<br><a data-guide="${d.more}">${esc(ui("more"))} &rarr;</a>` : ""}`;
+  pop.style.display = "block";
+  const r = t.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = clamp(r.left, 8, window.innerWidth - w - 8) + "px";
+  pop.style.top = (r.bottom + h + 12 > window.innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + "px";
+}
+const hidePop = () => { $("#pop").style.display = "none"; };
+function initPop() {
+  document.addEventListener("mouseover", e => { const t = e.target.closest("[data-d]"); if (t) showPop(t); else if (e.target.closest("#pop")) clearTimeout(popTimer); });
+  document.addEventListener("mouseout", e => { if (e.target.closest("[data-d]") || e.target.closest("#pop")) { clearTimeout(popTimer); popTimer = setTimeout(hidePop, 250); } });
+  document.addEventListener("click", e => {
+    const g = e.target.closest("[data-guide]");
+    if (g && !e.target.closest(".chip")) { openGuide(g.dataset.guide); hidePop(); }
+  });
+}
+/* small markdown subset: ## / ### {#id}, tables, lists, paragraphs */
+function mdHtml(src) {
+  const out = []; let list = null, tab = null, para = [];
+  const flush = () => { if (para.length) { out.push(`<p>${rich(para.join(" "))}</p>`); para = []; } };
+  const endList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const endTab = () => { if (tab) { out.push('<div style="overflow-x:auto"><table>' + tab.map((r, i) => i === 0 ? `<tr>${r.map(c => `<th>${rich(c)}</th>`).join("")}</tr>` : `<tr>${r.map(c => `<td>${rich(c)}</td>`).join("")}</tr>`).join("") + "</table></div>"); tab = null; } };
+  for (const raw of src.split("\n")) {
+    const ln = raw.trimEnd(); let m;
+    if (ln.startsWith("|")) { flush(); endList(); const cells = ln.replace(/^\||\|$/g, "").split("|").map(c => c.trim()); if (!cells.every(c => /^-+$/.test(c))) (tab = tab || []).push(cells); continue; }
+    endTab();
+    if ((m = ln.match(/^(##|###) (.+?)(?: \{#([\w-]+)\})?$/))) { flush(); endList(); const lv = m[1].length; out.push(`<h${lv} id="g-${m[3] || ""}">${rich(m[2])}</h${lv}>`); continue; }
+    if ((m = ln.match(/^(- |\d+\. )(.*)$/))) { flush(); const tag = m[1] === "- " ? "ul" : "ol"; if (list !== tag) { endList(); out.push(`<${tag}>`); list = tag; } out.push(`<li>${rich(m[2])}</li>`); continue; }
+    if (!ln.trim()) { flush(); endList(); continue; }
+    endList(); para.push(ln.trim());
+  }
+  flush(); endList(); endTab(); return out.join("\n");
+}
+function renderGuide() {
+  const html = mdHtml(G.guide[S.lang]);
+  $("#gbody").innerHTML = html;
+  const used = new Set(D.pnames.map(routerKey));
+  $("#gbody").querySelectorAll("h3[id^=g-r-]").forEach(h => { const id = h.id.slice(2), on = used.has(id); h.insertAdjacentHTML("beforeend", `<span class="badge ${on ? "" : "no"}">${esc(ui(on ? "in_export" : "not_in_export"))}</span>`); });
+  const g = $("#g-r-generic"); if (g) { const gen = D.pnames.filter(n => routerKey(n) === "r-generic"); if (gen.length) g.insertAdjacentHTML("afterend", `<p><b>${esc(gen.join(", "))}</b></p>`); }
+  $("#gnav").innerHTML = [...$("#gbody").querySelectorAll("h2")].map(h => `<a data-gn="${h.id}">${h.textContent}</a>`).join("");
+  $("#gnav").querySelectorAll("a").forEach(a => a.onclick = () => $("#" + a.dataset.gn).scrollIntoView({behavior: "smooth", block: "start"}));
+}
+function openGuide(id) {
+  $("#guide").classList.add("open"); S.gopen = true;
+  if (id) { const el = $("#g-" + id) || $("#g-" + id.replace(/^r-.*/, "routers")); if (el) { el.scrollIntoView({behavior: "smooth", block: "start"}); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); } }
+}
+const closeGuide = () => { $("#guide").classList.remove("open"); S.gopen = false; };
+/* attention chips computed from the data */
+function computeChips() {
+  const out = [], ns = D.seeds.length, J = (s, n) => s.runs[n] ? s.runs[n].metrics.energy_kwh : NaN;
+  const meanOf = n => { const v = fin(D.seeds.map(s => s.runs[n] ? s.runs[n].diag.hold_share : NaN)); return v.length ? mean(v) : NaN; };
+  // concentration of losses in the 3 worst days
+  let best = null;
+  for (const n of D.pnames.filter(q => q !== D.meta.reference)) D.seeds.forEach((s, si) => {
+    const dl = dailyLossRef(s, n); if (!dl) return;
+    const tot = dl.reduce((a, b) => a + Math.max(b, 0), 0), net = dl.reduce((a, b) => a + b, 0);
+    if (net <= 0) return;
+    const top = [...dl].sort((a, b) => b - a).slice(0, 3).reduce((a, b) => a + Math.max(b, 0), 0), share = top / net;
+    if (share > 0.35 && (!best || net > best.net) && tot > 0) best = {n, si, share, net};
+  });
+  if (best) out.push({k: "concentr", v: {a: best.n, p: (100 * best.share).toFixed(0), s: D.seeds[best.si].seed}, act: () => { S.si = best.si; S.focus = best.n; setTab("ex"); }});
+  const b1 = D.pnames.filter(n => /^B1_\d+d$/.test(n)).sort((a, b) => parseInt(a.slice(3)) - parseInt(b.slice(3)));
+  if (b1.length >= 2) {
+    const a = b1[b1.length - 1], b = b1[0]; let k = 0, n = 0;
+    for (const s of D.seeds) if (s.runs[a] && s.runs[b]) { n++; if (J(s, a) < J(s, b)) k++; }
+    if (n && k > n / 2) out.push({k: "b1long", v: {a, b, k, n}});
+  }
+  const hh = D.pnames.find(n => n !== D.meta.reference && meanOf(n) > 0.8);
+  if (hh) out.push({k: "holdheavy", v: {a: hh, p: (100 * meanOf(hh)).toFixed(0)}});
+  const pr = D.meta.params || {};
+  if (/synth/i.test(String(pr.weather || "")) || /synth/i.test(String((pr.polar && pr.polar.kind) || pr.polar || ""))) out.push({k: "synth", v: {}});
+  if (ns < 5) out.push({k: "fewseeds", v: {n: ns}});
+  if (/oracle/i.test(D.meta.reference)) out.push({k: "optim", v: {}});
+  if (D.seeds.some(s => Object.values(s.runs).some(r => r.replans.some(q => q.diag && q.diag.weights)))) out.push({k: "ensdiag", v: {}});
+  return out.slice(0, 4);
+}
+function dailyLossRef(s, n) { const r = refRun(s); return r && s.runs[n] ? dailyLoss(s, n) : null; }
+const txt = c => L(G.chips[c.k]).replace(/\{(\w+)\}/g, (m, k) => c.v[k] ?? m);
+function renderChips() {
+  const el = $("#chips"); if (!el) return;
+  const cs = computeChips();
+  el.innerHTML = cs.length ? `<span class="meta">${esc(ui("attention"))}</span>` + cs.map((c, i) => `<span class="chip2" data-i="${i}" title="${esc(txt(c))}">${esc(txt(c))}</span>`).join("") : "";
+  el.querySelectorAll(".chip2").forEach(e => e.onclick = () => { const c = cs[+e.dataset.i]; if (c.act) c.act(); else openGuide(G.chips[c.k].more); });
+}
+/* first-visit mini tour */
+function runTour(i = 0) {
+  const T = G.tour, el = $("#tour");
+  document.querySelectorAll(".tour-hl").forEach(x => x.classList.remove("tour-hl"));
+  if (i >= T.length) { el.style.display = "none"; try { localStorage.setItem("hz-tour", "1"); } catch (e) { /* ignore */ } return; }
+  if (S.tab !== "ov") setTab("ov");
+  const tg = $(T[i].target); if (tg) tg.classList.add("tour-hl");
+  el.style.display = "block";
+  el.innerHTML = `<div>${esc(L(T[i]))}</div><div class="row" style="margin-top:8px"><span class="meta" style="margin-right:auto">${i + 1}/${T.length}</span><button id="tskip">${esc(ui("skip"))}</button><button class="on" id="tnext">${esc(ui(i === T.length - 1 ? "done" : "next"))}</button></div>`;
+  $("#tnext").onclick = () => runTour(i + 1); $("#tskip").onclick = () => runTour(T.length);
+}
+function applyLang() {
+  document.documentElement.lang = S.lang;
+  document.querySelectorAll("[data-ui]").forEach(e => { e.textContent = ui(e.dataset.ui); });
+  $("#lang").textContent = S.lang === "fr" ? "EN" : "FR"; $("#theme").textContent = ui(S.dark ? "light" : "dark");
+  try { localStorage.setItem("hz-lang", S.lang); } catch (e) { /* ignore */ }
+}
+
+// ------------------------------------------------------------------ boot
+function applyTheme() {
+  document.body.classList.toggle("dark", S.dark); $("#theme").textContent = G ? ui(S.dark ? "light" : "dark") : "Dark"; LAND = null;
+  try { localStorage.setItem("hz-dark", S.dark ? "1" : "0"); } catch (e) { /* ignore */ }
+}
+async function boot() {
+  try {
+    D = await loadData(); prepare(D); G = JSON.parse(document.getElementById("hz-content").textContent);
+  } catch (e) { $("#app").innerHTML = `<div class="err">Failed to load data: ${esc(e.message)}</div>`; return; }
+  const pn = D.pnames, non = pn.filter(n => n !== D.meta.reference);
+  let dark = false; try { dark = localStorage.getItem("hz-dark") === "1"; } catch (e) { /* ignore */ }
+  let lang = "fr"; try { lang = localStorage.getItem("hz-lang") || "fr"; } catch (e) { /* ignore */ }
+  S = {lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "J", dark, smooth: 6, speed: 24, win: 24, play: false,
+    A: non.includes("B1_5d") ? "B1_5d" : non[0] || pn[0], B: non.includes("B1_15d") ? "B1_15d" : non[1] || pn[0], focus: null,
+    layers: {wind: true, band: false, arrows: true, storms: true, plans: true, full: true}};
+  $("#ttl").textContent = D.title;
+  const m = D.meta;
+  $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
+  $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex");
+  $("#theme").onclick = () => { S.dark = !S.dark; applyTheme(); if (S.tab === "ex") { buildTS(); buildDiagnostics(); buildLosses(); buildForecast(); drawMap(); moveCursor(); } else renderOverview(); };
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") { closeGuide(); hidePop(); }
+    if (S.tab !== "ex" || /INPUT|SELECT/.test(e.target.tagName) && e.target.type !== "range") return;
+    if (e.key === "ArrowRight") setTf(S.tf + (e.shiftKey ? 24 : 1) * 3600 / dtS()); else if (e.key === "ArrowLeft") setTf(S.tf - (e.shiftKey ? 24 : 1) * 3600 / dtS());
+    else if (e.key === " ") { e.preventDefault(); $("#play").click(); }
+  });
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (S.tab === "ex") { LAND = null; renderExplorer(); } }, 150); });
+  $("#guide-btn").onclick = () => S.gopen ? closeGuide() : openGuide(); $("#gclose").onclick = closeGuide;
+  $("#lang").onclick = () => { S.lang = S.lang === "fr" ? "en" : "fr"; applyLang(); renderGuide(); renderAll(); };
+  $("#tourbtn").onclick = () => runTour(0);
+  initPop(); applyTheme(); applyLang(); renderGuide(); renderAll();
+  let seen = false; try { seen = localStorage.getItem("hz-tour") === "1"; } catch (e) { /* ignore */ }
+  if (!seen) runTour(0);
+}
+boot();
+</script>
+</body>
+</html>
