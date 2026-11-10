@@ -7,7 +7,7 @@ This page compares routing strategies ("routers") run on the same simulated wint
 - Keys in the Explorer: left / right arrows step one hour (shift: one day), space plays.
 
 ## The problem in one page {#problem}
-A wind-powered ship produces electricity while it sails or holds position in a favourable wind. Power depends on the true wind speed ([[TWS]]) and the angle at which it meets the course ([[TWA]]): the sweet spot is a beam wind between 18 and 26 kn at 75-105 degrees (the [[productive band]]). Too little wind gives nothing; above {{polar.derate_kn}} kn the output is derated and above {{polar.cutout_kn}} kn the machine shuts down for survival.
+A sail-propelled ship (two Flettner rotors, auxiliary electric propeller) carries a wind turbine and produces electricity while it sails or holds position in a favourable wind. The polar gives **net** power: turbine gross output minus propulsion consumption, hence negative values close-hauled. Power depends on the true wind speed ([[TWS]]) and the angle at which it meets the course ([[TWA]]): the sweet spot is a beam wind between 18 and 26 kn at 75-105 degrees (the [[productive band]]). Too little wind gives nothing; above {{polar.derate_kn}} kn the output is derated and above {{polar.cutout_kn}} kn the machine shuts down for survival.
 A router chooses where to go every {{replan_h}} h knowing only forecasts, whose errors grow with lead time. Its score is the energy J harvested over {{duration_d}} days. The **hindsight oracle** knows the true wind in advance and gives the upper bound; the gap to it is the [[regret]]. Improving a router means closing that gap, and the Explorer shows where it opens.
 
 ## Routers explained {#routers}
@@ -27,6 +27,8 @@ One DP on the true wind over the whole mission, executed open loop. Not causal: 
 
 ### ENS - ensemble stochastic DP with CVaR {#r-ENS}
 Draws an ensemble of forecasts, reduces it to a few representative scenarios ([[medoid]]s found on principal modes of variability) and solves a two-stage DP: a 48 h common trunk that cannot anticipate which scenario will happen ([[non-anticipativity]]), then one branch per scenario. The objective blends the mean with a tail measure ([[CVaR]]) to avoid plans that are good on average but terrible in a storm. Expected edge over B1: larger when the spread of the ensemble is large (uncertain storms) and smaller in calm, predictable weeks. Panel "Replan diagnostics" shows scenario weights, explained variance and value statistics.
+
+**Status at S2: ENS does not beat B1 yet.** The diagnosis (docs/sprints/S2_diagnosis.md) found no bug: the synthetic ensemble has calibrated spread but its mean is no better than the control forecast, so it adds spread and no information. Real ensembles behave differently. To be re-evaluated with a realistic error model or real reforecasts (S3).
 
 ### REF - continuous refiner {#r-REF}
 Takes a DP plan and polishes its first 48 h with a continuous optimiser (IPOPT through CasADi) at 30 min resolution, using the DP value at the end of that window as [[terminal value]]. It aims at removing the staircase tracks and the orientation dependence of the grid DP. Expected gain: modest but systematic; if it falls back to the base plan the track looks identical.
@@ -64,6 +66,7 @@ Every number below is a hypothesis to be replaced with real data; conclusions ar
 - Synthetic climatology bias: storms intensify eastward, so the best fixed point is near the French coast rather than the open ocean.
 - Few seeds: {{n_seeds}} winters are indicative, not statistically conclusive.
 - TWA is undefined while holding; hold time counts as in the TWA band for the productive share.
+- Synthetic ensemble is not informative: its mean is no better than the control, so the value of ensembles cannot be judged on this data.
 - Cells within 20 km of the coast are forbidden for the optimiser; a harbour-exit corridor is not modelled.
 
 ## What to look at first {#path}
@@ -77,4 +80,4 @@ Every number below is a hypothesis to be replaced with real data; conclusions ar
 ## Changelog {#changelog}
 - **S0** - grid, units and wind conventions, synthetic polar, coast signed-distance asset.
 - **S1** - synthetic weather with causal forecasts, DP kernel, power envelope, closed-loop simulator, B0 / B1 / oracle, first regret figure.
-- **S2 (in progress)** - ensemble reduction and CVaR two-stage DP, continuous refiner, this inspector.
+- **S2** - ensemble reduction and two-stage DP with CVaR, continuous refiner, this inspector. Results: the refiner wins (~+3 %, lower spread); the ensemble does not win yet because of the synthetic weather (see ENS).

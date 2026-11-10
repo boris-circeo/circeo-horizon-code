@@ -7,7 +7,7 @@ Cette page compare des stratégies de routage (« routeurs ») exécutées sur l
 - Touches dans l'Explorer : flèches gauche / droite = 1 h (majuscule : 1 jour), espace = lecture.
 
 ## Le problème en une page {#problem}
-Un navire à propulsion vélique produit de l'électricité en navigant ou en tenant position dans un vent favorable. La puissance dépend de la vitesse du vent vrai ([[TWS]]) et de l'angle sous lequel il rencontre la route ([[TWA]]) : le meilleur cas est un vent de travers de 18 à 26 nœuds entre 75 et 105 degrés (la [[productive band|bande productive]]). Trop peu de vent ne donne rien ; au-delà de {{polar.derate_kn}} nœuds la puissance est réduite, et au-delà de {{polar.cutout_kn}} nœuds la machine s'arrête par sécurité.
+Un navire à propulsion vélique (deux rotors Flettner, propulseur électrique d'appoint) porte une éolienne et produit de l'électricité en naviguant ou en tenant position dans un vent favorable. La polaire donne la puissance **nette** : production brute de l'éolienne moins la consommation de propulsion ; elle peut donc être négative au près. La puissance dépend de la vitesse du vent vrai ([[TWS]]) et de l'angle sous lequel il rencontre la route ([[TWA]]) : le meilleur cas est un vent de travers de 18 à 26 nœuds entre 75 et 105 degrés (la [[productive band|bande productive]]). Trop peu de vent ne donne rien ; au-delà de {{polar.derate_kn}} nœuds la puissance est réduite, et au-delà de {{polar.cutout_kn}} nœuds la machine s'arrête par sécurité.
 Le routeur choisit où aller toutes les {{replan_h}} h en ne connaissant que des prévisions, dont l'erreur croît avec l'échéance. Son score est l'énergie J récoltée sur {{duration_d}} jours. L'**oracle** connaît le vent réel à l'avance et fournit la borne haute ; l'écart à l'oracle est le [[regret]]. Améliorer un routeur, c'est réduire cet écart ; l'Explorer montre où il se creuse.
 
 ## Les routeurs expliqués {#routers}
@@ -28,8 +28,10 @@ Une DP sur le vent réel sur toute la mission, exécutée en boucle ouverte. Non
 ### ENS - DP stochastique d'ensemble avec CVaR {#r-ENS}
 Tire un ensemble de prévisions, le réduit à quelques scénarios représentatifs (des [[medoid|médoïdes]] sur les modes principaux de variabilité) et résout une DP à deux étages : un tronc commun de 48 h qui ne peut pas anticiper le scénario ([[non-anticipativity|non-anticipativité]]), puis une branche par scénario. L'objectif mélange la moyenne et une mesure de queue ([[CVaR]]) pour éviter les plans bons en moyenne mais catastrophiques en tempête. Avantage attendu sur B1 : plus grand quand la dispersion de l'ensemble est forte (tempêtes incertaines), plus faible les semaines calmes. Le panneau « Replan diagnostics » montre les poids des scénarios, la variance expliquée et les statistiques de valeur.
 
+**État au S2 : ENS ne bat pas encore B1.** Le diagnostic (docs/sprints/S2_diagnosis.md) n'a trouvé aucun bug : l'ensemble synthétique est bien calibré en dispersion, mais sa moyenne n'est pas meilleure que la prévision de contrôle, donc il n'apporte que de la dispersion et aucune information. Une vraie prévision d'ensemble se comporte autrement. À réévaluer avec un modèle d'erreur réaliste ou de vrais reforecasts (S3).
+
 ### REF - raffineur continu {#r-REF}
-Prend un plan DP et en polit les 48 premières heures avec un optimiseur continu (IPOPT via CasADi) au pas de 30 min, en utilisant la valeur DP à la fin de cette fenêtre comme [[terminal value|valeur terminale]]. Il vise à supprimer les trajectoires en escalier et la dépendance à l'orientation de la DP sur grille. Gain attendu : modeste mais systématique ; s'il retombe sur le plan de base, la trace est identique.
+Prend un plan DP et en polit les 48 premières heures avec un optimiseur continu (IPOPT via CasADi) au pas de 30 min, en utilisant la valeur DP à la fin de cette fenêtre comme [[terminal value|valeur terminale]]. Il vise à supprimer les trajectoires en escalier et la dépendance à l'orientation de la DP sur grille. Gain attendu : modeste mais systématique ; s'il retombe sur le plan de base, la trace est identique. **Constaté au S2** : +3 % d'énergie environ et une dispersion entre hivers réduite ; c'est l'effet le plus net du sprint.
 
 ### Autres routeurs {#r-generic}
 Une politique de nom inconnu est affichée avec ses seuls paramètres exportés. Donnez-lui un préfixe connu (B0, B1, ENS, REF) pour obtenir sa description ici.
@@ -64,6 +66,7 @@ Tous les nombres ci-dessous sont des hypothèses à remplacer par des données r
 - Biais de climatologie synthétique : les tempêtes se renforcent vers l'est, donc le meilleur point fixe est près de la côte française et non au large.
 - Peu de tirages : {{n_seeds}} hivers sont indicatifs, pas statistiquement concluants.
 - Le TWA est indéfini en attente ; le temps d'attente compte dans la bande de TWA pour la part productive.
+- Ensemble synthétique non informatif : sa moyenne n'est pas meilleure que le contrôle ; la valeur de l'ensemble ne peut pas être jugée sur ces données.
 - Les cellules à moins de 20 km de la côte sont interdites à l'optimiseur ; aucun couloir de sortie de port n'est modélisé.
 
 ## Par où commencer {#path}
@@ -77,4 +80,4 @@ Tous les nombres ci-dessous sont des hypothèses à remplacer par des données r
 ## Historique {#changelog}
 - **S0** - grille, unités et conventions de vent, polaire synthétique, fichier de distance signée à la côte.
 - **S1** - météo synthétique avec prévisions causales, noyau DP, enveloppe de puissance, simulateur en boucle fermée, B0 / B1 / oracle, premier chiffre de regret.
-- **S2 (en cours)** - réduction d'ensemble et DP à deux étages avec CVaR, raffineur continu, cet inspecteur.
+- **S2** - réduction d'ensemble et DP à deux étages avec CVaR, raffineur continu, cet inspecteur. Résultats : le raffineur gagne ; l'ensemble ne gagne pas encore, à cause de la météo synthétique (voir ENS).

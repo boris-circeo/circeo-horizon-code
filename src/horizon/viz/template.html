@@ -744,7 +744,7 @@ function updateReplan() {
 
 // ------------------------------------------------------------------ pedagogy: popovers, chips, guide, tour
 function routerKey(n) {
-  return /^B0_spec/.test(n) ? "r-B0_spec" : /^B0/.test(n) ? "r-B0" : /^B1/.test(n) ? "r-B1" : /^Oracle/i.test(n) ? "r-Oracle" : /^ENS/.test(n) ? "r-ENS" : /^REF/.test(n) ? "r-REF" : "r-generic";
+  return /_REF$|^REF/.test(n) ? "r-REF" : /^B0_spec/.test(n) ? "r-B0_spec" : /^B0/.test(n) ? "r-B0" : /^B1/.test(n) ? "r-B1" : /^Oracle/i.test(n) ? "r-Oracle" : /^ENS/.test(n) ? "r-ENS" : /^REF/.test(n) ? "r-REF" : "r-generic";
 }
 let popTimer = null;
 function showPop(t) {

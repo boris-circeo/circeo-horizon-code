@@ -63,7 +63,14 @@ coefficient) default 0.03, configurable.
 of TWA): the literal form is discontinuous when the wind is along the heading. The `sin(TWA)`
 form is C^1, zero head/downwind, identical on a beam reach, and required by the gradient-based NLP.
 
-## 6. Code style
+## 6. Ship and power polar
+
+The ship is sail-propelled (two Flettner rotors, auxiliary electric propeller) and carries a wind
+turbine. The polar `P[TWS, TWA, U]` is **net** electrical power [kW]: turbine gross output minus
+propulsion consumption (Flettner rotors + auxiliary propeller). Net power can therefore be negative
+(close-hauled, high ship speed). Client statement, 2026-11-10.
+
+## 7. Code style
 
 * Python ≥ 3.11, English everywhere (code, comments, docstrings, commit messages).
 * NumPy-style docstrings with units in every parameter description, e.g. `tws : float  [m/s]`.
