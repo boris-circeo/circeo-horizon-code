@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "horizon-router"
+version = "0.0.1"
+description = "HORIZON: energy routing for a fleet of wind-energy ships (proof of concept)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary - CIRCEO SAS. All rights reserved." }
+authors = [{ name = "CIRCEO" }]
+# Dependency policy: permissive (MIT/BSD/Apache/PSF/ISC) or weak-copyleft LGPL/EPL/MPL only.
+# GPL/AGPL dependencies are forbidden. See docs/LICENSES.md.
+dependencies = [
+    "numpy>=2.0",        # BSD-3
+    "scipy>=1.13",       # BSD-3
+    "numba>=0.60",       # BSD-2
+    "pyproj>=3.6",       # MIT
+    "shapely>=2.0",      # BSD-3
+    "pyshp>=2.3",        # MIT
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+data = ["xarray>=2024.1", "zarr>=2.18", "netCDF4>=1.6"]  # Apache-2.0 / MIT / MIT
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: long-running tests", "physics: physical sanity tests (spec section 8.4)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "NPY"]

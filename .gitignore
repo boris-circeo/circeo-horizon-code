@@ -1,0 +1,12 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+data/external/
+data/cache/
+*.nc
+*.grib*
+*.zarr/
+outputs/
+# The design specification is CONFIDENTIAL and never committed.
+*DES-860*
