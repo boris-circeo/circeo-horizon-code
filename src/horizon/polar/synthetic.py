@@ -9,7 +9,8 @@ numbers comes from a measured ship polar.
 Model (TWS ``W``, TWA ``theta``, ship speed ``U``)::
 
     Va      = sqrt(W^2 + 2 W U cos(theta) + kappa U^2)     effective apparent wind [m/s]
-    eta     = 1 / (1 + |(theta - theta0)/w|^p)             angular efficiency (beam peak)
+    eta     = 1 / (1 + |(theta - theta0)/w|^p) * S(theta)  angular efficiency (beam peak),
+                                                         S: close-hauled smoothstep 30->50 deg
     g       = exp(-((U - U0) / sU)^2 / 2)                   ship-speed efficiency (optimum U0)
     P_gen   = softplus_cap(k_turb * eta * g * Va^3) * derate(W)
     P_net   = P_gen - c_drag U^3 - P_up(theta, U, Va)       propulsion/drag and close-hauled loss
@@ -43,6 +44,8 @@ class SyntheticPolarParams:
     p_up_max: float = 190.0  #: saturation of close-hauled penalty [kW]
     twa_up_deg: float = 35.0  #: close-hauled penalty vanishes above this TWA [deg]
     up_ref: float = 100.0  #: reference U*Va for penalty saturation [(m/s)^2]
+    twa_dead_deg: float = 30.0  #: no generation at or below this TWA (close-hauled) [deg]
+    twa_full_deg: float = 50.0  #: close-hauled suppression of eta fully released above [deg]
     cut_in_ms: float = 1.5  #: cut-in wind scale of the turbine, tanh(W / cut_in) [m/s]
     u_coupling: float = 0.2  #: weight kappa of ship-speed term in apparent wind [-]
     cap_kw: float = 3000.0  #: generator cap [kW]
@@ -77,6 +80,9 @@ def synthetic_polar(params: SyntheticPolarParams | None = None) -> PolarTable:
     c = np.cos(np.radians(th))
     va = np.sqrt(np.maximum(w**2 + 2 * w * s * c + q.u_coupling * s**2, 0.0))
     eta = 1.0 / (1.0 + np.abs((th - q.twa_opt_deg) / q.twa_width_deg) ** q.twa_exponent)
+    # Close-hauled suppression: the Lorentzian tail alone would generate power head to wind,
+    # contradicting DES-860 §2.2.1 item 4 (net power negative close-hauled, TWA < ~30 deg).
+    eta = eta * _smoothstep((th - q.twa_dead_deg) / (q.twa_full_deg - q.twa_dead_deg))
     g0 = np.exp(-0.5 * (q.u_opt / q.u_sigma) ** 2)
     g = np.clip((np.exp(-0.5 * ((s - q.u_opt) / q.u_sigma) ** 2) - g0) / (1.0 - g0), 0.0, None)
     derate = 1.0 - _smoothstep((w / KNOT - q.derate_start_kn) / (q.cutout_kn - q.derate_start_kn))

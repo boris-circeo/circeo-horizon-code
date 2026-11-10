@@ -28,6 +28,9 @@ data = ["xarray>=2024.1", "zarr>=2.18", "netCDF4>=1.6"]  # Apache-2.0 / MIT / MI
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"horizon.geo" = ["assets/*.npz"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

@@ -69,7 +69,7 @@ def test_hold_curve_geometry_and_units(polar):
     assert 3.0 <= h.u_star[i] <= 4.5
     # zero mean ground velocity along the wind axis, from the drift-compensation geometry
     th, w, u = np.radians(h.twa_b[i]), polar.tws[i], h.u_star[i]
-    drift = u * np.cos(th) - 0.03 * w * np.sin(th)
+    drift = u * np.cos(th) - 0.03 * w * np.sin(th) ** 2
     assert abs(drift) < 0.02  # < 0.04 kn, grid roundoff only (float32 angle)
     # no leeway -> exactly beam reach
     h0 = hold_power_curve(polar, k_leeway=1e-9)

@@ -54,9 +54,14 @@ Conversion constants live in `horizon.core.units` only. `KNOT = 1852/3600 m/s` e
 
 ## 5. Kinematics
 
-Ground velocity: `x_dot = U (sin psi, cos psi) + c(x, t) + k_L |W| n_lee`
+Ground velocity: `x_dot = U (sin psi, cos psi) + c(x, t) + k_L |W| sin(TWA) n_lee`
 where `n_lee` is the unit normal pointing to leeward (perpendicular to the heading, on the side
-away from the wind). `k_L` (leeway coefficient) default 0.03, configurable.
+away from the wind), i.e. leeway = `k_L` x the cross-heading wind component. `k_L` (leeway
+coefficient) default 0.03, configurable.
+
+**Deliberate deviation from the spec's literal formula** (`k_L |W| n_lee`, magnitude independent
+of TWA): the literal form is discontinuous when the wind is along the heading. The `sin(TWA)`
+form is C^1, zero head/downwind, identical on a beam reach, and required by the gradient-based NLP.
 
 ## 6. Code style
 

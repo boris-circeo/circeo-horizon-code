@@ -14,6 +14,8 @@ from pathlib import Path
 import numpy as np
 from numba import njit
 
+from horizon.core.units import KNOT
+
 __all__ = [
     "KNOT",
     "P_MAX_KW",
@@ -24,7 +26,6 @@ __all__ = [
     "trilinear_scalar",
 ]
 
-KNOT = 1852.0 / 3600.0  #: 1 knot [m/s] (exact)
 P_MIN_KW = -500.0  #: lower sanity bound of net power [kW] (DES-860 §7.5.8)
 P_MAX_KW = 3000.0  #: upper sanity bound = generator cap [kW]
 

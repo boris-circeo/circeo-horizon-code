@@ -92,3 +92,16 @@ def test_units_and_params_effect(polar):
     assert polar.tws[-1] == pytest.approx(50 * KNOT)
     small = synthetic_polar(SyntheticPolarParams(k_turb=1.0))
     assert small.p.max() < polar.p.max()
+
+
+def test_close_hauled_net_power_never_positive():
+    """DES-860 §2.2.1 item 4: net power is negative (or nil) close-hauled, TWA <= 30 deg."""
+    import numpy as np
+
+    from horizon.polar.synthetic import synthetic_polar
+
+    pol = synthetic_polar()
+    sel = pol.twa <= 30.0
+    assert np.all(pol.p[:, sel, :] <= 1e-3)
+    # and strictly negative once the ship actually moves
+    assert np.all(pol.p[1:, sel, :][:, :, pol.u >= 1.0] < 0.0)

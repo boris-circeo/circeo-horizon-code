@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import numpy as np
 from numba import njit
 
+from horizon.core.kinematics import station_keeping_twa
 from horizon.polar.table import PolarTable
 
 __all__ = [
@@ -87,9 +88,15 @@ def arc_reward_table(polar: PolarTable, arc_speeds) -> ArcRewardTable:
 
 @njit(cache=True)
 def arc_reward_lookup(r, tws0, dtws, twa0, dtwa, tws, twa, k):  # pragma: no cover - jitted
-    """Bilinear gather of ``R[:, :, k]`` at (TWS [m/s], TWA [deg], sign ignored) [kW]."""
-    nx, ny, _ = r.shape
+    """Bilinear gather of ``R[:, :, k]`` at (TWS [m/s], TWA [deg], sign ignored) [kW].
+
+    Clamped at the TWS/TWA bounds; NaN for non-finite inputs or ``k`` outside ``[0, nK)``
+    (same convention as :func:`horizon.polar.table.trilinear_scalar`).
+    """
+    nx, ny, nk = r.shape
     y = abs(twa)
+    if not (np.isfinite(tws) and np.isfinite(y)) or k < 0 or k >= nk:
+        return np.nan
     fx = min(max((tws - tws0) / dtws, 0.0), nx - 1.0)
     fy = min(max((y - twa0) / dtwa, 0.0), ny - 1.0)
     i = min(int(fx), nx - 2)
@@ -154,9 +161,10 @@ def hold_power_curve(
     """Mean power in station-keeping by alternating beam-reach tacks (DES-860 §2.2.6, §2.6).
 
     Geometry: with equal-duration legs on both tacks at TWA ``theta`` and speed ``U``, the mean
-    velocity along the wind axis is ``U cos(theta) - k_L TWS sin(theta)`` (up-wind positive, leeway
-    ``k_L TWS`` perpendicular to the heading, pushing down-wind); the cross-wind mean cancels by
-    symmetry. Zero mean ground velocity therefore requires ``theta = atan2(U, k_L TWS)`` (the
+    velocity along the wind axis is ``U cos(theta) - k_L TWS sin(theta)^2`` (up-wind positive; the
+    smooth leeway of :func:`horizon.core.kinematics.leeway_vector` has magnitude
+    ``k_L TWS sin(theta)`` and pushes down-wind); the cross-wind mean cancels by symmetry. Zero
+    mean ground velocity requires ``theta = station_keeping_twa(U, TWS, k_L)`` (the
     drift-compensation bias, ~85 deg at 20 kn for U ~ 3.75 m/s, k_L = 0.03). For each TWS the
     leg speed ``U*`` is grid-searched over the polar's U axis (>= ``u_min``), with
     ``theta(U)`` imposed; currents are ignored.
@@ -177,7 +185,7 @@ def hold_power_curve(
     fa = f_avail(t_leg_s, tau_m_s, rho_m)
     cand = polar.u[polar.u >= u_min]
     ws = polar.tws[:, None]
-    theta = np.degrees(np.arctan2(cand[None, :], k_leeway * ws))  # (nTWS, nU)
+    theta = station_keeping_twa(cand[None, :], ws, k_leeway)  # (nTWS, nU)
     p = polar(ws, theta, cand[None, :])
     k = np.argmax(p, axis=1)
     rows = np.arange(polar.tws.size)
