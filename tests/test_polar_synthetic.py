@@ -41,8 +41,11 @@ def test_optimum_location(polar, red, kn):
 
 def test_cap_reached_and_never_exceeded(polar, red):
     assert polar.p.max() < 3000.0
-    assert peak(polar, red, 26)[0] >= 0.98 * 3000
+    # client decision 2026-11-10: derating from 25 kn, cut-out at 35 kn
+    assert peak(polar, red, 25)[0] >= 0.98 * 3000
     assert peak(polar, red, 24)[0] >= 0.95 * 3000
+    assert peak(polar, red, 26)[0] >= 0.95 * 3000
+    assert peak(polar, red, 35)[0] <= 1.0  # cut-out
     assert peak(polar, red, 22)[0] < 2950  # still below the knee plateau
 
 

@@ -81,7 +81,7 @@ def test_hold_curve_geometry_and_units(polar):
 @pytest.mark.parametrize("t_leg", [1800.0, 2700.0, 3600.0])
 def test_hold_curve_5_to_15_percent_below_beam_optimum(polar, tau, rho, t_leg):
     h = hold_power_curve(polar, tau, rho, t_leg)
-    sel = slice(15, 36)  # 15-35 kn: productive band
+    sel = (np.arange(h.p_beam.size) >= 15) & (h.p_beam > 100.0)  # >=15 kn, before cut-out
     ratio = h.p_hold[sel] / h.p_beam[sel]
     fa = f_avail(t_leg, tau, rho)
     # loss = manoeuvre overhead (1 - fa) + small bias/offset-from-optimum loss

@@ -50,8 +50,8 @@ class SyntheticPolarParams:
     u_coupling: float = 0.2  #: weight kappa of ship-speed term in apparent wind [-]
     cap_kw: float = 3000.0  #: generator cap [kW]
     beta: float = 0.02  #: softplus knee sharpness [1/kW]
-    derate_start_kn: float = 35.0  #: start of high-wind derating [kn]
-    cutout_kn: float = 42.0  #: cut-out (survival, zero generation) [kn]
+    derate_start_kn: float = 25.0  #: start of high-wind derating [kn]
+    cutout_kn: float = 35.0  #: cut-out (survival, zero generation) [kn]
 
 
 def _smoothstep(x):
