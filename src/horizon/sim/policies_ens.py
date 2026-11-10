@@ -37,6 +37,9 @@ class EnsembleMPCPolicy:
     dt_s : float  [s]  DP step.
     d_min_m : float  [m]  Coast clearance.
     reduction_tau_d : float  [d]  Lead-time decay of the clustering weights alpha_t.
+    terminal_clim_kw : ndarray (Ny, Nx), optional  [kW]  Climatological hold power; terminal value
+        at the horizon end is ``terminal_clim_kw * min(terminal_days * 24 h, mission time left)``.
+    terminal_days : float  [d]
 
     Attributes
     ----------
@@ -50,7 +53,8 @@ class EnsembleMPCPolicy:
                  horizon_days: float = 15.0, n_members: int = 20, k: int | None = 7,
                  gamma: float = 0.3, alpha: float = 0.2, split_h: float = 48.0,
                  dt_s: float = DT_PLAN_S, d_min_m: float = 20e3, reward_model: str = "envelope",
-                 reduction_tau_d: float = 7.0):
+                 reduction_tau_d: float = 7.0, terminal_clim_kw: np.ndarray | None = None,
+                 terminal_days: float = 5.0):
         self.polar, self.hold, self.coast = polar, hold_curve, coast
         self.horizon_s = horizon_days * 86400.0
         self.n_members, self.k = n_members, k
@@ -58,6 +62,8 @@ class EnsembleMPCPolicy:
         self.split_s = split_h * 3600.0
         self.dt_s, self.d_min, self.reward_model = dt_s, d_min_m, reward_model
         self.tau_s = reduction_tau_d * 86400.0
+        self.terminal_clim_kw = terminal_clim_kw  # [kW] climatological hold power, or None
+        self.terminal_days = terminal_days
         self._stencil = build_stencil(coast.grid, dt_s)
         self.last_diagnostics: dict | None = None
         # DPResult of the trunk (``V[n_split]`` = aggregated value v_bar): read by RefinedMPCPolicy
@@ -73,11 +79,16 @@ class EnsembleMPCPolicy:
                                 dt_s=self.dt_s)
         tm["forecast"] = time.perf_counter() - t
         control = ens.member(0)
+        term = None
+        if self.terminal_clim_kw is not None:
+            from horizon.polar.climatology import terminal_value
+            left_h = max(provider.mission_end_s - (t_s + n * self.dt_s), 0.0) / 3600.0
+            term = terminal_value(self.terminal_clim_kw, min(self.terminal_days * 24.0, left_h))
         common = dict(polar=self.polar, hold_curve=self.hold, coast=self.coast,
                       d_min=self.d_min, stencil=self._stencil, reward_model=self.reward_model)
         if n <= n_split + 1 or ens.n_members < 2:  # nothing left to branch on
             t = time.perf_counter()
-            res = solve_dp(control, t_s, n, self.dt_s, **common)
+            res = solve_dp(control, t_s, n, self.dt_s, terminal=term, **common)
             tm["dp"] = time.perf_counter() - t
             self.last_result = res
             j0, i0 = _nearest_cell(grid, np.isfinite(res.V[0]), x, y)
@@ -92,7 +103,7 @@ class EnsembleMPCPolicy:
         t = time.perf_counter()
         res = solve_stochastic_dp(red.scenarios(ens), red.weights, control, t_s, n * self.dt_s,
                                   self.dt_s, split_s=n_split * self.dt_s, risk=self.risk,
-                                  **common)
+                                  terminal=term, **common)
         tm["dp"] = time.perf_counter() - t
         self.last_result = res.short
         j0, i0 = _nearest_cell(grid, np.isfinite(res.v_t0), x, y)

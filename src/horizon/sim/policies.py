@@ -108,7 +108,9 @@ class HoldAtPointPolicy:
 def best_climatological_point(truths: list[WindField], power_model: PowerModel, coast: CoastModel,
                               start_xy: tuple[float, float], sdf_min_m: float = 50e3,
                               d_min_m: float = 20e3, bbox=(-45.0, 5.0, 35.0, 65.0),
-                              max_range_m: float = 800 * 1852.0) -> tuple[float, float, float]:
+                              max_range_m: float = 800 * 1852.0,
+                              mean_kw: np.ndarray | None = None,
+                              extra_mask: np.ndarray | None = None) -> tuple[float, float, float]:
     """Cell maximising the mean hold power over training truths (B0 point).
 
     Candidates lie in the nominal basin ``bbox`` (lon_min, lon_max, lat_min, lat_max) [deg],
@@ -124,22 +126,30 @@ def best_climatological_point(truths: list[WindField], power_model: PowerModel, 
     start_xy : tuple  [m]  Start position, grid frame.
     sdf_min_m, d_min_m : float  [m]
     bbox : tuple  [deg]  Nominal basin. max_range_m : float  [m]  Operational range from the start.
+    mean_kw : ndarray (Ny, Nx), optional  [kW]  Precomputed climatological hold power (then
+        ``truths`` / ``power_model`` are ignored). extra_mask : ndarray bool (Ny, Nx), optional
+        Additional admissibility mask (e.g. inside the data box).
 
     Returns
     -------
     x, y : float  [m]  Cell centre. mean_kw : float  [kW]  Training-mean hold power there.
     """
     grid = coast.grid
-    acc = np.zeros(grid.shape)
-    for tr in truths:
-        acc += power_model.power_kw(tr.uv[..., 0], tr.uv[..., 1], 0.0, 0.0).mean(axis=0)
-    mean = acc / len(truths)
+    if mean_kw is not None:
+        mean = np.asarray(mean_kw, float)
+    else:
+        acc = np.zeros(grid.shape)
+        for tr in truths:
+            acc += power_model.power_kw(tr.uv[..., 0], tr.uv[..., 1], 0.0, 0.0).mean(axis=0)
+        mean = acc / len(truths)
     lon, lat = grid.lonlat_mesh()
     lon0, lat0 = grid.to_lonlat(*start_xy)
     _, _, dist = Geod(ellps="WGS84").inv(np.full(lon.shape, lon0), np.full(lon.shape, lat0),
                                          lon, lat)
     ok = ((coast.sdf >= sdf_min_m) & (lon >= bbox[0]) & (lon <= bbox[1]) & (lat >= bbox[2])
           & (lat <= bbox[3]) & (dist <= max_range_m))
+    if extra_mask is not None:
+        ok &= extra_mask
     cand = np.where(ok, mean, -np.inf)
     for flat in np.argsort(cand, axis=None)[::-1]:
         j, i = np.unravel_index(flat, cand.shape)
@@ -167,24 +177,37 @@ class DeterministicMPCPolicy:
     dt_s : float  [s]  DP step (3 h).
     d_min_m : float  [m]  Coast clearance.
     reward_model : str  DP reward model (``"envelope"`` default).
+    terminal_clim_kw : ndarray (Ny, Nx), optional  [kW]  Climatological hold power; if given the
+        DP terminal value is ``terminal_clim_kw * min(terminal_days * 24 h, mission time left
+        after the window)`` (see :func:`horizon.polar.climatology.terminal_value`).
+    terminal_days : float  [d]  Remaining-time scale of that terminal value.
     """
 
     def __init__(self, polar: PolarTable, hold_curve: HoldCurve, coast: CoastModel,
                  horizon_days: float = 5.0, dt_s: float = DT_PLAN_S, d_min_m: float = 20e3,
-                 reward_model: str = "envelope"):
+                 reward_model: str = "envelope", terminal_clim_kw: np.ndarray | None = None,
+                 terminal_days: float = 5.0):
         self.polar, self.hold, self.coast = polar, hold_curve, coast
         self.horizon_s = horizon_days * 86400.0
         self.dt_s = dt_s
         self.d_min = d_min_m
         self.reward_model = reward_model
+        self.terminal_clim_kw = terminal_clim_kw
+        self.terminal_days = terminal_days
         self._stencil = build_stencil(coast.grid, dt_s)
         self.last_result = None  # DPResult of the latest plan (read by the S2 refiner wrapper)
 
     def plan(self, t_s, x, y, provider):
         n = max(int(np.ceil(min(self.horizon_s, provider.mission_end_s - t_s) / self.dt_s)), 1)
         ens = provider.forecast(issue_s=t_s, horizon_s=n * self.dt_s, n_members=1, dt_s=self.dt_s)
+        term = None
+        if self.terminal_clim_kw is not None:
+            from horizon.polar.climatology import terminal_value
+            left_h = max(provider.mission_end_s - (t_s + n * self.dt_s), 0.0) / 3600.0
+            term = terminal_value(self.terminal_clim_kw, min(self.terminal_days * 24.0, left_h))
         res = solve_dp(ens.member(0), t_s, n, self.dt_s, self.polar, self.hold, self.coast,
-                       d_min=self.d_min, stencil=self._stencil, reward_model=self.reward_model)
+                       terminal=term, d_min=self.d_min, stencil=self._stencil,
+                       reward_model=self.reward_model)
         self.last_result = res
         j0, i0 = _nearest_cell(self.coast.grid, np.isfinite(res.V[0]), x, y)
         return _plan_from_path(self.coast.grid, res.path(j0, i0, 0), t_s, self.dt_s,

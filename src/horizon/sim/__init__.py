@@ -9,11 +9,17 @@ from horizon.sim.policies import (
     Policy,
     best_climatological_point,
 )
-from horizon.sim.power import DirectPowerModel, EnvelopePowerModel, PowerModel
+from horizon.sim.power import (
+    DirectPowerModel,
+    EnvelopePowerModel,
+    FeasiblePowerModel,
+    PowerModel,
+)
 from horizon.sim.simulator import CausalityError, ForecastProvider, MissionResult, run_mission
 
 __all__ = [
     "CausalityError", "DeterministicMPCPolicy", "DirectPowerModel", "EnvelopePowerModel",
-    "ForecastProvider", "HoldAtPointPolicy", "MissionMetrics", "MissionResult", "OraclePolicy",
-    "Plan", "Policy", "PowerModel", "best_climatological_point", "mission_metrics", "run_mission",
+    "FeasiblePowerModel", "ForecastProvider", "HoldAtPointPolicy", "MissionMetrics",
+    "MissionResult", "OraclePolicy", "Plan", "Policy", "PowerModel",
+    "best_climatological_point", "mission_metrics", "run_mission",
 ]

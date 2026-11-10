@@ -25,7 +25,7 @@ def arc_feasibility(valid, di, dj, length, sdf, x0, y0, dx, d_min):  # pragma: n
     """Time-independent arc mask: stencil validity + coast clearance along the arc.
 
     An arc is kept if both end cells and every sample along the straight grid segment (spacing
-    <= dx/2, including the midpoint) have ``SDF >= d_min`` [m].
+    <= dx/8, finer than the simulator's 900 s steps at u_max) have ``SDF >= d_min`` [m].
 
     Returns
     -------
@@ -45,7 +45,8 @@ def arc_feasibility(valid, di, dj, length, sdf, x0, y0, dx, d_min):  # pragma: n
                 ii = i + di[s]
                 if not sdf[jj, ii] >= d_min:
                     continue
-                m = int(np.ceil(2.0 * np.hypot(di[s], dj[s]))) - 1
+                # sample spacing <= dx/8 along the arc
+                m = int(np.ceil(8.0 * np.hypot(di[s], dj[s]))) - 1
                 good = True
                 for q in range(1, m + 1):
                     f = q / (m + 1.0)

@@ -74,3 +74,50 @@ class RefinedMPCPolicy:
         self.last_refine = r
         self.results.append(r)
         return Plan(t_s, self.dt_s, r.x[1:], r.y[1:], r.objective_kwh)
+
+
+class _TruthProvider:
+    """Provider whose "forecast" is the truth (hindsight), sampled at the requested times."""
+
+    def __init__(self, truth, mission_end_s: float):
+        self.truth = truth
+        self.mission_end_s = float(mission_end_s)
+
+    def forecast(self, issue_s, horizon_s, n_members=1, dt_s=10800.0, seed_offset=0):
+        from horizon.dp.solver import resample_wind
+        from horizon.weather.fields import Ensemble
+
+        t = issue_s + np.arange(int(round(horizon_s / dt_s)) + 1) * dt_s
+        uv = resample_wind(self.truth, t)[None]
+        return Ensemble(self.truth.grid, self.truth.epoch, float(issue_s), t, uv, np.ones(1))
+
+
+class OracleRefinedPolicy:
+    """Hindsight policy with receding refinement (``Oracle_REF``, upper bound for REF policies).
+
+    At every replan: DP on the TRUTH from now to the mission end (terminal 0), then refinement of
+    the first 48 h on the truth wind, exactly as :class:`RefinedMPCPolicy` but with perfect
+    information. Not causal (it is handed the truth).
+
+    Parameters
+    ----------
+    truth : WindField  True wind covering the mission.
+    polar, hold_curve, coast : see :func:`horizon.dp.solve_dp`.
+    duration_s : float  [s]  Mission length. Other keywords go to :class:`RefinedMPCPolicy`.
+    """
+
+    def __init__(self, truth, polar, hold_curve, coast, duration_s: float, d_min_m: float = 20e3,
+                 **refine_kw):
+        from horizon.sim.policies import DeterministicMPCPolicy
+
+        self.truth = truth
+        base = DeterministicMPCPolicy(polar, hold_curve, coast,
+                                      horizon_days=duration_s / 86400.0 + 1.0, d_min_m=d_min_m)
+        self.refined = RefinedMPCPolicy(base, **refine_kw)
+
+    @property
+    def results(self):
+        return self.refined.results
+
+    def plan(self, t_s, x, y, provider) -> Plan:
+        return self.refined.plan(t_s, x, y, _TruthProvider(self.truth, provider.mission_end_s))

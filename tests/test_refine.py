@@ -252,3 +252,49 @@ def test_refined_policy_plan_and_closed_loop(grid, sea, polar, hold, pm):
     assert res_ref.coast_violations == 0
     assert res_ref.energy_kwh[-1] >= 0.99 * res_b1.energy_kwh[-1]
     assert all(r.objective_kwh >= r.warm_objective_kwh - 1e-6 for r in pol.results)
+
+
+def test_dense_coast_clearance_refiner_and_dp(grid, env):
+    """Regression (S3): SDF >= d_min along the WHOLE path, not only at nodes/mid-points."""
+    from horizon.geo.coast import CoastModel as _CM
+
+    X, Y = grid.xy_mesh()
+    cx, cy = grid.to_xy(-4.0, 46.0)
+    cx, cy = cx + 260e3, cy + 40e3
+    sdf = (np.hypot(X - cx, Y - cy) - 80e3).astype(np.float32)  # round island
+    coast = _CM(grid, sdf)
+    wind = uniform_wind(grid, 8.0, 0.0)
+    x0, y0 = grid.to_xy(-4.0, 46.0)
+    n = 24
+    pull = -np.hypot(X - cx, Y - cy) / 1e3 * 50.0  # pulled towards the island
+    warm = line(x0, y0, 3.0, 0.0, n)
+    d_min = 20e3
+    r = refine_plan(wind, x0, y0, 0.0, pull, env, coast, warm, horizon_s=n * 1800.0, d_min=d_min,
+                    margin_m=200e3)
+    xs = np.concatenate([np.linspace(a, b, 21) for a, b in zip(r.x[:-1], r.x[1:], strict=True)])
+    ys = np.concatenate([np.linspace(a, b, 21) for a, b in zip(r.y[:-1], r.y[1:], strict=True)])
+    assert coast.sdf_at(xs, ys).min() >= d_min - 50.0
+
+
+def test_dp_arc_feasibility_dense_sampling():
+    from horizon.dp.kernel import arc_feasibility
+    from horizon.dp.stencil import build_stencil
+    from horizon.geo.coast import CoastModel as _CM
+    from horizon.geo.grid import Grid as _G
+
+    g = _G.from_bbox(-12, 4, 38, 54, 40e3)
+    X, Y = g.xy_mesh()
+    cx, cy = g.to_xy(-4.0, 46.0)
+    sdf = (np.hypot(X - cx, Y - cy) - 30e3).astype(np.float32)
+    coast = _CM(g, sdf)
+    st = build_stencil(g, 3 * 3600.0)
+    d_min = 20e3
+    ok = arc_feasibility(st.valid, st.di, st.dj, st.length_m, coast.sdf, g.x0, g.y0, g.dx, d_min)
+    jj, ii, ss = np.nonzero(ok[:, :, 1:])
+    rng = np.random.default_rng(0)
+    for q in rng.choice(jj.size, 300, replace=False):
+        j, i, s = jj[q], ii[q], ss[q] + 1
+        f = np.linspace(0, 1, 81)
+        x = g.x0 + (i + f * st.di[s]) * g.dx
+        y = g.y0 + (j + f * st.dj[s]) * g.dx
+        assert coast.sdf_at(x, y).min() >= d_min - 1.0

@@ -17,7 +17,7 @@ from horizon.polar.derived import HoldCurve
 from horizon.polar.envelope import EnvelopeTable, envelope_lookup
 from horizon.polar.table import PolarTable
 
-__all__ = ["PowerModel", "DirectPowerModel", "EnvelopePowerModel"]
+__all__ = ["PowerModel", "DirectPowerModel", "EnvelopePowerModel", "FeasiblePowerModel"]
 
 HOLD_SPEED_MS = 0.5  # [m/s] below this ground speed the ship is considered to hold position
 
@@ -98,3 +98,44 @@ class EnvelopePowerModel:
         if self.fallback is not None and np.isnan(p).any():
             p = np.where(np.isnan(p), self.fallback.power_kw(u, v, ve, vn), p)
         return p[()]
+
+
+class FeasiblePowerModel:
+    """Wrap a power model and replace NaN (infeasible velocity) by the power at a slower speed.
+
+    A commanded ground velocity that no heading/speed pair of the polar can realise (e.g. fast
+    motion upwind with the BETA polar) has no defined power. A real ship would simply sail slower
+    in that direction, so the power at the velocity scaled by ``shrink**k`` (smallest ``k`` giving
+    a finite value, at most ``max_iter``; else 0 kW) is returned. The kinematics of the simulation
+    are NOT changed (small inconsistency, documented); ``n_clamped`` counts affected samples.
+
+    Parameters
+    ----------
+    base : PowerModel
+    shrink : float  Speed reduction factor per iteration. max_iter : int
+    """
+
+    def __init__(self, base: PowerModel, shrink: float = 0.95, max_iter: int = 60):
+        self.base, self.shrink, self.max_iter = base, shrink, max_iter
+        self.n_clamped = 0
+
+    def power_kw(self, u, v, ve, vn) -> np.ndarray:
+        u, v, ve, vn = np.broadcast_arrays(*(np.asarray(a, float) for a in (u, v, ve, vn)))
+        shp = u.shape
+        u, v, ve, vn = (a.ravel() for a in (u, v, ve, vn))
+        p = np.array(self.base.power_kw(u, v, ve, vn), dtype=float).ravel()
+        idx = np.flatnonzero(~np.isfinite(p))
+        if idx.size:
+            self.n_clamped += int(idx.size)
+            f = 1.0
+            for _ in range(self.max_iter):
+                f *= self.shrink
+                q = np.asarray(self.base.power_kw(u[idx], v[idx], f * ve[idx], f * vn[idx]),
+                               dtype=float).ravel()
+                ok = np.isfinite(q)
+                p[idx[ok]] = q[ok]
+                idx = idx[~ok]
+                if idx.size == 0:
+                    break
+            p[idx] = 0.0
+        return p.reshape(shp)[()]

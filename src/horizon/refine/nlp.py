@@ -180,6 +180,7 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
                 EnvelopeTable, coast: CoastModel, warm_start, horizon_s: float = 48 * 3600.0,
                 dt_s: float = 1800.0, d_min: float = 20e3, rho=(100.0, 100.0), u_max: float = 8.0,
                 margin_m: float = 120e3, max_iter: int = 200, max_cpu_s: float = 20.0,
+                safety_m: float = 2e3,
                 ipopt_options: dict | None = None) -> RefineResult:
     """Refine a route by multiple-shooting NLP (module docstring), with warm-start fallback.
 
@@ -192,7 +193,7 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     terminal : ndarray (Ny, Nx) [kWh] or callable ``f(x, y) -> ndarray`` [kWh]
         Terminal value ``Vbar`` at ``t0_s + horizon_s`` (non-finite entries are filled).
     envelope : EnvelopeTable  The reward used by the DP and the simulator.
-    coast : CoastModel  ``SDF(x_i) >= d_min`` is imposed at stage nodes and mid-points.
+    coast : CoastModel  ``SDF >= d_min + safety_m`` at stage nodes, quarter and mid-points.
     warm_start : tuple ``(x, y)`` of arrays (N+1,) [m]  Node positions, e.g. from
         :func:`warm_start_from_path`. ``x[0], y[0]`` must equal ``(x0, y0)``.
     horizon_s, dt_s : float [s]  Horizon (``N = horizon_s / dt_s`` stages) and stage length.
@@ -284,8 +285,12 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     dxy = ca.vertcat(jm[0, :] * V[0, :] + jm[2, :] * V[1, :],
                      jm[1, :] * V[0, :] + jm[3, :] * V[1, :]) * (dt_s / km)
     g_dyn = ca.vec(X[:, 1:] - X[:, :-1] - dxy)
-    xy_all = ca.horzcat(X[:, 1:], xm)
-    g_sdf = sdf_fn.map(2 * n)(ca.vertcat(xy_all[1, :], xy_all[0, :])).T - d_min / km
+    # SDF at nodes and at 1/4, 1/2, 3/4 of every stage, with a safety buffer (spline vs bilinear
+    # SDF mismatch and solver tolerance; S3 found 3 km excursions with nodes + midpoints only)
+    xq1 = 0.75 * X[:, :-1] + 0.25 * X[:, 1:]
+    xq3 = 0.25 * X[:, :-1] + 0.75 * X[:, 1:]
+    xy_all = ca.horzcat(X[:, 1:], xm, xq1, xq3)
+    g_sdf = sdf_fn.map(4 * n)(ca.vertcat(xy_all[1, :], xy_all[0, :])).T - (d_min + safety_m) / km
     g_spd = (V[0, :]**2 + V[1, :]**2).T / u_max**2 - 1.0
     gcons = ca.vertcat(g_dyn, g_sdf, g_spd)
     f = -(energy + term - pen) / 1e3
@@ -314,13 +319,13 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     lbx = np.concatenate([np.tile([xa[0], ya[0]], n + 1), np.full(2 * n, -u_max)])
     ubx = np.concatenate([np.tile([xa[-1], ya[-1]], n + 1), np.full(2 * n, u_max)])
     lbx[:2] = ubx[:2] = (x0 / km, y0 / km)
-    lbg = np.concatenate([np.zeros(2 * n), np.zeros(2 * n), np.full(n, -np.inf)])
-    ubg = np.concatenate([np.zeros(2 * n), np.full(2 * n, np.inf), np.zeros(n)])
+    lbg = np.concatenate([np.zeros(2 * n), np.zeros(4 * n), np.full(n, -np.inf)])
+    ubg = np.concatenate([np.zeros(2 * n), np.full(4 * n, np.inf), np.zeros(n)])
     cons_fn = ca.Function("cons", [X, V], [gcons])
 
     def violation(Xa, Va):
         c = np.asarray(cons_fn(Xa, Va)).ravel()
-        return float(max(np.abs(c[:2 * n]).max(), -c[2 * n:4 * n].min(), c[4 * n:].max() * u_max,
+        return float(max(np.abs(c[:2 * n]).max(), -c[2 * n:6 * n].min(), c[6 * n:].max() * u_max,
                          0.0))
 
     def evaluate(Xa, Va):
