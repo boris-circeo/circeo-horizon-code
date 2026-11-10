@@ -15,6 +15,7 @@ reported. **GPL / AGPL are forbidden**; if no alternative exists, escalate for a
 | shapely | BSD-3 | OK | geometry |
 | pyshp | MIT | OK | reading shapefiles |
 | xarray / zarr / netCDF4 | Apache-2.0 / MIT / MIT | OK | data I/O (optional) |
+| cfgrib / eccodes (python bindings + ECMWF ecCodes library) | Apache-2.0 / Apache-2.0 | OK | reading ERA5 GRIB1 (optional, `data` extra; ingestion only) |
 | pytest, ruff | MIT | OK (dev only) | tests, lint |
 | casadi (planned S2) | **LGPL-3** | OK, weak copyleft — report | NLP refiner |
 | ipopt (planned S2) | EPL-2.0 | OK, weak copyleft — report | NLP solver (with MUMPS, CeCILL-C) |

@@ -23,7 +23,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
-data = ["xarray>=2024.1", "zarr>=2.18", "netCDF4>=1.6"]  # Apache-2.0 / MIT / MIT
+data = ["xarray>=2024.1", "zarr>=2.18", "netCDF4>=1.6",
+        "cfgrib>=0.9.10", "eccodes>=1.7"]  # Apache-2.0 / MIT / MIT / Apache-2.0 / Apache-2.0
 
 [tool.setuptools.packages.find]
 where = ["src"]
