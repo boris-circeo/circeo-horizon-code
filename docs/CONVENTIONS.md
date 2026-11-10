@@ -72,6 +72,9 @@ propulsion consumption (Flettner rotors + auxiliary propeller). Net power can th
 
 BETA polars (real client data, `horizon.polar.beta`) already include generator limitation and derating — no
 overlay applied (client, 2026-11-10); the 25/35 kn derating/cut-out is a property of the synthetic polar only.
+Head to wind the BETA net power is <= 0 (rotors give no thrust, the propeller counters the turbine thrust; the
+turbine is always aligned with the apparent wind). NaN cells inside the reachable-speed interval are optimiser
+artefacts and are filled by default; states above U_max stay infeasible (`PolarTable.feasible`).
 In the BETA files `Psi_rad` = TWA of §3 directly (0 = head to wind), verified from AWS/AWA consistency.
 
 ## 7. Code style

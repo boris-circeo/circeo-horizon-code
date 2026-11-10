@@ -82,7 +82,20 @@ def test_feasibility_mask_and_limits(beta):
     lo, hi = np.nanmin(beta.p), np.nanmax(beta.p)
     assert -3100 < lo < -2500 and 2900 < hi <= 3000
     assert beta.meta["params"]["Wind Turbine - Diameter of turbine [m]"] == 84
-    assert beta.meta["n_repaired"] == 0
+    r = beta.meta["repair"]
+    assert r["filled_interval"] > 0 and r["kept_infeasible_native"] > 0
+    raw = load_beta_polar(DATA, repair_holes=False)
+    assert raw.meta["repair"]["filled_interval"] == 0
+    assert beta.feasible.sum() > raw.feasible.sum()
+    assert not (beta.feasible & ~raw.feasible)[:, :, beta.u > 8.0 + 1e-9].any()
+
+
+@needs_data
+def test_hole_repair_removes_hold_dents(beta):
+    h = hold_power_curve(beta, include_stopped=True)
+    for kn in (28, 32, 46):  # holes in the raw data
+        assert h.u_star[kn] == 0.0 and h.p_hold[kn] > 2900
+    assert np.all(h.p_hold[22:] > 2900)
 
 
 @needs_data

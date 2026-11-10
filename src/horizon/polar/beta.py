@@ -49,6 +49,23 @@ sign: the positive part is treated as turbine surplus and scaled by
 So below the cut-in net power is <= 0 everywhere and at TWS = 0 it equals ``min(P_10, 0)``
 (~0 only for a stopped ship). The feasibility mask of the 10 kn file is reused (conservative).
 
+Physics note (client, 2026-11-10 12:02)
+---------------------------------------
+Head to wind the Flettner rotors give no thrust and the electric propeller counters the
+turbine's thrust to hold the speed, so net power there is <= 0 (this is normal physics, not rotor
+shading). The turbine is always aligned with the apparent wind. Each polar point is the result of
+an optimisation (turbine pitch, Flettner spin ratios, propeller power, appendage angle)
+maximising net power under heading/speed constraints.
+
+Empty cells and hole repair (client, 2026-11-10 12:02)
+------------------------------------------------------
+Some NaN cells are artefacts (optimiser hit its iteration limit), others are genuinely
+unreachable states. For each (TWS, TWA) the reachable U set is an interval; NaNs strictly inside
+it, isolated NaNs in the (TWA, U) plane and NaN blocks surrounded by feasible values in the two
+neighbouring TWS files (e.g. the 32 kn stopped-downwind corner) are artefacts and are filled by
+interpolation (``repair_holes=True``, default; counts in ``meta["repair"]``). NaNs beyond the
+reachable speed (above ``U_max`` at that TWA, U > 8 m/s) stay infeasible.
+
 Operational limits
 ------------------
 Client statement (2026-11-10, 11:43): generator limitation and derating are ALREADY included in the
@@ -152,13 +169,56 @@ def _regrid_plane(psi, u, p, twa_t, u_t):
     return val, feas
 
 
+def _repair_native(power: np.ndarray) -> tuple[np.ndarray, int, int]:
+    """Fill artefact NaNs of one native ``power[psi, u]`` plane.
+
+    Rule 1: NaN strictly inside the feasible U interval of its row -> linear in U.
+    Rule 2: NaN with >= 7 of 8 feasible neighbours in the (psi, U) plane -> neighbour mean.
+
+    Returns
+    -------
+    filled : numpy.ndarray
+    n_interval, n_isolated : int
+        Number of nodes filled by rule 1 / rule 2.
+    """
+    p = power.copy()
+    n1 = n2 = 0
+    for i in range(p.shape[0]):
+        ok = np.isfinite(p[i])
+        if ok.sum() < 2:
+            continue
+        idx = np.flatnonzero(ok)
+        hole = ~ok
+        hole[: idx[0]] = False
+        hole[idx[-1] + 1:] = False
+        if hole.any():
+            p[i, hole] = np.interp(np.flatnonzero(hole), idx, p[i, idx])
+            n1 += int(hole.sum())
+    ok = np.isfinite(p)
+    pad = np.pad(np.where(ok, p, 0.0), 1)
+    cnt = np.pad(ok.astype(float), 1)
+    nsum = np.zeros_like(p)
+    ncnt = np.zeros_like(p)
+    for di in (-1, 0, 1):
+        for dj in (-1, 0, 1):
+            if di == 0 and dj == 0:
+                continue
+            sl = (slice(1 + di, 1 + di + p.shape[0]), slice(1 + dj, 1 + dj + p.shape[1]))
+            nsum += pad[sl]
+            ncnt += cnt[sl]
+    iso = ~ok & (ncnt >= 7)
+    p[iso] = nsum[iso] / ncnt[iso]
+    n2 = int(iso.sum())
+    return p, n1, n2
+
+
 def _smoothstep(x):
     x = np.clip(x, 0.0, 1.0)
     return x * x * (3.0 - 2.0 * x)
 
 
 def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_kn: float = 7.0,
-                    repair_holes: bool = False,
+                    repair_holes: bool = True,
                     p_bounds: tuple[float, float] = BETA_P_BOUNDS_KW) -> PolarTable:
     """Load the client's BETA power polars onto uniform ``(TWS, TWA, U)`` axes.
 
@@ -177,11 +237,9 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
     cutin_kn : float  [kn]
         Turbine cut-in below which the extrapolated gross output vanishes (HYPOTHESIS, 7 kn).
     repair_holes : bool
-        The data contain isolated NaN "holes" (e.g. the whole stopped-downwind corner of the
-        32 kn file) that are feasible in both neighbouring TWS files, most likely solver
-        failures rather than physics. If True, such nodes are filled with the mean of the two
-        neighbouring TWS planes (``meta["n_repaired"]`` counts them). Default False: no fake
-        values.
+        Fill optimiser-failure artefacts (see module docstring): NaNs inside the feasible U
+        interval, isolated NaNs, and blocks feasible in both neighbouring TWS files. Genuinely
+        unreachable states stay NaN. Default True (client answer 2026-11-10 12:02).
     p_bounds : (float, float)  [kW]
         Sanity bounds applied to feasible values.
 
@@ -200,6 +258,13 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
     if not files:
         raise FileNotFoundError(f"no polar_BETA_TWS=*.csv in {directory}")
     nodes = [read_beta_file(f) for f in files]
+    n_nan_native = int(sum(np.isnan(n["power"]).sum() for n in nodes))
+    n_interval = n_isolated = 0
+    if repair_holes:
+        for n in nodes:
+            n["power"], a, b = _repair_native(n["power"])
+            n_interval += a
+            n_isolated += b
     kn_nodes = np.array([n["tws_kn"] for n in nodes], dtype=float)
     planes, masks = [], []
     for n in nodes:
@@ -208,14 +273,14 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
         masks.append(f)
     planes = np.stack(planes)
     masks = np.stack(masks)
-    n_rep = 0
+    n_block = 0
     if repair_holes:
         pz0 = np.where(masks, planes, 0.0)
         hole = np.zeros_like(masks)
         hole[1:-1] = ~masks[1:-1] & masks[:-2] & masks[2:]
         planes = np.where(hole, 0.5 * (np.roll(pz0, 1, 0) + np.roll(pz0, -1, 0)), planes)
         masks = masks | hole
-        n_rep = int(hole.sum())
+        n_block = int(hole.sum())
     pz = np.where(masks, planes, 0.0)
 
     p = np.full((tws_kn_a.size, twa_a.size, u_a.size), np.nan)
@@ -253,7 +318,9 @@ def load_beta_polar(directory: str | Path, tws_kn=None, twa=None, u=None, cutin_
             "u_above_8": "infeasible",
         },
         "cutin_kn": cutin_kn,
-        "n_repaired": n_rep,
+        "repair": {"native_nan": n_nan_native, "filled_interval": n_interval,
+                   "filled_isolated": n_isolated, "filled_tws_block_regridded": n_block,
+                   "kept_infeasible_native": n_nan_native - n_interval - n_isolated},
     }
     return PolarTable(p, tws_kn_a * KNOT, twa_a, u_a, feasible=feas, meta=meta, p_bounds=p_bounds)
 
