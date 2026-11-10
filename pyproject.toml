@@ -38,6 +38,7 @@ addopts = "-q"
 markers = ["slow: long-running tests", "physics: physical sanity tests (spec section 8.4)"]
 
 [tool.ruff]
+extend-exclude = ["scripts/diag_*"]  # throwaway diagnostic scripts
 line-length = 100
 target-version = "py311"
 
