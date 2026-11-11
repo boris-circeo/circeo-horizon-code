@@ -1,0 +1,1729 @@
+# HORIZON S5 - hypothesis register for the v1 design note (DES-860 rev A) and for our own test environment.
+# One entry per assumption / quantitative claim / design decision / dismissed alternative.
+# Status codes: open | supported-by-S0-S4 | contradicted-by-S0-S4 | untestable-here. 'H-X-*' = our own environment hypotheses.
+# Experiment ids E-xx are defined in docs/s5/hypotheses.md. Note: figures marked 'S5 computation' were derived during this review from the ERA5 2015 cache and the BETA polar (aggregates only).
+- id: H-1-1
+  v1_section: 1.4, 2.1.1
+  category: weather
+  statement: Depressions translate at 20-35 kn, 4-6 times faster than the ship (3-9 kn, max 16 kn), so the ship
+    can only be on a system's path, never chase it.
+  type: quantitative-claim
+  used_for: D1, D2 (need for anticipation)
+  criticality: high
+  evidence_so_far: none directly. S4 ships average 7.1 kn (p10-p90 3.6-10.4 kn, outputs/s4_runs A_B1c_REF_s1). Translation
+    speed of 10 m wind maxima not yet measured on ERA5 (WP2).
+  test: 'E-13: track TWS>20 kn blobs / lagged cross-correlation on ERA5 2015 (Hovmoeller along 50N) to get the distribution
+    of 10 m-wind pattern speeds by season; compare with ship ground speed distribution.'
+  test_cost: cheap
+  status: open
+  notes: 20-35 kn is a cyclone-centre speed at 500-1000 hPa; 10 m wind footprints (jet, cold sector) can move slower
+    or deform. Also the ship moves with the flow when downwind (P>0 at TWA 150-170 above 22 kn), so 'cannot chase'
+    is weaker in strong wind.
+- id: H-1-2
+  v1_section: 1.5, 8.2 (B0)
+  category: operations
+  statement: Routing must beat the best fixed 'virtual mooring' B0 by a wide margin; if the gap is small the whole
+    project is oversized (to be tested first).
+  type: quantitative-claim
+  used_for: D1 (existence of the project)
+  criticality: high
+  evidence_so_far: 'Annual CF 0.57 (B0) vs 0.775-0.807 (routed): +36 to +41 % energy, 12/12 months (S4_results.md);
+    S3: +26 % (10/10 missions).'
+  test: 'E-15: strengthen B0 (monthly best point, cross-validated point, B0 with explicit manoeuvre/drift losses,
+    simple greedy heuristics) and re-measure the gap.'
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: Gap is measured against a B0 chosen on the same year (mild leakage that favours B0, i.e. conservative)
+    but B0 has no explicit manoeuvre loss in the simulator (could favour B0). Winner is clear; margin of the order
+    of 40 % not 4 %.
+- id: H-1-3
+  v1_section: 1.6, 7.7, B.2
+  category: numerics
+  statement: A full strategic cycle (7 scenarios + 10 km fine zone) costs 2-10 s on 16 cores, leaving margins of
+    x15-60 against the 10 min budget.
+  type: quantitative-claim
+  used_for: DIM (compute budgets 1 min / 10 min / 1 h; margin x15-60)
+  criticality: medium
+  evidence_so_far: '40 km DP 13 d: 0.5 s (S1, K=21). Per replan single core: B1_5d 0.5 s, B1+REF 1.8 s, ENS(10 mb,
+    k5, 10 d)+REF 5.5 s (S3). Year ENS_REF 20 members: 6.1 h on 2 workers = ~30 CPU-s/replan (S4). No 10 km fine
+    zone built.'
+  test: 'E-21: benchmark arcs/s per core (bench_dp), ENS N=51 w/o reduction, 10 km/1 h fine zone at the real size;
+    extrapolate to 16 cores.'
+  test_cost: cheap
+  status: open
+  notes: Our ENS_REF at 20 members costs ~15x the v1 'cycle'; the fine zone (10 km, 60 000 cells) was never implemented
+    so the 3.2e8-arc estimate is untested.
+- id: H-1-4
+  v1_section: 1.5 pt 4, 6.12, 7.7
+  category: discretisation
+  statement: Surplus compute should buy ensemble width, never spatial/temporal resolution; numerical error is a
+    fraction of a percent, negligible against forecast error.
+  type: design-decision
+  used_for: D6, D9 (spend budget on uncertainty width, never on spatial resolution)
+  criticality: medium
+  evidence_so_far: 'S1: stencil quantisation gives ~6 % orientation dependence; S3: macro arcs (K=21->49) cured
+    ''square tracks''; refiner (continuous heading, 30 min) = +3.2 % (S2), +6.6 % (S3, 10/10); E0 review: ~17 %
+    of the 5 d hindsight bias is DP discretisation (97.4 % realised).'
+  test: E-07 (grid 20/40/60 km, dt 1/3 h, stencil span) and E-06 (refiner vs finer DP) at fixed forecasts; E-11
+    (more members) to compare marginal returns per CPU-hour.
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: 'Resolution matters at the 3-7 % level here, larger than the ensemble gain we could measure (+1.2 %). Partly
+    because our DP is coarse (40 km/3 h, no fine zone): the claim may hold for v1''s 10 km/1 h zone.'
+- id: H-2-1
+  v1_section: 2.1.2
+  category: weather
+  statement: A moving corridor (~25 kn) outruns a ship capped at 16 kn; prolonging a rendezvous by chasing gives
+    only a modest marginal gain.
+  type: quantitative-claim
+  used_for: D1, F-core (value of pursuit)
+  criticality: medium
+  evidence_so_far: none. S4 routed ships experience 22-29 kn mean TWS in winter vs 19-21 kn basin mean (S4_results.md),
+    i.e. they do harvest the strong sectors.
+  test: 'E-13: oracle (Oracle_REF_H) with ship max speed capped at 4/8/12/16 kn, and with a ''frozen position''
+    (hold) variant; value of mobility = CF vs speed cap and vs reachable radius.'
+  test_cost: medium
+  status: open
+  notes: Tests the value of mobility itself, which decides whether a station-keeping-plus-slow-drift strategy is
+    nearly as good (heuristic baselines).
+- id: H-2-2
+  v1_section: 2.1.2, 3.5
+  category: problem-structure
+  statement: The value of a position depends on the flux of systems that will cross it in following days, almost
+    not on the wind present there now.
+  type: assumption
+  used_for: D2, D1 (value function is non-local and non-stationary)
+  criticality: high
+  evidence_so_far: 'S2 diag (synthetic): cell-by-cell correlation of the 13 d value map with the clairvoyant one
+    only 0.04-0.7 per date. S4 V_theta: within-release R2 0.38 with smoothed FORECAST hold power the top feature
+    (33 % gain) - forecast state matters; climatology within-release R2 0.24.'
+  test: 'E-13/E-08: regress realised 5-10 d energy on (a) current wind at x, (b) forecast mean P over next 5 d,
+    (c) climatology, by season; compute Eulerian vs Lagrangian persistence of productive conditions.'
+  test_cost: medium
+  status: open
+  notes: Our terminals are 5 d horizons; the claim at 10-15 d is untouched. If persistence of 'productive' conditions
+    is long (blocking, regimes), the claim is weaker than v1 states.
+- id: H-2-3
+  v1_section: 2.1.3
+  category: weather
+  statement: Westward legs sit at TWA 30-70 deg (weak zone) and eastward legs at 90-130 deg, so it is optimal to
+    'spend west early' and harvest while drifting east.
+  type: assumption
+  used_for: D2, F-legs, return constraint ('capital of longitude')
+  criticality: medium
+  evidence_so_far: 'BETA polar: P(TWA 45) ~ 0 and P(60) = 0.65 MW at 20 kn vs 2.6 MW at 90 deg (S3 polar notes;
+    this review). No mission analysis of longitude vs time yet. S4 first 72 h from Lorient yields only 1.54 MW avg
+    vs 2.3 MW later (outputs/s4_runs B_B1c_*).'
+  test: 'E-13/E-16: from existing S3/S4 tracks compute longitude vs time, heading histogram vs TWA, and CF by heading
+    sector; test whether ships drift east with systems and ''recharge'' west.'
+  test_cost: cheap
+  status: open
+  notes: Moot for the persistent fleet (no return) except for legs; strongly depends on the polar shape (asymmetric
+    peak at 95-110 deg).
+- id: H-2-4
+  v1_section: 2.2.1, 1.3
+  category: ship/polar
+  statement: 'The optimum is sharp and narrow: >2400 kW only at beam reach TWA 75-105 deg, P(45 deg) = P(90 deg)/3-4,
+    half-width +-20-25 deg, a 30 deg error costs ~50 %.'
+  type: quantitative-claim
+  used_for: D3 (vector clustering), F1 polar narrative
+  criticality: high
+  evidence_so_far: 'BETA (S3, plot_beta_polar; re-checked in S5): at 20 kn peak 2756 kW at TWA 95; P(45)~0 (not
+    1/3); P>=0.9 peak only 88-105; P>=0.5 peak 70-135 (asymmetric). Above 24 kn the plateau widens (26 kn: >=0.9
+    peak at 88-140 deg; 35 kn: 80-180 deg; downwind 170 deg = 1.5 MW at 26 kn, 2.5 MW at 30 kn). S0 already flagged
+    the claims as mutually inconsistent.'
+  test: 'Done for the shape (BETA). Next: E-10 polar perturbations (sharper/flatter peak) and E-12 to check whether
+    directional accuracy still dominates in 18-26 kn only; measure real directional sensitivity of regret.'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: Narrow only below ~22 kn; in strong wind most of the downwind half-plane is productive (S3 finding 3).
+    The 'beam-reach / rendezvous' narrative and the choice to cluster on direction are not justified in winter;
+    polar numbers in v1 are for an illustrative model.
+- id: H-2-5
+  v1_section: 2.2.1 pt 2-3
+  category: ship/polar
+  statement: Peak power is ~1500 kW at 18 kn, 2100 at 20, >2700 at 22, cubic in TWS (~15 %/kn); the 3 MW plateau
+    starts around 24-26 kn.
+  type: quantitative-claim
+  used_for: D1, DIM (sweet-spot band 18-26 kn, knee 24-26 kn)
+  criticality: medium
+  evidence_so_far: 'BETA: 2008 kW at 18 kn, 2756 at 20, 2986 at 22, 2984 flat to 50 kn (S5 re-computation). Cubic
+    confirmed (14->20 kn exponent 3.0); gain 17 %/kn at 18-20 kn, 26 %/kn at 12-14 kn; knee at 21-22 kn not 24-26.'
+  test: 'Done (BETA table). Consequence to test in E-13: share of time TWS>=21 kn by season (S4: ships spend 48
+    % of the year at P>2800 kW).'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: 'Real band is ''>= ~21 kn'' not ''18-26 kn'': stronger wind is free energy (plateau) and the interesting
+    regime is the transition 12-21 kn. Our BETA already contains the generator limit.'
+- id: H-2-6
+  v1_section: 2.2.1 pt 4
+  category: ship/polar
+  statement: Net power is negative up close to the wind (down to -300 kW), so upwind repositioning has an explicit
+    energy price.
+  type: quantitative-claim
+  used_for: D2 (cost of repositioning against the wind)
+  criticality: medium
+  evidence_so_far: 'BETA: max-over-U power at TWA<=45 deg is -1 to -43 kW (about zero), but individual (TWA, U)
+    nodes reach -3500 kW (PolarTable bounds must be (-3500, 3000)); beam reach at U=8 m/s already -800 kW. Hence
+    the price is lost production while travelling, not large negative power.'
+  test: 'E-13: energy cost of an upwind transit of 300 NM computed along realised tracks; E-10 sensitivity to the
+    near-zero upwind power.'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: A ship that slows down is never forced into the -3 MW nodes; the 'explicit price' is the opportunity cost
+    of transit time.
+- id: H-2-7
+  v1_section: 2.2.1 pt 6, 2.6.1
+  category: ship/polar
+  statement: 'Production needs ship motion (optimum at 6-9 kn): a nearly stopped ship produces almost nothing and
+    cannot hold position; hold = beam-reach tacks with zero mean ground speed.'
+  type: quantitative-claim
+  used_for: D10 (no station keeping at standstill; hold by tacking)
+  criticality: medium
+  evidence_so_far: 'BETA 20 kn, TWA 90: U=1 m/s gives 46 kW, 3-4 m/s gives 2.4 MW, 8 m/s -800 kW. U* at 16-20 kn
+    TWS = 5.3-6.8 kn (3.4 kn at 10 kn TWS). S3: ''hold = beam-reach tacks at 3.5-4 m/s''; hold envelope 2.46 MW
+    at 20 kn.'
+  test: E-09 (explicit tack simulation vs convex-hull envelope).
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: Supported by the polar itself. Optimum speed is 5-7 kn rather than 6-9 kn for TWS<=20 kn.
+- id: H-2-8
+  v1_section: 2.2.1 pt 2, 2.3
+  category: ship/polar
+  statement: One extra knot of true wind speed is worth about 15 % of power below the knee.
+  type: quantitative-claim
+  used_for: D3 (Jensen), DIM
+  criticality: low
+  evidence_so_far: 'BETA: +26 %/kn (12->14 kn), +19 %/kn (14->16), +17 %/kn (18->20), 0 above 22 kn (S5).'
+  test: Done; propagate into E-10 (wind bias +-1 kn).
+  test_cost: cheap
+  status: open
+  notes: Order of magnitude right, understated at low wind; zero in the plateau.
+- id: H-2-9
+  v1_section: 2.2.3, 4.4.1
+  category: ship/polar
+  statement: 'The polar is concave above the knee and around the optimum and convex below, so E[P(W)] differs from
+    P(E[W]) with a regime-dependent sign: deterministic routing is biased, ensembles are required beyond ~D2.'
+  type: assumption
+  used_for: D3 (ensemble scenarios; 'Jensen argument is the strongest')
+  criticality: high
+  evidence_so_far: 'S5 computation on BETA max-over-U power with Gaussian TWS sd 4 kn: E[P]/P(mean) = 1.19 at 14
+    kn, 0.97 at 18, 0.85 at 20, 0.88 at 22, 0.99 at 30 (sign flips near 18 kn; scalar TWS only, direction ignored).
+    Closed loop: ensemble gain small (+1.2 % year n.s.; +0.65 % matched, S3) - Jensen bias never isolated.'
+  test: 'E-13: measure the bias along ship tracks with the forecast ensemble: planned energy of members vs of their
+    mean; E-11: DP on ensemble-mean field vs scenario DP.'
+  test_cost: medium
+  status: open
+  notes: Jensen bias +-15-19 % at sd 4 kn is real on the polar but small after averaging over a route and over positions;
+    may not change position RANKING, which is what routing needs.
+- id: H-2-10
+  v1_section: 2.2.3
+  category: algorithm-choice
+  statement: A deterministic optimiser is attracted to high-mean, high-variance configurations (core of forecast
+    lows) where overestimation is maximal.
+  type: assumption
+  used_for: D3 (adverse optimisation bias / winner's curse)
+  criticality: medium
+  evidence_so_far: 'S2 diag (synthetic only): plan optimism at t0 = +18 % (B1_5d), +30 % (B1_15d, ENS g0, per-scenario
+    clairvoyance beyond 48 h). Real-ERA5 runs: planned vs realised not analysed.'
+  test: 'E-14: log planned (DP/refiner) energy vs realised over the next 48 h and 5 d for each replan of S4 runs/new
+    runs, by policy and season; test dependence on forecast spread.'
+  test_cost: medium
+  status: open
+  notes: Our ensemble DP is as optimistic as deterministic planning, contrary to the v1 story.
+- id: H-2-11
+  v1_section: 2.2.6
+  category: ship/polar
+  statement: TWA = arccos(W.U/|W||U|) with W in the 'toward' convention.
+  type: quantitative-claim
+  used_for: conventions (TWA formula)
+  criticality: medium
+  evidence_so_far: 'S0: gives 0 deg for downwind, an error of 180 deg versus the polar convention (0 = head to wind);
+    code uses arccos(-W.e/|W|). BETA files confirm Psi = TWA via AWS^2 = TWS^2+U^2+2 TWS U cos(Psi) (S3).'
+  test: Done (unit tests, test_polar_beta).
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: A literal implementation would swap upwind and downwind - catastrophic but already neutralised.
+- id: H-2-12
+  v1_section: 2.2.6, 2.6.4
+  category: ship/polar
+  statement: Leeway is k_L|W| (k_L = 2-5 % of wind) on the leeward normal; current 0.2-0.8 kn; both must be compensated
+    by a 5-10 deg bias.
+  type: assumption
+  used_for: D10, drift compensation
+  criticality: medium
+  evidence_so_far: 'S0: literal form discontinuous -> k_L |W| sin(TWA) used, k_L = 0.03 hypothesis; hold TWA ~85
+    deg at 20 kn. No current in the simulator. Polar peak sits at 95-110 deg (above 90), so a bias towards the wind
+    leaves the peak (P>=0.9 peak band 88-105 at 20 kn).'
+  test: 'E-24: leeway k_L in {0, 0.02, 0.03, 0.05} and synthetic current 0.3-0.8 kn (random direction) on B0 and
+    routed policies; measure drift and CF loss.'
+  test_cost: cheap
+  status: open
+  notes: k_L 'to be measured for this platform' - rotors give unusual windage; wrong k_L changes B0 and any holding
+    behaviour.
+- id: H-2-14
+  v1_section: 2.2.1 pt 3, fig. 2.2 caption
+  category: ship/polar
+  statement: 'At high wind the polar derates or cuts out (''bridage par vent fort'' in the figure; synthetic polar:
+    derating from 35 kn, cut-out 42 kn).'
+  type: quantitative-claim
+  used_for: D1, D8 (generator cut-out / derating above ~25-35 kn shapes the strong-wind regime)
+  criticality: medium
+  evidence_so_far: 'BETA (real data) already includes the generator limit and shows no derating: 2.95-2.99 MW from
+    22 to 50 kn at the best TWA (client: no overlay; CONVENTIONS 6). Cut-out/derating exist only in our synthetic
+    polar (S0).'
+  test: Done; carry into E-17 (storms are free energy for the optimiser; safety must come from constraints).
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: If the real ship does derate above 35-40 kn, routers tuned on BETA overvalue storm sectors.
+- id: H-2-15
+  v1_section: 2.2.6, 7.5.3, CONVENTIONS 3
+  category: ship/polar
+  statement: The power polar is symmetric between tacks (rotors, propeller, rudders), so the half-plane TWA 0-180
+    suffices.
+  type: assumption
+  used_for: all (port/starboard symmetry of the polar)
+  criticality: medium
+  evidence_so_far: BETA files only contain TWA 0-180 (Psi in [0, pi]); symmetry assumed (CONVENTIONS 3); to be confirmed
+    by naval architect.
+  test: 'E-10: asymmetric polar (+-5 % on one tack, rotor direction) and measure impact on hold/tack behaviour.'
+  test_cost: cheap
+  status: untestable-here
+  notes: Cannot be tested here; sensitivity only.
+- id: H-2-16
+  v1_section: 2.4.1, 8.2
+  category: weather
+  statement: The natural harvesting zone is 42-55N / 10-35W and the best fixed point is near 48-52N / 12-18W.
+  type: quantitative-claim
+  used_for: B0 and zone of 'natural harvest' (42-55N / 10-35W; B0 at 48-52N / 12-18W)
+  criticality: medium
+  evidence_so_far: 'S4: annual best offshore point of 2015 is 56.5N 21.6W (~849 NM from Lorient), S1 synthetic gave
+    46.7N 2.8W; ERA5 box here is 32W-5E / 38-65N (v1 basin 45W-5E / 30-60N), so the western boundary at 32W and
+    the northern one at 65N bound the search.'
+  test: 'E-15: best fixed cell per month and per year on ERA5 2015 with and without box truncation; add other years
+    (E-18).'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: One year; box truncated vs v1; 'best point' depends on the polar (plateau above 21 kn favours windier northern
+    cells).
+- id: H-2-17
+  v1_section: '2.11'
+  category: weather
+  statement: 'Mean 10 m wind in the reference zone (48-52N, 12-20W): DJF 20-24 kn, MAM 16-20, JJA 11-15, SON 16-22.'
+  type: quantitative-claim
+  used_for: DIM (seasonal energy; sweet spot)
+  criticality: medium
+  evidence_so_far: 'ERA5 2015 40 km regrid (S5 computation): Jan 23.3, Feb 20.9, Dec 24.3; Mar 20.1, Apr 14.4, May
+    16.9; Jun 15.4, Jul 15.8, Aug 14.3; Sep 15.8, Oct 16.3, Nov 22.3 kn. Winter share above 26 kn 28-47 % (Dec 47
+    %).'
+  test: Repeat on 10+ years (E-18).
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: Summer slightly above v1's range in 2015; winter mean 'in the sweet spot' hides 40 % of time above 26 kn.
+- id: H-2-18
+  v1_section: 2.7.1, 2.11
+  category: weather
+  statement: The seasonal cycle modulates available energy by a factor 2-3 between winter and summer.
+  type: quantitative-claim
+  used_for: DIM (seasonal factor 2-3 on available energy DJF vs JJA)
+  criticality: medium
+  evidence_so_far: 'S4 monthly CF: B0 0.78 (Jan) vs 0.35 (Jul) = x2.2; routed B1c 0.92 vs 0.67 = x1.4; Oracle_REF_H
+    0.94 vs 0.77 = x1.2. Plateau compresses the cycle for a routed ship.'
+  test: E-13 seasonal CF decomposition; E-18 for interannual spread (+-30-50 % claimed).
+  test_cost: cheap
+  status: open
+  notes: Factor 2-3 applies to unrouted/available energy; routed energy varies much less - changes the economics
+    of seasonal migration.
+- id: H-2-19
+  v1_section: '2.11'
+  category: operations
+  statement: Summer calls for migrating to 55-60N and/or concentrating heavy maintenance in the low season while
+    the fleet stays at sea.
+  type: design-decision
+  used_for: seasonal strategy (migrate north in summer / concentrate maintenance)
+  criticality: low
+  evidence_so_far: Best annual point is already 56.5N; monthly best fixed point not computed.
+  test: 'E-15: best fixed cell per month (ERA5 2015) and CF gain from a seasonal migration vs fixed B0.'
+  test_cost: cheap
+  status: open
+  notes: Cheap to compute; pure operations value.
+- id: H-2-20
+  v1_section: 2.4.2, 2.9
+  category: weather
+  statement: Four winter regimes (NAO+/-, ridge, blocking) have 6-12 d persistence and explain 30-50 % of surface
+    wind variance.
+  type: assumption
+  used_for: D7 features (4 regimes explain 30-50 % of wind variance; persistence 6-12 d; D+5 classification 70-80
+    %)
+  criticality: medium
+  evidence_so_far: none. We have only 10 m wind for 2015 (no Z500, no other years).
+  test: 'E-18 (multi-year ERA5, Z500) + E-13 (EOF/K-means on 10 m wind 2015 as weak proxy: persistence and explained
+    variance).'
+  test_cost: medium
+  status: untestable-here
+  notes: One year contains ~8 winter regime episodes; cannot validate. Our value model uses no regime feature.
+- id: H-2-22
+  v1_section: 2.5, 2.8.2
+  category: forecast
+  statement: Surface-wind forecast error is 2-3 m/s to D2, timing +-6-12 h at D2-5, systems individually lost by
+    D7-8; ENS keeps flux-statistics skill to D8-10.
+  type: quantitative-claim
+  used_for: 'D3, D1 (information cascade table: error 3-5 kn at D2; timing +-6-12 h D2-5; ENS skill to D8-10)'
+  criticality: high
+  evidence_so_far: Our perturbation model is calibrated on 'ballpark ECMWF ENS' RMSE targets (control 2.2/3.8/5.2/6.0
+    m/s at D1/3/5/7), NOT fitted to real reforecasts (forecast_model.py).
+  test: 'E-20: compare the model with real archived forecasts (GEFS v12 reforecast 2015 via AWS; ECMWF/ERA5-EDA
+    proxies): RMSE, ACC, spread-skill, timing error, mean-vs-control gap.'
+  test_cost: expensive
+  status: open
+  notes: Every conclusion on horizon, ensemble value and latency inherits this unverified law.
+- id: H-2-23
+  v1_section: 1.6, 2.8.2
+  category: forecast
+  statement: The useful horizon for 10 m wind is ~D5-6 deterministic and D8-10 probabilistic.
+  type: quantitative-claim
+  used_for: 'D1 (horizon design: deterministic useful to D5-6, probabilistic to D8-10)'
+  criticality: high
+  evidence_so_far: 'S1 synthetic: B1_15d worse than B1_5d (16.2 vs 12.6 % regret) but on 10 d windows not (S2 diag
+    H3). Real ERA5: ENS 10 d + clim terminal gains only +1.2 % over B1c_5d, no horizon sweep.'
+  test: 'E-04: DP horizon in {1,2,3,5,7,10,15} d x terminal {0, clim, V_theta} x {control, ENS mean, ENS scenarios};
+    metric CF and paired gap.'
+  test_cost: medium
+  status: open
+  notes: 'Horizon response is built into our error law (D7 RMSE 6 m/s ~ climatological spread): ''no skill after
+    D7'' is by construction.'
+- id: H-2-24
+  v1_section: 2.8.2 pt 2
+  category: forecast
+  statement: Timing errors of +-6-9 h at D4 turn a rendezvous into a near-miss, so robust-to-time positions dominate.
+  type: quantitative-claim
+  used_for: D3 (timing error +-9 h at D4 makes beam-reach rendezvous a near-miss; hedging in time)
+  criticality: high
+  evidence_so_far: 'Our model: rms displacement 103/141/172 km at D3/D4/D5; at 25 kn (46 km/h) this is only 2.2/3.1/3.7
+    h of timing - 2-3x smaller than v1''s 6-9 h; amplitude and noise add error but not timing.'
+  test: 'E-01/E-02: sweep displacement scale x{0.5,1,1.5,2,3} (timing error 3-12 h at D4) and read ensemble gain
+    vs scale.'
+  test_cost: cheap
+  status: open
+  notes: If v1 timing errors are right, our forecasts are too good on phase and ensemble value is under-estimated;
+    conversely ensemble value might vanish when timing error is smaller.
+- id: H-2-25
+  v1_section: 2.8.2 pt 3, 4.4.2
+  category: forecast
+  statement: Ensemble spread predicts the day's error (spread-skill), so aggressiveness and k can adapt to confidence.
+  type: assumption
+  used_for: 'D3, D4 (spread-skill: spread predicts the error of the day; adaptive k and risk)'
+  criticality: high
+  evidence_so_far: 'Our model has constant (seasonal 15 %) perturbation scale: spread carries no flow-dependent
+    information by construction (spread/skill ~1 on average only; forecast_model.py). S2 stratification by seed
+    spread: corr +0.05 (synthetic).'
+  test: 'E-02: flow-dependent perturbation scale (e.g. proportional to local |grad W| or jet intensity); then test
+    adaptive k and gamma. E-20 for real spread-skill correlation.'
+  test_cost: medium
+  status: untestable-here
+  notes: 'Cannot be demonstrated with the present model: a structural blind spot.'
+- id: H-2-26
+  v1_section: 2.8.3, 7.8
+  category: forecast
+  statement: Global models, ERA5 included, under-estimate strong surface winds at sea by 5-10 %, so calibration
+    against buoys/ASCAT is mandatory; unconditioned, ships under-produce 10-15 %.
+  type: quantitative-claim
+  used_for: D3, DIM (models underestimate strong winds 5-10 %; quantile mapping mandatory)
+  criticality: high
+  evidence_so_far: none; ERA5 is our truth AND our 'reality'.
+  test: 'E-10: scale truth winds by 1.05-1.10 (and +1 kn) for the real production while the router sees uncorrected
+    winds; measure CF loss and policy change (cubic below knee, flat above).'
+  test_cost: medium
+  status: untestable-here
+  notes: 'Seasonal asymmetry: +10 % on 14 kn wind = +30 % power, on 25 kn = 0 %. Affects absolute CF forecasts,
+    not necessarily ranking.'
+- id: H-2-27
+  v1_section: 2.8.4
+  category: forecast
+  statement: Forecast quality varies by season (best large-scale skill in winter, worst relative skill in summer,
+    vicious cases in autumn).
+  type: assumption
+  used_for: 'D3, D1 (seasonality of forecast quality: worst in intersaison, ex-tropical cyclones Oct-Nov)'
+  criticality: low
+  evidence_so_far: 'Model: +-15 % displacement/amplitude seasonality peaking mid-January (unsourced). S4 monthly
+    regret: higher in Jun-Aug (Jun 13-20 %).'
+  test: 'E-02: set seasonal amplitude to 0 / 30 / -15 %; E-20 real.'
+  test_cost: medium
+  status: open
+  notes: Inverse seasonal dependence of regret may simply reflect the oracle bound and weak winds, not forecast
+    skill.
+- id: H-2-28
+  v1_section: 2.9, 5.3.4
+  category: forecast
+  statement: Sub-seasonal information (MJO phase, SSW, extended-range regime probabilities) gives usable value information
+    in weeks 2-3 and fades smoothly into climatology.
+  type: assumption
+  used_for: 'D2 (S2S features: MJO, SSW, extended ENS probabilities give weeks 2-3 skill)'
+  criticality: medium
+  evidence_so_far: none. No S2S data, no Z500.
+  test: 'E-08 upper bound: add perfect weekly-mean-wind features at leads 10-25 d to V_theta (oracle S2S); if the
+    gain is below ~1 % the S2S machinery is not worth it. Real test needs ECMWF extended hindcasts.'
+  test_cost: expensive
+  status: untestable-here
+  notes: Upper-bound design is conservative and cheap.
+- id: H-2-29
+  v1_section: 2.7.1
+  category: weather
+  statement: A spectral gap between mesoscale and synoptic scales (a few hours) and dominance of the 2-6 d band
+    justify a fine layer for hours and a strategic layer for days.
+  type: assumption
+  used_for: 'D1 (scale separation: spectral gap legitimises two layers; synoptic 2-6 d dominates variance)'
+  criticality: medium
+  evidence_so_far: none. ERA5 40 km hourly smooths mesoscale (squall lines, 10-20 kn / 30-90 deg shifts within 1
+    h are absent).
+  test: 'E-13: temporal spectra of TWS and of vector wind at ship tracks and fixed points (ERA5 2015), energy fraction
+    in 12 h-2 d, 2-6 d, 6-20 d bands by season.'
+  test_cost: cheap
+  status: open
+  notes: 'Our truth has less mesoscale variance than the real sea: errors in 12 h-2 d band underestimated in the
+    PoC.'
+- id: H-2-31
+  v1_section: 2.7.2, 9.1
+  category: risk
+  statement: A mature low's core (>40 kn) offers no marginal value (plateau) and all the risk; ideal trajectory
+    crosses the south margin, warm sector and trailing sector.
+  type: assumption
+  used_for: D8 / safety (storm cores >40 kn have no marginal value, all the risk)
+  criticality: medium
+  evidence_so_far: 'BETA: 2.95-2.99 MW for all TWS 22-50 kn at the optimal TWA, i.e. no derating: storms are equal
+    in value to 22 kn winds. S3 shares of TWS>35 kn: 1.5-7 % of cells.'
+  test: 'E-17: exposure to TWS>35/40/45 kn along each router''s tracks (needs track-truth join); compare vs B0 and
+    Oracle.'
+  test_cost: cheap
+  status: open
+  notes: Without a safety term (none exists in the PoC) the optimiser is indifferent to storm cores above the knee.
+- id: H-3-1
+  v1_section: 3.1 remark 1
+  category: problem-structure
+  statement: Weather is exogenous, so the problem is an MDP without action-observation coupling and the forecast/replan
+    MPC decomposition loses little in theory.
+  type: assumption
+  used_for: D1 (MPC decomposition without major theoretical loss; exogenous weather)
+  criticality: medium
+  evidence_so_far: True by construction in the simulator. Fleet sensors/assimilation (v1 5.9, 7.8.4) would introduce
+    coupling but are not modelled. The two-stage scenario MPC is not the optimal policy (see H-4-14).
+  test: 'E-14: compare MPC variants with a long-lookahead oracle MPC and a multi-stage tree (E-11) to bound the
+    loss.'
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: '''Without major loss'' is asserted not shown.'
+- id: H-3-3
+  v1_section: '3.2'
+  category: value-function
+  statement: The expected value of perfect information is of the order of 15-40 % of total energy.
+  type: quantitative-claim
+  used_for: D2, EVAL (EVPI of 15-40 % of total energy)
+  criticality: high
+  evidence_so_far: Best causal ENS_REF is 8.3 % below the approximate bound over 2015 (S4); S3 3.4-5.7 % (30 d,
+    ERA5); synthetic S1/S2 10-13 %. Bound is approximate (15 d lookahead + clim terminal), so true EVPI is >= these.
+  test: 'E-14: Oracle horizon 5/10/15/30 d/full year; Oracle at 1 h DP; EVPI as function of forecast model error
+    (E-01 with error scale -> 0 gives the limit).'
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: Small EVPI because the BETA plateau makes the ship insensitive to timing (CF 0.88 even for hindsight).
+    Directly limits the value of any forecast improvement.
+- id: H-3-4
+  v1_section: '3.3'
+  category: operations
+  statement: Compare regrets, never raw energies, since a NAO+ winter produces perhaps twice a blocked one.
+  type: design-decision
+  used_for: EVAL (regret vs oracle is the only metric that neutralises weather luck)
+  criticality: medium
+  evidence_so_far: We use paired J differences and regret vs Oracle_REF_H; monthly regret 2-20 % varies with season
+    and with the approximate bound (S4).
+  test: 'E-23: report paired differences (kWh) and CF points alongside regret; bootstrap by blocks of weeks.'
+  test_cost: cheap
+  status: open
+  notes: A regret ratio inherits the error of the bound; paired energy differences do not.
+- id: H-3-5
+  v1_section: 3.4, 5.7
+  category: fleet
+  statement: For the persistent core the return constraint vanishes and reappears as a soft recall field lambda(d)
+    plus a hard cap d_max (600-900 NM).
+  type: design-decision
+  used_for: 'D11 (average-reward formulation: return constraint disappears into a recall field)'
+  criticality: medium
+  evidence_so_far: Persistent S4 runs have no return and no recall; annual best point is ~849 NM from Lorient (near
+    the proposed d_max).
+  test: 'E-16: persistent core with lambda(d) in {0, v1, recomputed} and d_max in {400, 600, 900, none}: CF cost
+    and drift of the core.'
+  test_cost: medium
+  status: open
+  notes: Our CF 0.80 for a ship fixed far from the port is therefore optimistic for a fleet that must rotate.
+- id: H-3-6
+  v1_section: 3.5.1
+  category: value-function
+  statement: Decisions depend on V only through differences/gradients; a level-accurate but gradient-wrong V is
+    useless.
+  type: assumption
+  used_for: D2, D7 (only the spatial gradient of V drives the decision; level errors harmless)
+  criticality: high
+  evidence_so_far: 'S4_value: within-release R2 (ranking) 0.40 hindsight-trained vs 0.38 policy-consistent vs 0.24
+    climatology; closed loop +0.4 vs +0.6 CF pt; recalibrated clim terminal and level-biased hindsight terminal
+    give nearly the same gain.'
+  test: 'E-08: noise on V level (+-10, +-20 %) vs on spatial gradient (smoothing, random fields) separately (v1
+    E2).'
+  test_cost: medium
+  status: supported-by-S0-S4
+  notes: Supports the principle and weakens v1's use of level-calibrated (policy-consistent) values as an architectural
+    pillar.
+- id: H-3-7
+  v1_section: 3.5.3, 4.6.4
+  category: algorithm-choice
+  statement: Isochrones, fast marching and level sets rely on a time-minimal ordering and cannot handle a signed
+    integral objective with ship speed inside the reward and an uncertain field.
+  type: dismissed-alternative
+  used_for: 'D5 (Zermelo-derived methods: isochrones, fast marching, level sets are not transferable)'
+  criticality: medium
+  evidence_so_far: Theoretical argument only. No isochrone/FMM benchmark was built; our DP is exact on the graph.
+  test: 'E-12: energy-stratified isochrone / label-correcting forward search with pruning on the same forecasts
+    and graph; compare energy and cost to DP.'
+  test_cost: medium
+  status: open
+  notes: '''Not transferable'' is true for the classic algorithms; the question is whether a forward Pareto-label
+    method is competitive for single-ship planning.'
+- id: H-3-8
+  v1_section: 3.1 remark 3, 6.4.4
+  category: operations
+  statement: The hard return constraint is handled as a chance constraint or by V falling to -inf outside a retrievability
+    cone built from pessimistic return speeds.
+  type: design-decision
+  used_for: D2 (return constraint as chance constraint / retrievability cone)
+  criticality: medium
+  evidence_so_far: none (no return in S3-S4; S1 simplification).
+  test: 'E-16: missions with return (45 d loop) in the simulator, cone vs soft feature.'
+  test_cost: medium
+  status: untestable-here
+  notes: Matters for rotation legs and for the episodic V.
+- id: H-3-9
+  v1_section: 3.6, 4.9
+  category: risk
+  statement: A small CVaR weight gamma is justified by under-sampled tails, asymmetric constraints and set-point
+    chattering damping.
+  type: design-decision
+  used_for: D8 (expectation primary; CVaR needed for asymmetric constraints, safety, scenario under-sampling)
+  criticality: medium
+  evidence_so_far: 'S2 (synthetic, gamma 0.3, alpha 0.2): -11 MWh mean, no tail benefit (worst seed 1362 vs 1378).
+    S3/S4 use gamma = 0 only.'
+  test: 'E-11: gamma in {0, 0.1, 0.3, 0.5} on ERA5 with flow-dependent spread (E-02) and with the safety exposure
+    metric (E-17); chattering = heading variance.'
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: Untestable without flow-dependent spread or a risk event; current evidence is vacuous.
+- id: H-4-1
+  v1_section: 4.2, 5.1
+  category: algorithm-choice
+  statement: 'Exactly two layers plus a refiner is the right cut: an offline learned value function and an online
+    ensemble DP, with a continuous refiner.'
+  type: design-decision
+  used_for: D1 (two layers + refiner, interfaces by value, rather than one or three)
+  criticality: high
+  evidence_so_far: 'Refiner (third element) +3 to +7 %, clear. Offline learned layer: V_theta +0.6 CF pt (n.s.,
+    3 months), climatological terminal +2.8 % (10/12). A single online DP with a climatological terminal reaches
+    0.797 vs 0.807 for the full ENS stack (S4).'
+  test: E-04 (terminal ladder none/clim/hindsight*factor/V_theta/oracle V), E-08, E-12 (single layer long-horizon
+    DP).
+  test_cost: medium
+  status: open
+  notes: Offline layer = heaviest component of v1 (reforecasts, policy iteration); its added value over a climatology
+    is not demonstrated.
+- id: H-4-2
+  v1_section: 4.2.2, 6.1
+  category: algorithm-choice
+  statement: Extending a deterministic horizon beyond its validity gives false information, so B1_15d should lose
+    to B1_5d; the intermediate horizon with a good terminal is best.
+  type: assumption
+  used_for: 'D1 (long deterministic horizon without terminal optimises a fiction: cost is negative; intermediate
+    10-15 d + good V_T is the only consistent option)'
+  criticality: high
+  evidence_so_far: 'S1 (synthetic, 5 seeds): B1_15d 16.2 % vs B1_5d 12.6 % regret; S2 diag: not reproduced on 10
+    d windows, seed 101 dominates. Real ERA5: no B1_15d run; ENS 10 d vs B1c_5d +1.2 %.'
+  test: E-04 horizon x terminal grid on bench-6 (control forecast), then ENS.
+  test_cost: medium
+  status: open
+  notes: Result tied to our forecast law (error saturates at D7).
+- id: H-4-3
+  v1_section: 4.2.2
+  category: algorithm-choice
+  statement: A 24-48 h receding horizon with zero terminal value is myopic and refuses investments.
+  type: dismissed-alternative
+  used_for: D1 (24-48 h horizon with zero terminal is myopic and structurally beaten by anticipation)
+  criticality: medium
+  evidence_so_far: Never run on real data. v1's own B1 (5 d, terminal 0) is already anticipative, regret 11.9 %
+    (S4).
+  test: 'E-04: horizons 1, 2, 3 d with terminal 0 and climatological.'
+  test_cost: cheap
+  status: open
+  notes: Needed to size the true value of anticipation (what the 5 d horizon already captures).
+- id: H-4-4
+  v1_section: 4.2.3, 4.10, 6.5
+  category: algorithm-choice
+  statement: A continuous refiner on 0-48 h consuming the strategic value field as terminal adds more than 1 %.
+  type: design-decision
+  used_for: D9 (continuous refiner; re-examine if gain < 1 %)
+  criticality: high
+  evidence_so_far: +3.2 % (S2, 4/5), +6.6 % (S3, 10/10, t=12), +4.7 % on ENS (6/6), hold fraction 17->2-7 %; Oracle_REF
+    beats Oracle (3 h DP) by 47-75 MWh/30 d.
+  test: 'E-06: refiner window {24, 48, 72 h}, step {15, 30, 60 min}, vs DP at 10 km / 1 h / more headings (is the
+    refiner only fixing our coarse DP?).'
+  test_cost: medium
+  status: supported-by-S0-S4
+  notes: Gain partly compensates our coarse DP (40 km, 3 h, K=21-49 headings); v1's 10 km/1 h fine zone was not
+    built.
+- id: H-4-5
+  v1_section: 6.5 pt 1
+  category: algorithm-choice
+  statement: Replacing a target/waypoint by the terminal value field is the largest single improvement of the refiner.
+  type: assumption
+  used_for: D9 (terminal as value FIELD is the biggest refiner gain, not a waypoint)
+  criticality: medium
+  evidence_so_far: Our refiner uses the field from day one; no waypoint variant measured.
+  test: 'E-06b: refiner with imposed waypoint (DP path at +48 h) vs field terminal vs no terminal (v1 B2 variant).'
+  test_cost: medium
+  status: untestable-here
+  notes: Cheap ablation; tests the 'interface by value' principle (H-4-41).
+- id: H-4-6
+  v1_section: 4.3.1, 4.3.4
+  category: value-function
+  statement: Hindsight value V_hind is biased high versus a causal policy's realised value; the bias grows with
+    the horizon and is not uniform.
+  type: quantitative-claim
+  used_for: D2 (hindsight value is biased high, bias grows with horizon, spatially heterogeneous)
+  criticality: high
+  evidence_so_far: 'E0 (S4_value): +15.8 % at 2 d, +13.1 % at 5 d (36.6 MWh) on B1 rollouts; tracks 7-8 %; bias
+    ~linear in H; seasonal 9.5 % (winter) to 19.4 % (July); ~6 MWh of 36.6 is DP discretisation (review). Absolute
+    spatial dependence weak (eta2 = 2.4 %).'
+  test: 'E-14: repeat E0 with refiner and ENS as the causal policy and with 1 h DP hindsight; separate forecast-error
+    from policy-suboptimality parts.'
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: Bias is mostly seasonal/relative; mixes forecast error, policy suboptimality (B1 is 12 % below hindsight)
+    and DP discretisation.
+- id: H-4-7
+  v1_section: 4.3.1 pt 1, 8.3 (E0 criterion)
+  category: value-function
+  statement: The clairvoyance bias is spatially heterogeneous (high in the storm-track core, low in calms) and therefore
+    deforms the policy.
+  type: assumption
+  used_for: D2 (spatial heterogeneity of the bias in the storm-track core distorts gradients)
+  criticality: high
+  evidence_so_far: 'S4_value: relative bias 11.8-23.5 % over 20 blocks but absolute bias 30-43 MWh almost uniform,
+    no trend with distance to coast; ANOVA eta2 = 2.4 %. v1''s own E0 criterion (''small and homogeneous -> constant-factor
+    hindsight'') is partly met.'
+  test: 'E-08: terminal = hindsight value x seasonal factor (or minus a seasonal constant) vs V_theta vs climatology,
+    closed loop on bench-6.'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: The decisive closed-loop comparison (+0.4 vs +0.6 pt, n=3) is too small to conclude.
+- id: H-4-8
+  v1_section: 4.3.1-4.3.2, 5.2
+  category: value-function
+  statement: Using hindsight values as terminal is an error of nature; only a policy-consistent learned value gives
+    unbiased arbitrages.
+  type: assumption
+  used_for: D2 (hindsight-trained terminal is 'an error of nature'; policy-consistent V is required)
+  criticality: high
+  evidence_so_far: 'Closed loop on 3 months: B1v policy-consistent +0.6 CF pt, hindsight-trained +0.4 pt vs B1c
+    (both n.s.); equal within-release ranking R2; V_theta has level bias +3.8 MWh vs +39.4 MWh for hindsight but
+    a DP is level-blind (S4_value).'
+  test: E-08 on bench-6 + 12 months with N_forecast_seeds >= 3; E-18 for more years.
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: Low power (3 months, 1 seed). Level calibration matters when comparing against the terminal at +48 h/5
+    d within the same DP and for CVaR across scenarios (not tested).
+- id: H-4-9
+  v1_section: 4.3.3, 5.2.1
+  category: value-function
+  statement: Two to three approximate policy-iteration passes suffice, and distribution shift is benign thanks to
+    a bounded dense state space and monotonic constraints.
+  type: assumption
+  used_for: D2 (policy iteration converges in 2-3 passes; distribution shift is manageable)
+  criticality: high
+  evidence_so_far: One pass only; V_pol targets come from plain B1 (not B1+refiner+V_theta); on-track states R2
+    <= 0.08 and V_theta bias -16 MWh there (S4_value limitations).
+  test: 'E-08: iteration 2 with B1v+REF targets; test on on-track states and in closed loop.'
+  test_cost: medium
+  status: open
+  notes: Shift between B1 rollouts and the policy finally used is visible already.
+- id: H-4-10
+  v1_section: 4.3.4 table, 4.8, 5.2.3
+  category: algorithm-choice
+  statement: A raw climatological terminal ignores corridor geometry and optionality and should only be an embedded
+    fallback.
+  type: dismissed-alternative
+  used_for: 'D2/D7 (raw climatology as terminal: gradients flat, discarded except embedded fallback)'
+  criticality: high
+  evidence_so_far: 'S4: climatological hold-power terminal = +2.8 % (10/12 months, t=2.6) over zero terminal; V_theta
+    adds +0.6 pt on top (n.s.). Raw clim level is biased -78 MWh (hold power ~3x below harvest) but recalibrated
+    clim has R2 0.06 vs V_theta 0.44 yet within-release R2 0.24 vs 0.38.'
+  test: 'E-04/E-08: clim terminal with calibrated scale (x1..x3), seasonal vs annual, own-year vs other-year climatology
+    (E-18).'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: 'Climatology is from 2015 itself (leakage, see H-X-3): its +2.8 % may be overstated.'
+- id: H-4-12
+  v1_section: 4.4.1, 4.4.3
+  category: forecast
+  statement: Representing uncertainty by 6-8 scenarios with a CVaR aggregator clearly outperforms deterministic
+    MPC.
+  type: design-decision
+  used_for: D3 (scenario-based DP beats deterministic MPC; ensembles 'mandatory' beyond D2)
+  criticality: high
+  evidence_so_far: 'S2 synthetic: ENS_g0 +1.7 % vs B1_15d (3/5), no gain vs B1_5d. S3 (6 missions): +66 MWh without
+    refiner (+3.9 %, 5/6), +26 MWh with refiner (+1.4 %), +12 MWh matched with clim terminal (+0.65 %, 4/6). S4
+    year: ENS_REF vs B1c +1.2 % (9/12, t=1.0). Single forecast seed (s2 dropped).'
+  test: 'E-01/E-02/E-11: ensemble gain as a function of error scale, dispersion, mean skill, number of members,
+    flow-dependent spread; N seeds >= 3.'
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: Ensemble gain depends on our forecast law (S2 showed an uninformative law kills it); gain may be under-
+    or over-stated. Not significant at 12 months.
+- id: H-4-13
+  v1_section: 4.4.1, 2.2.3
+  category: algorithm-choice
+  statement: Routing on the ensemble-mean field is dismissed because it smooths fronts and erases storms; average
+    consequences, never causes.
+  type: dismissed-alternative
+  used_for: 'D3 (ensemble mean field as input is wrong: smoothed fields, erased storms)'
+  criticality: high
+  evidence_so_far: Not tested. In our exchangeable model the mean beats the control by a factor ~1.38 in RMSE while
+    B1 uses the control (a draw), so ENS-vs-B1 gain may be partly 'mean beats control'.
+  test: 'E-11: B1c with ensemble-mean field; B1c with lead-blended field (control to D2, mean after); vs scenario
+    DP.'
+  test_cost: cheap
+  status: open
+  notes: Cheapest decisive test of what the scenarios add beyond a better central forecast.
+- id: H-4-14
+  v1_section: 4.4.3, 5.3.3
+  category: algorithm-choice
+  statement: The two-stage approximation (48 h common trunk, free recourse per scenario) is conservative because
+    it ignores future information branches.
+  type: assumption
+  used_for: 'D3 (two-stage trunk 48 h is ''conservative'': underestimates flexibility)'
+  criticality: high
+  evidence_so_far: 'Logic: recourse after T_b is a relaxation (each scenario knows its own future), hence optimistic
+    for maximisation. S2 diag H4: plan optimism +30 % for ENS (as large as B1_15d) due to per-scenario clairvoyance
+    beyond 48 h; corr(pred, realised) 0.44-0.47.'
+  test: 'E-14/E-11: planned-vs-realised energy (optimism) vs trunk length {12, 24, 48, 72, 120 h} and 2-point branching.'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: 'v1''s reasoning is inverted: two-stage over-values flexibility; the trunk length drives aggressiveness.'
+- id: H-4-15
+  v1_section: 4.4.3 (T_b ~ 48 h)
+  category: algorithm-choice
+  statement: 48 h is the delay after which the next forecast cycle discriminates between scenarios.
+  type: assumption
+  used_for: D3 (T_b = delay before next cycle discriminates scenarios)
+  criticality: medium
+  evidence_so_far: Replan every 6 h; no test of trunk length. Our forecast consistency model implies successive
+    issues are 0.7-0.97 correlated, so discrimination is slow and gradual.
+  test: 'E-11: trunk length sweep.'
+  test_cost: medium
+  status: open
+  notes: Number is a design choice, not a physical one.
+- id: H-4-16
+  v1_section: 4.5, 5.3.2
+  category: algorithm-choice
+  statement: Medoids on vector-wind EOFs (20-40 modes), Voronoi weights and k = 6-8 represent the ensemble better
+    than random draws, k-means centroids, or scalar clustering.
+  type: design-decision
+  used_for: D4 (k-medoids on vector EOF with Voronoi weights; k=6-8, adaptive 5-12)
+  criticality: medium
+  evidence_so_far: 'S2 diag H5 (synthetic): k=12 vs k=6 identical closed loop (455.8 vs 456.8 MWh). S3/S4: k=5/6
+    on 10-20 members, no comparison with alternatives.'
+  test: 'E-11: random-k, k-means centroids, scalar-index clustering, all members; k in {1,3,6,12,all}; compute-matched.'
+  test_cost: medium
+  status: open
+  notes: 'In our model members are exchangeable perturbations of the truth: clustering structure differs from real
+    ENS (bimodal storms).'
+- id: H-4-18
+  v1_section: 4.5.1, 5.3.2
+  category: numerics
+  statement: A DP on all 51 members costs ~2-4 min per cycle, so reduction to 6-8 scenarios is for conditioning/explanation,
+    not compute.
+  type: quantitative-claim
+  used_for: D4, DIM (51 members without reduction costs 2-4 min, affordable)
+  criticality: low
+  evidence_so_far: Per replan ENS (10 mb, k=5, 10 d) 4.3 s on 40 km single core (S3); 20 members ~30 CPU-s/replan
+    with refiner (S4); 51 members would be ~75 CPU-s without fine zone.
+  test: E-21 timing at N=51.
+  test_cost: cheap
+  status: open
+  notes: Plausible on 16 cores.
+- id: H-4-19
+  v1_section: 4.6.2, 6.7
+  category: algorithm-choice
+  statement: 'Goal-directed search is ill-suited: no useful admissible heuristic exists for a signed integral objective,
+    so it degenerates into disordered exhaustive search.'
+  type: dismissed-alternative
+  used_for: 'D5 (A*/Dijkstra: no admissible heuristic; DP preferred; A* ''in a deterministic point-to-point world'')'
+  criticality: medium
+  evidence_so_far: Not implemented. DP 40 km 13 d takes 0.5 s - exhaustiveness is cheap, so the decision is insensitive
+    to this claim.
+  test: 'E-12: forward label-setting with time-expanded graph and Pmax*time bound; count expansions vs DP arcs,
+    check same optimum.'
+  test_cost: medium
+  status: open
+  notes: Only worth testing to answer 'evaluators will ask for it'; DP cost makes it moot.
+- id: H-4-20
+  v1_section: 4.6.5
+  category: algorithm-choice
+  statement: Deep RL pays sample cost without benefit since weather is exogenous and replayable and the ship dynamics
+    are known, and it loses auditability.
+  type: dismissed-alternative
+  used_for: 'D5 (deep RL dismissed: no need, opaque, sample-hungry)'
+  criticality: medium
+  evidence_so_far: none. Note V_theta + DP is itself approximate DP with learned value (fitted value iteration).
+  test: 'E-12 (optional): behaviour-cloned / fitted-Q small policy on a reduced grid as a speed/robustness baseline;
+    literature on learned weather routing.'
+  test_cost: expensive
+  status: untestable-here
+  notes: Not a priority; a learned policy might give a cheap embedded fallback (H-9-3).
+- id: H-4-21
+  v1_section: 4.6.3, 6.1.2, 6.7
+  category: discretisation
+  statement: The stencil has about 55 neighbours for 45 km cells, 3 h steps and U_max = 8 m/s (coprime offsets within
+    3 cells).
+  type: quantitative-claim
+  used_for: D5, DIM (neighbours N_v ~ 55 per node at 45-50 km / 3 h / 8 m/s)
+  criticality: medium
+  evidence_so_far: 'S1: U_max dt = 86 km = 2.2 cells at 40 km, so a 3-cell radius is unreachable: K=21 (angular
+    gaps up to 26.6 deg, ~6 % orientation dependence); S3 macro arcs spanning 1-2 steps: K=49, worst gap 18.4 deg.'
+  test: Done; E-07 to quantify residual orientation error with finer cells.
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: Also 6.1.2 uses ~30 neighbours in the fine zone vs 55 in 4.6.3 (internal inconsistency).
+- id: H-4-22
+  v1_section: 4.7.3, 6.1.1
+  category: discretisation
+  statement: A secant conformal Lambert projection with constant offsets gives near-exact distances and angles on
+    40-60N and a single stencil table.
+  type: design-decision
+  used_for: D6 (conformal Lambert projection with constant offsets; H3, unstructured, AMR dismissed)
+  criticality: low
+  evidence_so_far: 'We use Lambert azimuthal equal-area (not conformal): heading error up to 0.7 deg at basin edges,
+    metric distortion up to 3 % -> per-cell Jacobian and geodesic arc lengths (S0 review).'
+  test: 'E-07: compare against a conformal conic grid on the same data.'
+  test_cost: cheap
+  status: open
+  notes: Our deviation; effect likely below 1 %.
+- id: H-4-23
+  v1_section: 4.7.3
+  category: discretisation
+  statement: A fixed bi-resolution graph (10 km/1 h for 0-48 h, 40-50 km/3 h beyond) captures 80 % of adaptive-refinement
+    benefit.
+  type: dismissed-alternative
+  used_for: D6 (bi-resolution fixed captures 80 % of AMR benefit for 5 % of the complexity; 10 km / 1 h fine zone)
+  criticality: medium
+  evidence_so_far: No fine zone built; our 'fine' stage is the continuous refiner (30 min), gain +3-7 % (H-4-4).
+  test: 'E-06/E-07: add a 10-20 km / 1 h DP zone for 0-48 h and compare to refiner alone and to both.'
+  test_cost: medium
+  status: open
+  notes: Tests D1/D9/D10 jointly.
+- id: H-4-24
+  v1_section: 4.7.4, 6.2.2
+  category: discretisation
+  statement: Cell size must be <= U_max dt and the time step <= L_coh/c (3-6 h) for fronts (L 150-300 km, c 25 kn).
+  type: quantitative-claim
+  used_for: 'D6 (coherence: dx <~ U_max dt; dt <~ L_coh/c ~ 3-6 h)'
+  criticality: medium
+  evidence_so_far: dx = 40 km, dt = 3 h used. First condition satisfied; time-step sensitivity not tested; macro
+    arcs of 1-2 steps used.
+  test: 'E-07: dt in {1, 3, 6} h, dx in {20, 40, 80} km at fixed forecasts; measure decision change (heading at
+    +24 h) and energy.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-4-25
+  v1_section: 4.8, 5.2.3
+  category: value-function
+  statement: Gradient boosting in quantile regression with monotone constraints is the right value model; quantiles
+    feed risk and audit.
+  type: design-decision
+  used_for: D7 (LightGBM quantile regression with monotone constraints, q10/q50/q90)
+  criticality: medium
+  evidence_so_far: We trained LightGBM MEAN regression (300 trees), 12 features, no monotone constraints reported,
+    quantile fitting implemented but untested in closed loop (S4_value).
+  test: 'E-08: quantile terminal (q50 vs mean; q10 aggregation), monotone vs free; linear model control; k-NN climatology.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-4-26
+  v1_section: 4.8.1, 4.8.4
+  category: operations
+  statement: There are about 60 independent winters (60-100 effective samples) for training and validating the value
+    model.
+  type: quantitative-claim
+  used_for: VAL (60-100 effective independent samples; 'about sixty winters')
+  criticality: high
+  evidence_so_far: 'Internal inconsistency in v1: GEFS reforecast 2000-2019 gives 20 winters, ERA5 1979+ gives ~45.
+    We have exactly 1 year (12 correlated months). A difference below 2-3 % is ''not significant'' by v1''s own
+    rule: ENS +1.2 %, V_theta +0.6 pt, clim terminal +2.8 %.'
+  test: E-18 (more years of ERA5), E-23 (n_eff, block bootstrap, power analysis).
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: Most open questions are below detectability with our data.
+- id: H-4-29
+  v1_section: 4.10.2, 5.4
+  category: numerics
+  statement: The refiner uses ~96 steps (30 min over 48 h), exact derivatives, C2 splines and converges in under
+    1-3 s when warm-started.
+  type: quantitative-claim
+  used_for: D9 (n ~ 96 steps of 30 min; IPOPT+MUMPS warm-started < 1 s; B-spline C2 terminal)
+  criticality: low
+  evidence_so_far: Same structure implemented (CasADi/IPOPT, multiple shooting, cubic B-splines); S3 per replan
+    B1+REF 1.8 s total; 0 DP fallbacks over S4; occasional power-model holes (S3).
+  test: 'E-22: failure/fallback statistics by regime; timing.'
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: v1 also requires softplus/PCHIP smoothing of the 3 MW knee (2.2.2); we use a smoothed cubic-spline envelope
+    instead; hidden failures are masked by the safe fallback - report fallback rate by wind regime.
+- id: H-4-30
+  v1_section: 4.11.1, 2.6.3
+  category: operations
+  statement: Manoeuvres cost tau_m = 2-6 min at rho_m = 0-0.5 of production, i.e. 4-15 % of hold production with
+    15 min legs -15 %, 30 min -8 %, 60 min -4.4 %.
+  type: quantitative-claim
+  used_for: D10 (tau_m 2-6 min, rho_m 0-0.5, 4-15 % production loss when holding; leg 30-60 min)
+  criticality: high
+  evidence_so_far: 'Arithmetic checked (f_avail OK). Parameters are hypotheses (S0: tau 4 min, rho 0.3, leg 45 min).
+    Simulator charged no manoeuvre loss in S1-S4 (WP3 adds it). Routed ships hold only 0-7 % of the time, B0 86-97
+    %.'
+  test: 'E-09: tau_m in {0, 2, 4, 6, 10 min} x rho_m in {0, 0.3, 0.6} charged by the simulator, router assuming
+    nominal, mismatch grid; measure B0 vs routed gap and heading-change frequency.'
+  test_cost: medium
+  status: open
+  notes: The B0 baseline (hold 97 %) is the most affected; real gap routing-vs-B0 could be even larger. Heading
+    changes of routed ships also cost.
+- id: H-4-31
+  v1_section: 4.11.2, 6.6.2-6.6.3
+  category: algorithm-choice
+  statement: An explicit tack state in the fine DP followed by a fixed-sequence NLP is the right treatment; MINLP
+    and smooth penalties are worse and ignoring the cost loses 10-15 %.
+  type: dismissed-alternative
+  used_for: D10 (tack-state DP on the fine layer + NLP at fixed sequence; MINLP, smooth penalty, ignoring cost dismissed)
+  criticality: medium
+  evidence_so_far: We use a mixed-heading power envelope (concave hull in ground-velocity space, tack-averaged,
+    f_avail included) which removed 'sit still' bias (83 % -> 0 %) (S1). No tack-state DP.
+  test: 'E-09 (medium cost): fine-zone tack-state DP at 1 h vs envelope hold.'
+  test_cost: expensive
+  status: open
+  notes: '-'
+- id: H-4-32
+  v1_section: 2.6.4, 2.6.3
+  category: ship/polar
+  statement: Biasing the hold pattern to TWA 80-85 deg costs almost nothing since the peak is flat +-10-15 deg;
+    legs of 30-60 min are the robust optimum.
+  type: quantitative-claim
+  used_for: D10 (hold TWA bias 80-85 deg; leg length 30-60 min nominal optimum)
+  criticality: low
+  evidence_so_far: 'BETA peak at TWA 95 deg (<=20 kn) to 110 deg (>=22 kn), P>=0.9 peak band 88-105 deg (+-8) at
+    20 kn: bias towards the wind sits on the low edge. S0: hold TWA ~85 deg at 20 kn.'
+  test: E-24 (leeway x bias x leg length).
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-4-33
+  v1_section: 4.12.2
+  category: fleet
+  statement: At synoptic scale a fleet spread over a few km is one point; wind differences between ships are mesoscale
+    and wake effects.
+  type: assumption
+  used_for: 'D11 (25 ships spread over a few km see the same wind within a few percent: one point for routing)'
+  criticality: low
+  evidence_so_far: none. ERA5 40 km cannot test sub-grid variability.
+  test: 'E-13: wind difference at 5-20 km separation from ERA5 native 0.25 deg (cheap).'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-4-34
+  v1_section: 4.12.2 table
+  category: fleet
+  statement: Independent routing of each ship ignores the single quay and wakes; a joint 25-body problem or MARL
+    is unnecessary because the synoptic coupling is weak.
+  type: dismissed-alternative
+  used_for: D11 (25 independent problems / joint 25-body problem / MARL dismissed)
+  criticality: medium
+  evidence_so_far: none; fleet not simulated.
+  test: Out of scope here; E-16 only for core vs legs.
+  test_cost: expensive
+  status: untestable-here
+  notes: '-'
+- id: H-4-35
+  v1_section: 4.12.3, 5.7.2
+  category: fleet
+  statement: lambda(d) ~ 25/(T_cyc v_eff) [2 g_core - g_out - g_in] = 10-11 kWh per NM per hour, i.e. ~0.7 % of
+    core gain per 100 NM.
+  type: quantitative-claim
+  used_for: D11, F-core (recall field lambda ~ 10-11 kWh/NM/h; 0.7 % of core gain per 100 NM)
+  criticality: high
+  evidence_so_far: 'Arithmetic (S5 review): with g_core = 1500, g_out = 500, g_in = 1400 kW the bracket is 1100
+    kW (not 2100), so lambda = 25/(1080 h x 6 kn) x 1100 = 4.2 kWh/NM/h; relative to the core''s 21 x 1500 kW it
+    is 1.3 %/100 NM; v1''s 0.7 % matches neither value.'
+  test: 'E-16: recompute with measured g_out, g_in, g_core.'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: 'The result steers the recall strength: a factor 2.5 error.'
+- id: H-4-36
+  v1_section: 5.7.2, 5.8.3
+  category: fleet
+  statement: Outbound legs average ~500 kW (upwind), inbound ~1400 kW, core 1500 kW.
+  type: quantitative-claim
+  used_for: D11, F-legs (outbound mean power 500 kW, inbound 1400 kW, core 1500 kW)
+  criticality: medium
+  evidence_so_far: 'S4 Exp. B (free routing from Lorient, 14 d, B1c): mean first 72 h = 1.54 MW (0.43-2.31 per month),
+    later 2.30 MW, 14 d mean 2.1 MW; t(50 km) ~4-5 h. At-sea year: 2.39 MW avg. Not constrained to reach a moving
+    fleet.'
+  test: 'E-16: legs to a prescribed moving target (core track 400-850 NM away), outbound/inbound energy by season.'
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: g_core 1500 kW is also low vs measured 2.4 MW (CF 0.8).
+- id: H-4-37
+  v1_section: 5.7.2
+  category: fleet
+  statement: A hard distance cap d <= d_max of 600-900 NM to the port is needed in addition to the soft recall.
+  type: assumption
+  used_for: D11 (hard cap d_max 600-900 NM)
+  criticality: medium
+  evidence_so_far: Annual best offshore point is 849 NM from Lorient (S5 haversine); S4 ships were never constrained.
+  test: 'E-16: d_max sweep and cost in CF.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-4-38
+  v1_section: 4.13.1, 9.6
+  category: fleet
+  statement: With turnaround 1-2 d and a rotation every 1.8 d (25 ships / 45 d) the quay is 60-100 % occupied; target
+    75-85 %.
+  type: quantitative-claim
+  used_for: D12 (quay occupancy 60-100 %; rotation every 1.8 d; 3-5 ships in transit)
+  criticality: low
+  evidence_so_far: 'Arithmetic: 2 d / 1.8 d = 111 % > 100 %; 1 d gives 56 %. ''Saturated'' (4.13.1) and ''target
+    75-85 %'' (9.6) are in tension; 3-5 ships in transit = 12-20 % OK.'
+  test: Arithmetic/queue simulation (E-16, cheap).
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: Operations-only.
+- id: H-4-39
+  v1_section: 4.13.2, 5.8.3
+  category: operations
+  statement: Phasing departures by +-1-2 d on weather windows yields 5-15 % more leg energy than a fixed calendar
+    (FB1).
+  type: quantitative-claim
+  used_for: D12 (weather-phased departures give 5-15 % on leg energy vs fixed calendar)
+  criticality: medium
+  evidence_so_far: none; S4 Exp. B shows the first 4-24 h from Lorient already vary 0.43-2.3 MW by month.
+  test: 'E-16: simulate legs for departure dates shifted by -2..+2 d (Experiment B reused) and read the leg energy
+    range and mean.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-4-41
+  v1_section: 4.14, 5.1
+  category: algorithm-choice
+  statement: Layers must exchange kWh value fields; any imposed waypoint, state or assigned regime destroys information
+    and is rejected.
+  type: design-decision
+  used_for: 'D1-D12 (interfaces by value: layers exchange only kWh value fields, never waypoints)'
+  criticality: medium
+  evidence_so_far: Refiner uses the DP value as terminal (works). No waypoint variant (B2) tested; DP -> refiner
+    mismatch (Oracle_REF > Oracle) shows value mismatches exist.
+  test: 'E-06b: waypoint vs field.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-5-1
+  v1_section: 5.2.1, 6.4, 7.1, 8.1
+  category: value-function
+  statement: Training closed-loop simulations on 5-member GEFS reforecasts yields a value function consistent with
+    the policy that runs online on 51-member ECMWF ENS.
+  type: assumption
+  used_for: D2 (offline training on GEFS v12 / ECMWF reforecasts, 2000-2019, 5 / 11 members)
+  criticality: high
+  evidence_so_far: 'none. v1 reduces to k = 6-8 medoids online while the reforecast has 5 members (k > N) from a
+    different model and period: the offline policy differs from the online one, which contradicts v1''s own policy-consistency
+    principle (D2).'
+  test: 'E-11/E-08: train V on N=5-member forecasts, use with N=20/50 (and vice versa); E-20 for bias; literature
+    check of GEFS/ECMWF reforecast specifications.'
+  test_cost: expensive
+  status: open
+  notes: Information-set mismatch is a design hole; our PoC trains and tests on the same forecast law, hiding it.
+- id: H-5-2
+  v1_section: 5.2.1, B.1
+  category: operations
+  statement: One policy-iteration pass is 1e4-1e5 simulated missions (~5000 in Annex B), at 3-10 min each, i.e.
+    'a few hundred' to 1500 core-hours.
+  type: quantitative-claim
+  used_for: 'DIM (policy iteration: 1e4-1e5 missions, 3-10 min each, 600-1500 core-h per iteration)'
+  criticality: medium
+  evidence_so_far: 'Internal inconsistency (5000 x 3-10 min = 250-830 core-h; 1e5 x 10 min = 17 000 core-h). Measured:
+    B1c_5d_REF 30 d mission ~5 min CPU, ENS_REF ~30 min CPU; V collect 4760 shared B1 rollouts in 57 min.'
+  test: 'E-21: cost model of policy iteration with the final policy (ENS+REF): missions x minutes.'
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: With ENS+REF the training set costs ~6x more than v1's estimate.
+- id: H-5-3
+  v1_section: 5.2.1, 4.3.2
+  category: value-function
+  statement: Every-visit Monte-Carlo targets from complete closed-loop trajectories are unbiased estimates of the
+    policy's value.
+  type: assumption
+  used_for: D2 (every-visit Monte Carlo targets are unbiased; 'no bootstrap bias')
+  criticality: medium
+  evidence_so_far: Our V targets are 5 d realised energy of B1 rollouts released at fixed dates (not every-visit
+    trajectories). Samples within a trajectory are highly correlated; effective sample size small.
+  test: 'E-08/E-23: n_eff and block bootstrap of V CV; every-visit vs release-point targets.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-5-4
+  v1_section: 5.2.2
+  category: value-function
+  statement: Continuous large-scale features (EOF projections of forecast Z500, NAO, MJO, regime probabilities)
+    add information on top of local climatology and position.
+  type: assumption
+  used_for: 'D7 (continuous features: Z500 EOFs, NAO/MJO, regime probabilities, local climatology, mission geometry)'
+  criticality: medium
+  evidence_so_far: 'Our 12 features: x, y, doy sin/cos, clim hold power, coast distance, six control-forecast features;
+    V_theta R2 0.26 -> 0.44 with forecast features; smoothed forecast hold power = 33 % gain. No Z500/MJO/regime.'
+  test: 'E-08: feature ablation ladder; oracle weekly-mean features as upper bound (H-2-28).'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-5-6
+  v1_section: 5.3.1
+  category: algorithm-choice
+  statement: On 0-48 h the uncertainty is small enough for a deterministic field (HRES/analysis), so ensemble scenarios
+    start only at 48 h.
+  type: assumption
+  used_for: D1 (fine zone 0-48 h uses deterministic HRES/analysis; uncertainty there truly small)
+  criticality: medium
+  evidence_so_far: 'Our ENS DP uses scenarios from the start with a trunk, refiner on the control. Error model:
+    control RMSE 2.2 m/s at D1 (4.3 kn), displacement 42 km, i.e. comparable to v1''s 3-5 kn.'
+  test: 'E-11: scenarios vs deterministic in 0-48 h; E-01 error scale.'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-5-7
+  v1_section: 6.3.4, 7.5 pt 5
+  category: forecast
+  statement: ENS cycles arrive 5-7 h late, so each replan uses the previous cycle.
+  type: quantitative-claim
+  used_for: D3 (ENS availability latency ~5-7 h; route on cycle available at 6 h age)
+  criticality: medium
+  evidence_so_far: 'Latency implemented (ENS 6 h, control 4 h); S4 integration check on 5 d from 15 Jan: latency
+    costs about 2 % of energy (255.4 vs 260.6 MWh B1c, 257.5 vs 264.2 MWh ENS).'
+  test: 'E-03: latency {0, 3, 6, 9, 12 h} and cycle interval {6, 12, 24 h} on bench-6.'
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: '-'
+- id: H-5-8
+  v1_section: 5.12, 6.3.4, 8.3 (E3)
+  category: operations
+  statement: Strategy replans every 6 h, tactics hourly; a kWh hysteresis threshold on route-family switches prevents
+    zig-zag between cycles.
+  type: design-decision
+  used_for: D1, D3 (replan every 6 h, refiner hourly/event, hysteresis threshold in kWh)
+  criticality: medium
+  evidence_so_far: We replan and refine every 6 h; no hysteresis; chattering not measured.
+  test: 'E-05: replan {1, 3, 6, 12, 24} h x hysteresis {0, 1, 3 %} (decision stability metric = heading and route-family
+    changes).'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-5-9
+  v1_section: 5.9, 6.9
+  category: fleet
+  statement: Wake deficits of 3-8 % at 15-20 diameters persist in the stable marine boundary layer, costing ~14
+    % power per 5 % deficit below the knee.
+  type: quantitative-claim
+  used_for: F-formation (wake deficit 10-40 % at 5D, 3-8 % at 15-20D; 5 % deficit = 14 % power; 25 turbines, D 100-130
+    m)
+  criticality: medium
+  evidence_so_far: none; no fleet or wake model. 5 % -> 14 % follows from cubic law.
+  test: Literature + a simple Jensen/Bastankhah wake model on a line formation for 25 ships (cheap).
+  test_cost: expensive
+  status: untestable-here
+  notes: Fleet-level energy loss may exceed single-ship gains from routing; rotor diameter unknown.
+- id: H-6-2
+  v1_section: 6.1.2, 7.4, 7.12, B.1
+  category: numerics
+  statement: The compiled kernel handles 2-5e8 arcs/s on 16 cores (about 3-6 ns per arc, memory-bound).
+  type: quantitative-claim
+  used_for: DIM (2-5e8 arcs/s on 16 cores; 3-6 ns per arc; 3e8 arcs per cycle)
+  criticality: low
+  evidence_so_far: '40 km DP 13 d with K=21: 0.5 s (~1.4e7 arcs -> ~3e7 arcs/s on <=2 cores, S1) = 1.2-3e7 arcs/s/core,
+    within the v1 per-core range (1.2-3e7).'
+  test: E-21 (bench_dp).
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: '-'
+- id: H-6-3
+  v1_section: 6.2.2, 6.12
+  category: discretisation
+  statement: DP error from space/time/heading quantisation is a fraction of a percent and is dwarfed by forecast
+    error.
+  type: quantitative-claim
+  used_for: D5, D6 (semi-Lagrangian scheme, error O(dx + dt) of the order of tenths of a percent; resolution convergence
+    test decisive)
+  criticality: high
+  evidence_so_far: 'Measured effects are several percent: 6 % orientation dependence (S1), 3 % of V from discretisation
+    (E0 review: DP plan realises 97.4 % of V_dp), refiner +3-7 %, Oracle_REF - Oracle = +47-75 MWh/30 d (S3).'
+  test: E-07 convergence study with decisions as the metric (heading at +24 h, energy within 1 %).
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: If true, the 'forecast is everything' priority is partly wrong at 40 km/3 h.
+- id: H-6-4
+  v1_section: 6.2.3
+  category: algorithm-choice
+  statement: A front-propagation (isochrone) planner cannot order states by time because the objective is non-monotone;
+    energy would have to become a state dimension, i.e. DP re-invented.
+  type: dismissed-alternative
+  used_for: 'D5 (isochrones: the historic baseline an evaluator will ask for; energy-stratified isochrones = DP)'
+  criticality: medium
+  evidence_so_far: no benchmark.
+  test: 'E-12 isochrone-style baseline with 5 d horizon on the same forecast: energy and cost vs DP.'
+  test_cost: medium
+  status: open
+  notes: Needed for external credibility.
+- id: H-6-6
+  v1_section: 6.3.2
+  category: algorithm-choice
+  statement: A tree with two branching times (48 h, D5) is the best realism/cost compromise if two-stage under-values
+    flexibility; progressive hedging is a reserve.
+  type: dismissed-alternative
+  used_for: D3 (two-branching tree at 48 h and D5; progressive hedging as reserve)
+  criticality: medium
+  evidence_so_far: No tree built. Optimism of two-stage is +30 % (S2 diag), so over-valuation not under-valuation
+    is what a tree would correct.
+  test: 'E-11: 2-branch tree after the trunk (cluster at D5).'
+  test_cost: expensive
+  status: open
+  notes: Complexity belongs to S6; only a small prototype.
+- id: H-6-9
+  v1_section: 6.4.4
+  category: operations
+  statement: Return feasibility is secured by soft feature, probabilistic penalty and a hard cone, with a pessimistic
+    U_eff by approach sector.
+  type: design-decision
+  used_for: 'D2, D3 (three-layer return constraint: feature, q10 aggregation, retrievability cone)'
+  criticality: medium
+  evidence_so_far: none.
+  test: E-16 (return missions).
+  test_cost: medium
+  status: untestable-here
+  notes: '-'
+- id: H-6-10
+  v1_section: 6.5 pt 5, 4.10
+  category: numerics
+  statement: Coast SDF from a full-resolution 1 km raster with d_min = 5-10 NM (9-19 km).
+  type: design-decision
+  used_for: D9 (SDF from GSHHG at 1 km, d_min 5-10 NM)
+  criticality: low
+  evidence_so_far: We use Natural Earth 10 m on a 10 km SDF with d_min = 20 km (~10.8 NM); S3 found margin violations
+    (min 16.8 km) fixed in S4 (0 violations); Lorient corridor ramp 40 km.
+  test: 'E-22: effect of d_min {10, 20, 40} km on CF (cheap), especially for Lorient departures and Bay of Biscay.'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-6-11
+  v1_section: 6.6.1
+  category: discretisation
+  statement: Without a hold arc corrected for manoeuvres and drift the DP over-immobilises the ship; the 1D curve
+    captures the correction.
+  type: assumption
+  used_for: D10 (statistical hold arc r_hold = f_avail x tack-averaged power; ignoring it makes the DP over-immobilise
+    by 5-15 %)
+  criticality: medium
+  evidence_so_far: 'S1: mixed-heading envelope unifies transit and hold arcs: low-wind ''sit still'' 83 % -> 0 %;
+    hold fraction of routed ships 2-7 % (S2-S4).'
+  test: E-09.
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: '-'
+- id: H-7-1
+  v1_section: 7.1.2
+  category: forecast
+  statement: Interpolating forecasts linearly between 3-6 h steps lowers peak TWS by 5-15 % at mid-step, a systematic
+    negative bias to be neutralised.
+  type: quantitative-claim
+  used_for: D3, D9 (linear time interpolation between 3-6 h steps smooths fronts, peak TWS -5-15 %)
+  criticality: medium
+  evidence_so_far: Our forecasts are produced hourly from the hourly truth, so the effect is absent from the PoC.
+  test: 'E-19: degrade forecasts to 3 h / 6 h steps with linear interpolation and measure CF loss.'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-7-2
+  v1_section: 7.8, 7.14
+  category: forecast
+  statement: Training on one wind source and routing on another (uncalibrated) hides a 10-15 % real shortfall.
+  type: quantitative-claim
+  used_for: DIM (without wind calibration the backtest works and the ship under-produces 10-15 %)
+  criticality: medium
+  evidence_so_far: none. Our truth and forecast share one source.
+  test: E-10 wind bias and source-mismatch sweep.
+  test_cost: medium
+  status: untestable-here
+  notes: 'Absolute vs relative: ranking may be robust.'
+- id: H-7-4
+  v1_section: 7.5 pt 4-9, 7.12, 7.9.2
+  category: numerics
+  statement: The chain must reproduce bit for bit the same decision for the same inputs; float32 with recentring
+    is adequate.
+  type: assumption
+  used_for: all (bit-for-bit determinism; seeds; UTC; units; float32 recentring)
+  criticality: low
+  evidence_so_far: 'S1 review: float32 accumulation error 6e-7; legacy forecast reproducible bit-for-bit; ForecastProvider
+    hardening pending (S3 review).'
+  test: 'E-22: rerun a month on 2 vs 1 workers and compare tracks bitwise.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-8-1
+  v1_section: 8.1, 8.3
+  category: operations
+  statement: Winter-by-winter walk-forward on 2000-2019 with leave-two-winters-out validation yields significant
+    system rankings.
+  type: assumption
+  used_for: VAL (walk-forward by winter 2000-2019, leave-two-winters-out; Wilcoxon paired by winter)
+  criticality: high
+  evidence_so_far: We have 2015 only (12 months, 10 overlapping 30 d missions); overlapping missions and autocorrelated
+    months reduce n_eff; paired t-tests with 4-9 dof.
+  test: E-18 + E-23.
+  test_cost: expensive
+  status: open
+  notes: '-'
+- id: H-8-2
+  v1_section: 8.2 (B1)
+  category: algorithm-choice
+  statement: B1 (5 d deterministic MPC, zero terminal) is the baseline that quantifies the value of the whole long-term
+    structure.
+  type: assumption
+  used_for: EVAL (B1 5 d deterministic MPC with zero terminal 'quantifies the value of all long-term structure')
+  criticality: medium
+  evidence_so_far: 'B1_5d is itself anticipative: regret 11.5 % (S3) / 11.9 % (S4); the long-term structure (terminal,
+    ENS) adds only +2.8 % (clim) and +1.2 % (ENS) on top.'
+  test: E-04 (myopic 24-48 h baseline) and E-12.
+  test_cost: cheap
+  status: contradicted-by-S0-S4
+  notes: '-'
+- id: H-8-3
+  v1_section: 8.2, 8.3
+  category: operations
+  statement: B0 (fixed point) and B1 are the relevant comparators; simple greedy forecast-following rules are not
+    considered.
+  type: dismissed-alternative
+  used_for: 'EVAL (stronger simple baselines: greedy ''go to max forecast wind'', max smoothed forecast hold power
+    in reach, monthly best point)'
+  criticality: high
+  evidence_so_far: 'Not tested. S4_value: smoothed forecast hold power is the top feature of V_theta (33 % gain),
+    suggesting a greedy gradient rule on forecast P could capture a good part of the value.'
+  test: 'E-12: B-greedy (move to argmax of 7x7 smoothed 48-72 h forecast hold power within 36 h reach, 6 h replan),
+    B-clim (monthly best point + slow drift), compared to B1c_5d_REF on bench-6.'
+  test_cost: cheap
+  status: open
+  notes: Decides whether a 20-line router captures most of the 40 % routing gain.
+- id: H-8-4
+  v1_section: 8.3 (E1-E3), 8.2 (B2/B3)
+  category: operations
+  statement: 'E1 (ensemble value vs spread), E2 (V noise tolerance: wide on level, narrow on gradients), E3 (replan
+    frequency) and ablations B2/B3 quantify each component.'
+  type: design-decision
+  used_for: VAL (E1 stratified by spread; E2 noise on V +-10/20 %; E3 replan frequency; B2/B3 ablations)
+  criticality: medium
+  evidence_so_far: E1 done on synthetic (spread varies only 3.09-3.25 m/s, corr +0.05) and ERA5 (no stratification);
+    E2, E3, B2 waypoint variant not done.
+  test: E-08 (E2), E-05 (E3), E-06b (B2), E-11 (E1).
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-8-5
+  v1_section: '8.4'
+  category: numerics
+  statement: Four physical unit tests (uniform wind racetrack to +-1 %, advected toy front, constant invariance,
+    rank conservation under grid refinement) validate the DP.
+  type: design-decision
+  used_for: 'VAL (physical tests (i)-(iv): uniform wind racetrack +-1 %, toy front, constant invariance, rank under
+    refinement x2)'
+  criticality: low
+  evidence_so_far: 'S1 review: tests (i)-(iv) implemented, toy front anticipates (7.0 vs 4.3 MWh).'
+  test: E-07 extends (iv) to real ERA5 decisions.
+  test_cost: cheap
+  status: supported-by-S0-S4
+  notes: '-'
+- id: H-8-6
+  v1_section: 3.2, 8.2 (oracle)
+  category: problem-structure
+  statement: A hindsight DP on the realised weather is an upper bound for any causal policy.
+  type: quantitative-claim
+  used_for: EVAL (Oracle = hindsight DP on realised winter is an upper bound J_hind)
+  criticality: high
+  evidence_so_far: 'S3: Oracle (3 h DP) beaten by REF policies by up to 3.9 %; J_hind := max(Oracle, Oracle_REF);
+    S4 Oracle_REF_H is a 15 d lookahead + clim terminal bound, ''approximate''. Margins of causal runs to it are
+    280-360 MWh in the worst month.'
+  test: 'E-14: Oracle with look-ahead {5, 15, 30 d, full}, 1 h DP, with/without refiner.'
+  test_cost: medium
+  status: contradicted-by-S0-S4
+  notes: All regrets are relative to this bound.
+- id: H-9-1
+  v1_section: 6.1.1, 4.9, 9.1
+  category: risk
+  statement: Survival limits are hard constraints with progressive penalties from 35 kn and ensemble-spread margins,
+    applied inside the optimiser.
+  type: design-decision
+  used_for: safety (no survival term; hard bans at structural limits; progressive penalty from TWS>35 kn; Hs; ENS
+    spread as danger measure)
+  criticality: high
+  evidence_so_far: 'The PoC has NO survival/storm constraint (code grep: only CVaR risk); BETA power stays 2.95-2.99
+    MW up to 50 kn (no derating), so the optimiser is indifferent to storms; waves absent. 6.1.1 (penalty, not ban
+    at 45 kn) and 9.1/4.9 (hard ban) differ.'
+  test: 'E-17: exposure histograms (TWS>35/40/45 kn) on S4 tracks; add penalty and ban variants; cost in CF.'
+  test_cost: medium
+  status: open
+  notes: 'CF 0.80 may include time in conditions the real ship would avoid: results are upper-bound-like.'
+- id: H-9-2
+  v1_section: '9.2'
+  category: operations
+  statement: A mini Bayesian filter on scenario weights with 12 h of observations rescues forecast busts.
+  type: design-decision
+  used_for: 'D3 (forecast-bust detection: 2-sigma on observations; Bayesian re-weighting of scenario weights over
+    12 h)'
+  criticality: low
+  evidence_so_far: none; no observation stream in the PoC.
+  test: 'E-12 optional: weights updated from true wind along the track in the simulator.'
+  test_cost: medium
+  status: untestable-here
+  notes: '-'
+- id: H-9-3
+  v1_section: 9.3, 4.8.3
+  category: operations
+  statement: On loss of link the onboard policy greedily climbs the rasterised V_theta using observed wind, which
+    is robust enough.
+  type: design-decision
+  used_for: D7 (embedded fallback = greedy climb of rasterised V_theta + observed wind; lookup table)
+  criticality: medium
+  evidence_so_far: Never simulated. Heuristic baseline in E-12 doubles as a test.
+  test: 'E-12: fallback policy with climatological V gradient and no forecast, 12-24 h plan validity; CF loss.'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-9-5
+  v1_section: 9.5-9.6
+  category: fleet
+  statement: Quay closures by Biscay storms correlate positively with periods of high production, so congestion
+    risk is pro-cyclic.
+  type: assumption
+  used_for: 'D12 (collision risk and quay closure pro-cyclic: port closed when production is highest)'
+  criticality: low
+  evidence_so_far: none.
+  test: 'E-16 (cheap): ERA5 wind at Lorient vs fleet-zone wind correlation, closure frequency at TWS threshold.'
+  test_cost: medium
+  status: untestable-here
+  notes: '-'
+- id: H-10-1
+  v1_section: 4.11.3, 10 (phase 0-1)
+  category: ship/polar
+  statement: Manoeuvre cost and leeway must be measured at sea trials as prerequisites.
+  type: assumption
+  used_for: D10 (measure tau_m, rho_m, leeway at sea trials before phase 1)
+  criticality: medium
+  evidence_so_far: Not available; all are hypotheses (S0).
+  test: E-09/E-24 provide the sensitivity that sets the required measurement accuracy.
+  test_cost: expensive
+  status: untestable-here
+  notes: '-'
+- id: H-X-1
+  v1_section: S3/S4 forecast_model
+  category: forecast
+  statement: Our forecast is the truth displaced, amplitude-modulated and noised, so it keeps the true storm structure
+    at all leads (displacement 320 km at D10), unlike a real D8-10 forecast.
+  type: assumption
+  used_for: E1, D3 (forecast = perturbed truth; structure retention at long lead)
+  criticality: high
+  evidence_so_far: forecast_model.py (oracle perturbation; RMSE targets only); control RMSE 7.3 m/s at D10 but correlation
+    with truth not validated.
+  test: 'E-02: replace lead >= D5 forecasts by analog fields (other years/months) blended with truth; compare horizon
+    and ensemble value (E-04/E-11).'
+  test_cost: medium
+  status: open
+  notes: Could inflate the value of long horizons and of ensembles that 'see' the truth's structure; also makes
+    forecasts look sharper than real NWP. High-priority artefact check.
+- id: H-X-2
+  v1_section: S3/S4 forecast_model
+  category: forecast
+  statement: 'Exchangeability (truth statistically a member) is assumed; mean beats control by factor ~1.38 in RMSE
+    (S3 review: ratio 1.25-1.64).'
+  type: assumption
+  used_for: E1 (control as random draw; exchangeability)
+  criticality: medium
+  evidence_so_far: 'S3 review: determinism OK, exchangeability only approximate (d depends on w). Real ENS control/mean
+    RMSE ratio typically 1.05-1.20 beyond D3 (to verify).'
+  test: 'E-02: control-mean gap {1.0, 1.15, 1.38, 1.6}; E-20 real.'
+  test_cost: medium
+  status: open
+  notes: If real ratio is smaller, mean-field tests (H-4-13) lose their edge and scenarios may gain.
+- id: H-X-3
+  v1_section: S3/S4 B0, climatology
+  category: operations
+  statement: 'Using 2015 itself for the climatological terminal and B0 point leaks future information: the 2015
+    climatology ''knows'' where winds blow in 2015.'
+  type: assumption
+  used_for: EVAL (same-year climatology and B0 point; leave-month-out leaks neighbouring months)
+  criticality: medium
+  evidence_so_far: 'S3/S4 limitations: B0/climatology from the same year (excluded months only for B0 in S3); clim
+    terminal uses the annual 2015 climatology (S4).'
+  test: 'E-18: with other years obtain a held-out climatology and B0.'
+  test_cost: medium
+  status: open
+  notes: 'Direction: advantage to B0 AND to terminal value; magnitude unknown.'
+- id: H-X-4
+  v1_section: S1-S4 grid
+  category: discretisation
+  statement: A 40 km / 3 h grid with hourly ERA5 truth regridded to 40 km is adequate as truth and planning basis.
+  type: assumption
+  used_for: all (40 km / 3 h grid; ERA5 regridded; no mesoscale)
+  criticality: medium
+  evidence_so_far: Truth is smoothed (ERA5 effective resolution ~100 km); front passages, squalls and gusts are
+    absent; DP discretisation = ~3 % of value (E0 review).
+  test: 'E-19/E-07: native 0.25 deg truth vs 40 km truth; 20 km grid.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-X-5
+  v1_section: S3/S4 simulator
+  category: operations
+  statement: Production on the truth is evaluated without manoeuvre/turn losses, drift or current in S1-S4.
+  type: assumption
+  used_for: E-09 (no manoeuvre losses charged by the simulator)
+  criticality: high
+  evidence_so_far: 'simulator.py: manoeuvre loss optional and disabled by default ''Sprint 4''; leeway only in kinematics;
+    hold curve fa (4 min, 0.3, 45 min) in envelope for mixed arcs only.'
+  test: E-09/E-24 (WP3).
+  test_cost: medium
+  status: open
+  notes: Penalises B0 (97 % holding) and heading-changing routed ships unequally.
+- id: H-X-6
+  v1_section: S3/S4 design
+  category: operations
+  statement: Conclusions drawn from one year, one ENS forecast seed and overlapping missions generalise.
+  type: assumption
+  used_for: VAL (single year 2015; 12 months; overlapping 30 d missions; one forecast seed for ENS)
+  criticality: high
+  evidence_so_far: 'S4: ENS seed 2 dropped, B1c seed difference 0.27 % annual but up to 143 MWh/month; 2015 is one
+    winter (NAO+ strong? unknown).'
+  test: E-18, E-23.
+  test_cost: expensive
+  status: open
+  notes: '-'
+- id: H-X-7
+  v1_section: S4 Oracle_REF_H
+  category: problem-structure
+  statement: Oracle_REF_H is a sufficiently tight bound to read regrets of 8-12 % as meaningful.
+  type: assumption
+  used_for: 'EVAL (approximate oracle: 15 d look-ahead + refiner + clim terminal)'
+  criticality: high
+  evidence_so_far: 'S4_results: approximate; no causal run beats it but ''true'' hindsight over the full year would
+    be larger.'
+  test: E-14.
+  test_cost: medium
+  status: open
+  notes: Regrets are lower bounds on true regret.
+- id: H-X-8
+  v1_section: S3 beta loader
+  category: ship/polar
+  statement: The masking of slow downwind cells (TWA >= 135, U <= 2.5 m/s) and the below-10 kn extrapolation are
+    small details.
+  type: assumption
+  used_for: E-10 (VPP-bug mask 135 deg / 2.5 m/s is the orchestrator's choice; NaN repair; <10 kn extrapolation)
+  criticality: medium
+  evidence_so_far: 'Mask removal raises hold power at 20 kn from 2461 to 2745 kW (S3 review) but masked nodes are
+    not used; <10 kn power = scaled positive part with cut-in 7 kn (client: very little).'
+  test: 'E-10: mask bounds, cut-in 5-9 kn, repair on/off; effect on summer CF and B0.'
+  test_cost: cheap
+  status: open
+  notes: Matters most for summer months (CF 0.35 for B0).
+- id: H-X-9
+  v1_section: S4 experiment A
+  category: operations
+  statement: The persistent ship at the annual best offshore point is representative of a fleet core.
+  type: assumption
+  used_for: EVAL (start point = annual best offshore point 56.5N 21.6W, 849 NM from port)
+  criticality: medium
+  evidence_so_far: Chosen with hindsight on the year; far from Lorient; near the 65N ERA5 box limit (outside cells
+    are land).
+  test: 'E-15: other starts (50N 15W v1 point, Lorient, 10 random cells).'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-X-10
+  v1_section: S3/S4 truth/forecast
+  category: forecast
+  statement: The v2 consistency model (A/B/C latent levels, fractions hypothesised) gives realistic issue-to-issue
+    behaviour.
+  type: assumption
+  used_for: E-02 (errors of successive issues, one forecast seed, hourly forecasts from truth)
+  criticality: medium
+  evidence_so_far: 'forecast_notes: fractions mix_a/mix_b are hypotheses; averaging check no convergence (2.53 ->
+    2.36).'
+  test: 'E-02: vary consistency and measure value of using the latest cycle only vs blending cycles.'
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-X-11
+  v1_section: S3/S4 power model
+  category: numerics
+  statement: The power model's treatment of infeasible refiner commands is conservative enough.
+  type: assumption
+  used_for: 'E-22 (FeasiblePowerModel evaluates infeasible commanded velocities at a slower velocity: optimistic)'
+  criticality: low
+  evidence_so_far: 'S3 review: books power at slowed velocity while moving at full speed (optimistic); 4 steps in
+    one run, clamped = 0 in 33 of 34 reports.'
+  test: 'E-22: count clamped steps in S4 runs; re-run with strict rejection.'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-X-12
+  v1_section: S3 provider
+  category: numerics
+  statement: No policy reads the truth; ForecastProvider hides the weather object.
+  type: assumption
+  used_for: E-22 (policies cannot access truth)
+  criticality: medium
+  evidence_so_far: 'S1 review: no leakage (bit-identical forecasts after erasing the future); S3 review: provider._weather
+    reachable (structural), no shipped policy uses it; S4: analysis a <= now - 6 h except first 6 h of mission.'
+  test: 'E-22: automated no-leak test (forecast independence from future truth); harden before external routers.'
+  test_cost: cheap
+  status: open
+  notes: '-'
+- id: H-X-13
+  v1_section: S4 value
+  category: value-function
+  statement: The V_theta evaluation (CV R2 0.44, closed loop +0.6 pt) is representative of its final use.
+  type: assumption
+  used_for: E-08 (V_theta targets from plain B1; LOMO with 5 d buffer; 3 months closed loop)
+  criticality: medium
+  evidence_so_far: 'S4_value: V targets from B1 (no refiner), mean regression; E0 bias mixes forecast error and
+    policy suboptimality; within-release ranking equals hindsight''s.'
+  test: E-08.
+  test_cost: medium
+  status: open
+  notes: '-'
+- id: H-X-14
+  v1_section: S1-S4 stats
+  category: operations
+  statement: t-tests on 5-12 paired samples (4-11 dof) are reliable for deciding between routers.
+  type: assumption
+  used_for: E-23 (paired t-tests with n=5-12; months autocorrelated)
+  criticality: medium
+  evidence_so_far: 'S2 note: |t| > 2.78 needed at 5 % with 5 seeds; S4 monthly rankings among causal policies ''not
+    significant''.'
+  test: 'E-23: block bootstrap by weeks, effect sizes with CI, simulation-based power analysis.'
+  test_cost: cheap
+  status: open
+  notes: '-'
