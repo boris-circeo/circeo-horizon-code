@@ -63,3 +63,10 @@ Start = B1c year-run position at the month start; both policies use the climatol
 * Within-release ranking, not level, is what a DP needs; CV R2 therefore overstates the routing benefit of policy-consistent targets.
 * Mean regression only (quantile fitting is implemented, `fit_value_model(quantile=q)`, untested closed loop); no ensemble features (control forecast only); region/month effects are partly absorbed by day-of-year and position features.
 * LightGBM (MIT) is an optional dependency (`value` extra, `docs/LICENSES.md`).
+
+## Review note (independent review, 2026-11-11)
+
+E0 compares the 3 h DP model value (V_hind) with energy realised on 15 min chords (V_pol). Executing
+the hindsight DP plan on the truth (16 cells × 4 dates, H = 5 d) realises 97.4 % of its predicted value,
+so about 6 of the 36.6 MWh rollout bias (~17 %) is DP discretisation, not forecast error or policy
+sub-optimality. The remaining hindsight bias (~+11 % at 5 d) is still substantial and seasonal.
