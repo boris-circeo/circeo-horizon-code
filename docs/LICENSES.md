@@ -20,8 +20,10 @@ reported. **GPL / AGPL are forbidden**; if no alternative exists, escalate for a
 | casadi (planned S2) | **LGPL-3** | OK, weak copyleft — report | NLP refiner |
 | ipopt (planned S2) | EPL-2.0 | OK, weak copyleft — report | NLP solver (with MUMPS, CeCILL-C) |
 | HSL MA27/MA57 | proprietary/academic | **EXCLUDED** | — |
-| lightgbm (planned S3) | MIT | OK | value function |
-| scikit-learn | BSD-3 | OK | PCA |
+| lightgbm (S4, `value` extra) | MIT | OK | learned terminal value V_theta (`horizon.value`, optional) |
+| scikit-learn | BSD-3 | OK | PCA; dependency of the LightGBM sklearn API |
+| matplotlib | PSF-based (BSD-compatible) | OK | figures (`value` extra, analysis scripts only) |
+| joblib | BSD-3 | OK | model (de)serialisation (`value` extra) |
 | `eofs` | **GPL-3** | **EXCLUDED** | replaced by in-house weighted EOF |
 | `kmedoids` (PyPI) | **GPL-3** | **EXCLUDED** | replaced by in-house PAM |
 | ortools (planned) | Apache-2.0 | OK | CP-SAT scheduling |

@@ -53,7 +53,8 @@ def main():
         model = ValueModel.load(ROOT / f"data/cache/value/models/vtheta_{a.target}_m{m:02d}.joblib")
         assert model.meta["holdout"] == m
         for name in ("B1c_5d_REF", "B1v_5d_REF"):
-            key = f"{name}_m{m:02d}"
+            key = f"{name}_m{m:02d}" if a.target == "pol" or name.startswith("B1c") else (
+                f"B1v{a.target}_5d_REF_m{m:02d}")
             if key in res:
                 continue
             wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, a.days * DAY, seed=a.seed)
@@ -79,7 +80,8 @@ def main():
                         "start": start}
             res_f.write_text(json.dumps(res, indent=1))
     for m in a.months:
-        c, v = res.get(f"B1c_5d_REF_m{m:02d}"), res.get(f"B1v_5d_REF_m{m:02d}")
+        vk = f"B1v_5d_REF_m{m:02d}" if a.target == "pol" else f"B1v{a.target}_5d_REF_m{m:02d}"
+        c, v = res.get(f"B1c_5d_REF_m{m:02d}"), res.get(vk)
         if c and v:
             print(f"month {m}: B1c CF {c['cf']:.3f}  B1v CF {v['cf']:.3f}  "
                   f"dCF {v['cf'] - c['cf']:+.3f}")
