@@ -11,7 +11,13 @@ Un navire à propulsion vélique (deux rotors Flettner, propulseur électrique d
 Le routeur choisit où aller toutes les {{replan_h}} h en ne connaissant que des prévisions, dont l'erreur croît avec l'échéance. Son score est l'énergie J récoltée sur {{duration_d}} jours. L'**oracle** connaît le vent réel à l'avance et fournit la borne haute ; l'écart à l'oracle est le [[regret]]. Améliorer un routeur, c'est réduire cet écart ; l'Explorer montre où il se creuse.
 
 ## Les modèles testés {#models}
-Première visite ? Lisez cette section d'abord ; elle ne suppose pas de connaître la note de conception. Chaque figure est un schéma, pas une donnée.
+Première visite ? Lisez cette section d'abord ; elle ne suppose pas de connaître la note de conception. Les figures ci-dessous ne sont pas des schémas : chacune est calculée à la construction avec le vrai code sur les vraies données (polaire BETA du client, vent ERA5 de 2015, simulations annuelles 2015), avec axes et unités. Chacune est accompagnée d'un texte qui dit ce qu'elle montre, comment la lire, ce qu'il faut retenir, pourquoi c'est important pour le routage et quelles sont ses limites. Cliquez sur une figure pour l'agrandir. La chaîne de modèles se lit dans cet ordre :
+- **1-2 Le navire** : la polaire de puissance et l'enveloppe dans l'espace des vitesses disent quelle puissance rapporte chaque manœuvre.
+- **3 Le planificateur** : la programmation dynamique sur un graphe espace-temps (grille de 40 km, pas de 3 h, stencil de 49 déplacements) trouve la meilleure route pour un vent donné.
+- **4-6 La boucle** : le plan est recalculé toutes les 6 h sur une nouvelle prévision (MPC) ; les ensembles décrivent l'incertitude ; un raffineur continu lisse les 48 premières heures.
+- **7 La fin d'horizon** : la valeur terminale dit à la DP ce que vaut le navire quand la fenêtre se termine.
+- **8-9 Le verdict** : facteur de charge par routeur (FC, base 100 % = 3 MW toute l'année ; écarts en points) et marge de sécurité côtière.
+Si les figures sont absentes (export construit sans les données client), les anciens schémas s'affichent à la place.
 
 !fig ship
 !fig problem
@@ -27,9 +33,10 @@ Première visite ? Lisez cette section d'abord ; elle ne suppose pas de connaît
 !fig cf
 
 ### Fiches : ce que chaque routeur utilise et fait {#m-cards}
-**B0 (point fixe)**
-- Informations utilisées : aucune sur la météo (un point choisi sur des hivers passés).
-- Optimise : rien à l'exécution ; il attend là où le vent était le meilleur en moyenne.
+**B0 (point fixe ; dans les simulations annuelles S4 : poste fixe optimal avec clairvoyance)**
+- Informations utilisées : aucune à l'exécution. En S1-S3 le point est choisi sur des hivers passés ; dans les simulations annuelles S4 c'est le meilleur emplacement de 2015 lui-même, connu a posteriori (argmax de la puissance moyenne de tenue de position 2015 de la vérité ERA5, à au moins 50 km de la côte, dans la boîte ERA5, à moins de 800 NM de 47N 6,5W).
+- Optimise : rien à l'exécution ; le navire y est tenu immobile et produit par bords de travers alternés.
+- Résultat (S4, 2015) : FC 57,1 %, soit 30,9 points sous l'oracle.
 - Horizon : toute la mission, sans replanification.
 - Forces : simple, robuste, un plancher honnête. Faiblesses : ne peut ni éviter les tempêtes ni chercher le vent.
 - Dans l'Explorer : une trajectoire qui va en un point et y reste ; part d'attente proche de 100 %.
@@ -39,29 +46,33 @@ Première visite ? Lisez cette section d'abord ; elle ne suppose pas de connaît
 - Optimise : l'énergie attendue comme si cette prévision était vraie, sur 5 ou 15 jours ; valeur terminale 0.
 - Forces : suit le bon vent. Faiblesses : trop de confiance aux longues échéances, peut finir l'horizon au mauvais endroit.
 - Dans l'Explorer : une trajectoire qui change à chaque replanification ; comparer 5 j et 15 j.
+- Résultat (S4, 2015, 5 j + raffineur) : FC 77,5 %, soit 10,4 points sous l'oracle ; avec la valeur terminale climatologique (B1c) : FC 79,7 %, 8,3 points sous l'oracle.
 
 **ENS (DP d'ensemble avec CVaR)**
 - Informations utilisées : un ensemble de prévisions réduit à quelques scénarios médoïdes et leur dispersion.
 - Optimise : un mélange moyenne et queue (CVaR) avec un tronc de 48 h qui ne peut pas anticiper le scénario.
 - Horizon : 48 h communes, puis une branche par scénario. Forces : prudent quand la météo est incertaine. Faiblesses : exige des ensembles informatifs ; plus coûteux.
 - Dans l'Explorer : le panneau de replanification montre scénarios, poids et dispersion.
+- Résultat (S4, 2015, 10 j, 20 membres, 6 scénarios, + raffineur + valeur terminale climatologique) : FC 80,7 %, soit 7,3 points sous l'oracle.
 
 **REF (raffineur continu)**
 - Informations utilisées : le plan DP de base et la même prévision.
 - Optimise : les 48 premières heures au pas de 30 min, avec la valeur DP en fin de fenêtre comme valeur terminale.
 - Forces : trajectoire lisse, moins de biais de grille. Faiblesses : gain modeste ; peut retomber sur le plan de base.
 - Dans l'Explorer : la même route que sa base mais sans escaliers.
+- Résultat : le raffineur fait partie de tous les routeurs S4 ci-dessus ; sur une fenêtre de 48 h il raccourcit la route et gagne environ un demi pour cent d'énergie (figure 6).
 
 **Oracle (a posteriori)**
 - Informations utilisées : le vent réel, à l'avance. Optimise une fois toute la mission.
 - Forces : le plafond pour le regret. Faiblesses : non causal, donc pas un concurrent.
 - Dans l'Explorer : la ligne de référence à laquelle regret et écart sont mesurés.
+- Résultat (S4, 2015, anticipation glissante de 15 j + raffineur, borne approximative) : FC 88,0 %, la référence des écarts. Tous les écarts sont en points de FC (base 100 % = 3 MW toute l'année).
 
 ## Les routeurs expliqués {#routers}
 Chaque routeur est une politique : à chaque replanification il reçoit une prévision causale et renvoie un plan (destinations toutes les {{plan_dt_h}} h). Le simulateur exécute le plan et mesure l'énergie sur le vent RÉEL.
 
 ### B0 - attente au meilleur point fixe {#r-B0}
-Rejoint en ligne droite un point choisi sur des hivers d'entraînement (tirages différents de ceux d'évaluation) et y tient position toute la mission. Aucune prévision. Mesure ce que vaut un bon choix statique. Faiblesse : ne peut ni éviter les tempêtes ni chercher le vent ; dans le climat synthétique son point est près de la côte française, artefact du générateur (voir Limites).
+Rejoint en ligne droite un point choisi sur des hivers d'entraînement (tirages différents de ceux d'évaluation) et y tient position toute la mission. Aucune prévision. Mesure ce que vaut un bon choix statique. Faiblesse : ne peut ni éviter les tempêtes ni chercher le vent ; dans le climat synthétique son point est près de la côte française, artefact du générateur (voir Limites). **Dans les simulations annuelles S4**, B0 est le poste fixe optimal avec clairvoyance : le meilleur emplacement de 2015 lui-même (argmax de la puissance moyenne de tenue de position 2015 de la vérité ERA5, à au moins 50 km de la côte, dans la boîte ERA5, à moins de 800 NM de 47N 6,5W), une référence plus forte qu'un point choisi sur d'autres hivers.
 
 ### B0_spec - attente dans la zone indicative {#r-B0_spec}
 Comme B0 mais en un point fixe (50N 15W) inspiré de la zone d'exploitation indicative du cahier des charges. Sert de référence « plan naïf ». Attendez-vous au plus mauvais résultat dans le climat synthétique.
@@ -146,3 +157,4 @@ Tous les nombres ci-dessous sont des hypothèses à remplacer par des données r
 - **S1** - météo synthétique avec prévisions causales, noyau DP, enveloppe de puissance, simulateur en boucle fermée, B0 / B1 / oracle, premier chiffre de regret.
 - **S2** - réduction d'ensemble et DP à deux étages avec CVaR, raffineur continu, cet inspecteur. Résultats : le raffineur gagne ; l'ensemble ne gagne pas encore, à cause de la météo synthétique (voir ENS).
 - **S3** - données réelles : vérité ERA5 2015, modèle d'erreur de prévision échangeable, polaire BETA du client avec réparations et masques VPP, stencil à macro-arcs, valeur terminale climatologique ; l'inspecteur gagne l'onglet Polar et le support ERA5.
+- **Inspecteur v4.5** - champ de vent de style Windy avec particules animées, onglet Vitrine pour les présentations, facteur de charge en % et écarts à la référence en points (pts), polaires d'occupation, onglet Saisons, figures techniques dans le Guide.

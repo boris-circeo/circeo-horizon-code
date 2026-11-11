@@ -11,7 +11,13 @@ A sail-propelled ship (two Flettner rotors, auxiliary electric propeller) carrie
 A router chooses where to go every {{replan_h}} h knowing only forecasts, whose errors grow with lead time. Its score is the energy J harvested over {{duration_d}} days. The **hindsight oracle** knows the true wind in advance and gives the upper bound; the gap to it is the [[regret]]. Improving a router means closing that gap, and the Explorer shows where it opens.
 
 ## Models explained {#models}
-New here? Read this section first; it needs no knowledge of the design note. Each figure is a schematic, not data.
+New here? Read this section first; it needs no knowledge of the design note. The figures below are not schematics: each one is computed at build time with the real code on the real data (client BETA polar, ERA5 wind of 2015, the 2015 year runs), with axes and units. Each comes with a text that says what it shows, how to read it, what to notice, why it matters for routing and what its limits are. Click a figure to enlarge it. The chain of models is read in this order:
+- **1-2 The ship**: the power polar and the velocity-space envelope tell how much power each manoeuvre earns.
+- **3 The planner**: dynamic programming over a space-time graph (grid of 40 km, steps of 3 h, 49-move stencil) finds the best route for a given wind.
+- **4-6 The loop**: the plan is recomputed every 6 h on a new forecast (MPC); ensembles describe the uncertainty; a continuous refiner smooths the first 48 h.
+- **7 The horizon end**: the terminal value tells the DP what the ship is worth when the window ends.
+- **8-9 The verdict**: capacity factor per router (CF, base 100 % = 3 MW all year; gaps in percentage points) and the coast-safety margin.
+If the figures are absent (export built without the client data), the older schematics are shown instead.
 
 !fig ship
 !fig problem
@@ -27,9 +33,10 @@ New here? Read this section first; it needs no knowledge of the design note. Eac
 !fig cf
 
 ### Cards: what each router uses and does {#m-cards}
-**B0 (fixed point)**
-- Information used: none about the weather (a point chosen from past winters).
-- Optimises: nothing at run time; it waits where the wind was best on average.
+**B0 (fixed point; in the S4 year runs: optimal fixed station with perfect hindsight)**
+- Information used: none at run time. In S1-S3 the point is chosen from past winters; in the S4 year runs it is the best location of 2015 itself, known with hindsight (argmax of the 2015 mean hold power of the ERA5 truth, at least 50 km from the coast, inside the ERA5 box, within 800 NM of 47N 6.5W).
+- Optimises: nothing at run time; the ship is held still there, producing power by beam-reach tacks.
+- Result (S4, 2015): CF 57.1 %, 30.9 points below the oracle.
 - Horizon: the whole mission, no replanning.
 - Strengths: simple, robust, a fair floor. Weaknesses: cannot dodge storms or chase wind.
 - In Explorer: a track that goes to one spot and stays; hold share close to 100 %.
@@ -39,29 +46,33 @@ New here? Read this section first; it needs no knowledge of the design note. Eac
 - Optimises: expected energy as if that forecast were true, over 5 or 15 days; terminal value 0.
 - Strengths: follows good wind. Weaknesses: over-trusts long lead times, may end the horizon badly.
 - In Explorer: a track that changes with each replan; compare 5 d and 15 d.
+- Result (S4, 2015, 5 d + refiner): CF 77.5 %, 10.4 points below the oracle; with the climatological terminal value (B1c): CF 79.7 %, 8.3 points below.
 
 **ENS (ensemble DP with CVaR)**
 - Information used: an ensemble of forecasts reduced to a few medoid scenarios and their spread.
 - Optimises: a blend of mean and tail (CVaR) with a 48 h trunk that cannot anticipate the scenario.
 - Horizon: 48 h common, then one branch per scenario. Strengths: cautious in uncertain weather. Weaknesses: needs informative ensembles; costlier.
 - In Explorer: the replan panel shows scenarios, weights and spread.
+- Result (S4, 2015, 10 d, 20 members, 6 scenarios, + refiner + climatological terminal value): CF 80.7 %, 7.3 points below the oracle.
 
 **REF (continuous refiner)**
 - Information used: the base DP plan plus the same forecast.
 - Optimises: the first 48 h at 30 min step with the DP value at the end as terminal value.
 - Strengths: smooth track, less grid bias. Weaknesses: gain modest; may fall back to the base plan.
 - In Explorer: the same route as its base but without staircases.
+- Result: the refiner is part of every S4 router above; over one 48 h window it shortens the route and gains about half a percent of energy (figure 6).
 
 **Oracle (hindsight)**
 - Information used: the true wind, in advance. Optimises the whole mission once.
 - Strengths: the ceiling for regret. Weaknesses: not causal, so not a competitor.
 - In Explorer: the reference line against which regret and gap are measured.
+- Result (S4, 2015, rolling 15 d look-ahead + refiner, approximate bound): CF 88.0 %, the base of the gaps. All gaps are given in percentage points of CF (base 100 % = 3 MW all year).
 
 ## Routers explained {#routers}
 Each router is one policy: at every replan it receives a causal forecast and returns a plan (destinations every {{plan_dt_h}} h). The simulator executes the plan and measures energy on the TRUE wind.
 
 ### B0 - hold at the best fixed point {#r-B0}
-Sails straight to one location chosen from training winters (other seeds than the evaluation ones) and station-keeps there for the whole mission. No forecast is used. It measures what a smart static choice is worth. Weakness: it cannot dodge storms nor chase wind; in the synthetic climate its point is near the French coast, which is a synthetic artefact (see Limitations).
+Sails straight to one location chosen from training winters (other seeds than the evaluation ones) and station-keeps there for the whole mission. No forecast is used. It measures what a smart static choice is worth. Weakness: it cannot dodge storms nor chase wind; in the synthetic climate its point is near the French coast, which is a synthetic artefact (see Limitations). **In the S4 year runs** B0 is the optimal fixed station with perfect hindsight: the best location of 2015 itself (argmax of the 2015 mean hold power of the ERA5 truth, at least 50 km from the coast, inside the ERA5 box, within 800 NM of 47N 6.5W), a stronger baseline than a point chosen on other winters.
 
 ### B0_spec - hold at the indicative zone {#r-B0_spec}
 Same as B0 but at a fixed point (50N 15W) inspired by the specification's indicative operating zone. Useful as a "naive client plan" reference. Expect it to be the worst policy in the synthetic climate.
@@ -146,3 +157,4 @@ Every number below is a hypothesis to be replaced with real data; conclusions ar
 - **S1** - synthetic weather with causal forecasts, DP kernel, power envelope, closed-loop simulator, B0 / B1 / oracle, first regret figure.
 - **S2** - ensemble reduction and two-stage DP with CVaR, continuous refiner, this inspector. Results: the refiner wins (~+3 %, lower spread); the ensemble does not win yet because of the synthetic weather (see ENS).
 - **S3** - real data: ERA5 2015 truth, exchangeable forecast-error model, client BETA polar with VPP repairs and masks, macro-arc stencil, climatological terminal value; inspector gains the Polar tab and ERA5 support.
+- **Inspector v4.5** - Windy-style wind field with animated particles, Showcase tab for presentations, capacity factor shown in % and gaps to the reference in percentage points (pts), occupancy polars, Seasons tab, technical figures in the Guide.

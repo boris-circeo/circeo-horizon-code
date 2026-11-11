@@ -16,8 +16,8 @@
    "more": "problem"
   },
   "regret": {
-   "en": "Relative energy shortfall against the reference: (J_ref - J) / J_ref, in %. 0 = as good as the oracle. About 2 points optimistic because the oracle itself is discretised.",
-   "fr": "Manque d'énergie relatif à la référence : (J_ref - J) / J_ref, en %. 0 = aussi bon que l'oracle. Optimiste d'environ 2 points car l'oracle est lui-même discrétisé.",
+   "en": "Shortfall against the reference, expressed as a gap in CF points: CF_ref - CF (pts). 0 = as good as the oracle. About 2 points optimistic because the oracle itself is discretised.",
+   "fr": "Manque par rapport à la référence, exprimé en écart de points de CF : CF_ref - CF (pts). 0 = aussi bon que l'oracle. Optimiste d'environ 2 points car l'oracle est lui-même discrétisé.",
    "more": "limits"
   },
   "oracle": {
@@ -107,12 +107,12 @@
    "fr": "Énergie nette récoltée sur la mission, en MWh (puissance x temps, sur le vent réel). Plus c'est haut, mieux c'est. Typique ici : 1000-2000 MWh sur 30 jours."
   },
   "m_CF": {
-   "en": "J / (rated power x duration), between 0 and 1. Good: above 0.7 here; the oracle gets about 0.84.",
-   "fr": "J / (puissance nominale x durée), entre 0 et 1. Bon : au-dessus de 0,7 ici ; l'oracle atteint environ 0,84."
+   "en": "Capacity factor in %: energy collected / (rated power x duration). Good: above 70 % here; the oracle gets about 84 %.",
+   "fr": "Facteur de charge en % : énergie récoltée / (puissance nominale x durée). Bon : au-dessus de 70 % ici ; l'oracle atteint environ 84 %."
   },
   "m_REG": {
-   "en": "(J_ref - J) / J_ref in %, against the reference policy of the bar above. Lower is better; the reference itself is 0.",
-   "fr": "(J_ref - J) / J_ref en %, par rapport à la politique de référence de la barre ci-dessus. Plus bas = mieux ; la référence vaut 0.",
+   "en": "Gap to the reference in percentage points of CF: CF_ref - CF (base 100 % = rated power all the time). Lower is better; the reference itself is 0.",
+   "fr": "Écart à la référence en points de pourcentage de CF : CF_ref - CF (base 100 % = puissance nominale en permanence). Plus bas = mieux ; la référence vaut 0.",
    "more": "regret"
   },
   "m_HOLD": {
@@ -162,8 +162,8 @@
    "fr": "Fenêtre de moyenne glissante appliquée aux courbes de puissance et de TWS. Ne change pas les énergies."
   },
   "c_pair": {
-   "en": "Same seed means same weather, so the difference A - B per seed is a paired measure. Delta > 0: A harvested more.",
-   "fr": "Même tirage = même météo, donc la différence A - B par tirage est une mesure appariée. Delta > 0 : A a récolté plus."
+   "en": "Same seed means same weather, so the difference A - B per seed is a paired measure, in CF percentage points (pts). Delta > 0: A harvested more.",
+   "fr": "Même tirage = même météo, donc la différence A - B par tirage est une mesure appariée, en points de CF (pts). Delta > 0 : A a récolté plus."
   },
   "c_ts": {
    "en": "Panels, top to bottom: power; cumulative energy; accumulated gap to the reference (rising = losing); TWS and TWA experienced with their productive bands; plan optimism; hold/transit strips. Click or drag to move the cursor.",
@@ -201,8 +201,8 @@
  },
  "captions": {
   "summary": {
-   "en": "One row per router, averaged over seeds. Green marks the best non-reference value; [[regret]] is measured against the [[oracle]].",
-   "fr": "Une ligne par routeur, moyennée sur les tirages. Le vert marque la meilleure valeur hors référence ; le [[regret]] est mesuré par rapport à l'[[oracle]]."
+   "en": "One row per router, averaged over seeds. CF is in % of rated power; green marks the best non-reference value; the gap in points (pts) is measured against the [[oracle]] ([[regret]]).",
+   "fr": "Une ligne par routeur, moyennée sur les tirages. Le CF est en % de la puissance nominale ; le vert marque la meilleure valeur hors référence ; l'écart en points (pts) est mesuré par rapport à l'[[oracle]] ([[regret]])."
   },
   "perseed": {
    "en": "The same metric seed by seed; click a value to open that [[seed]] in the Explorer.",
@@ -303,8 +303,8 @@
    "fr": "Politiques"
   },
   "reference": {
-   "en": "Reference (regret / gap)",
-   "fr": "Référence (regret / écart)"
+   "en": "Reference (gap in pts)",
+   "fr": "Référence (écart en pts)"
   },
   "more": {
    "en": "Learn more",

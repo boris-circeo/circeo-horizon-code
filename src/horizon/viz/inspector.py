@@ -18,6 +18,8 @@ from horizon.viz.export import load_export, validate_export
 
 __all__ = ["build_html", "write_inspector"]
 
+INSPECTOR_VERSION = "4.5"
+"""Inspector release shown in the page header and stored in ``meta.inspector_version``."""
 _TEMPLATE = Path(__file__).with_name("template.html")
 _CONTENT = Path(__file__).with_name("content")
 _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
@@ -63,7 +65,27 @@ def load_content(data: dict) -> dict:
     return out
 
 
-def build_html(data: dict, gzip_data: bool = True) -> str:
+def _tech_figures(data: dict, spec) -> list:
+    """Technical Guide figures: a ready list, ``data["tech_figures"]``, or built if ``spec``.
+
+    Guarded: any failure (missing client data, optional dependency) yields no figures and the
+    Guide falls back to its built-in schematics.
+    """
+    if isinstance(spec, list):
+        return spec
+    if data.get("tech_figures"):
+        return list(data["tech_figures"])
+    if spec is True:
+        try:
+            from horizon.viz.tech_figures import build_tech_figures
+
+            return build_tech_figures(data)
+        except Exception as exc:  # noqa: BLE001 - optional enrichment must never break the build
+            print(f"tech figures skipped: {type(exc).__name__}: {exc}")
+    return []
+
+
+def build_html(data: dict, gzip_data: bool = True, tech_figures: list | bool | None = None) -> str:
     """Render the inspector page for an export dict.
 
     Parameters
@@ -78,6 +100,9 @@ def build_html(data: dict, gzip_data: bool = True) -> str:
         Complete HTML document.
     """
     validate_export(data)
+    tech = _tech_figures(data, tech_figures)
+    data = {k: v for k, v in data.items() if k != "tech_figures"}
+    data = {**data, "meta": {**data["meta"], "inspector_version": INSPECTOR_VERSION}}
     raw = json.dumps(data, separators=(",", ":"), allow_nan=False).encode()
     if gzip_data:
         payload = base64.b64encode(gzip.compress(raw, 9, mtime=0)).decode("ascii")
@@ -86,7 +111,10 @@ def build_html(data: dict, gzip_data: bool = True) -> str:
     else:
         safe = raw.decode().replace("<", "\\u003c")
         tag = f'<script id="hz-data" type="application/json" data-enc="json">{safe}</script>'
-    content = json.dumps(load_content(data), separators=(",", ":"), ensure_ascii=False)
+    content_d = load_content(data)
+    if tech:
+        content_d["tech_figures"] = tech
+    content = json.dumps(content_d, separators=(",", ":"), ensure_ascii=False)
     tag += ('<script id="hz-content" type="application/json">'
             + content.replace("<", "\\u003c") + "</script>")
     page = _TEMPLATE.read_text(encoding="utf-8")
@@ -94,7 +122,8 @@ def build_html(data: dict, gzip_data: bool = True) -> str:
     return page.replace("<!--__DATA__-->", tag)
 
 
-def write_inspector(results: str | Path | dict, out: str | Path, gzip_data: bool = True) -> Path:
+def write_inspector(results: str | Path | dict, out: str | Path, gzip_data: bool = True,
+                    tech_figures: list | bool | None = None) -> Path:
     """Write the inspector HTML.
 
     Parameters
@@ -106,5 +135,5 @@ def write_inspector(results: str | Path | dict, out: str | Path, gzip_data: bool
     data = results if isinstance(results, dict) else load_export(results)
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_html(data, gzip_data), encoding="utf-8")
+    out.write_text(build_html(data, gzip_data, tech_figures), encoding="utf-8")
     return out

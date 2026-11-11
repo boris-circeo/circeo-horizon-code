@@ -119,6 +119,8 @@ def test_html_with_polar_and_existing_s2_export(export):
     data, _ = export
     html = build_html(data)
     assert "renderPolar" in html and not re.findall(r"https?://", html)
+    for tok in ("renderShowcase", "fxAttach", "WINDY", "tech_figures"):
+        assert tok in html, tok
     s2 = Path(__file__).resolve().parents[1] / "outputs" / "s2_inspector" / "s2_export.json.gz"
     if s2.exists():  # old export without polar / epoch / speed must still build
         d2 = load_export(s2)
@@ -203,7 +205,7 @@ def test_html_embeds_data_and_is_offline(export, gz):
     assert 'id="hz-data"' in html and html.count("<script") == 3 and "hz-content" in html
     assert "<!--__DATA__-->" not in html and "<!--__TITLE__-->" not in html
     assert not re.findall(r"https?://", html)
-    assert not re.search(r"<(script|link|img)[^>]+(src|href)\s*=", html)
+    assert not re.search(r"<(script|link|img)[^>]+(src|href)\s*=\s*(?![\"']?data:)", html)
     if not gz:
         assert '"schema_version":1' in html
 
