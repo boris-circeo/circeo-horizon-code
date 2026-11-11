@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title><!--__TITLE__--></title>
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--ink:#1d2330;--mute:#667085;--line:#e1e5ec;--grid:#e9ecf2;--accent:#2f5fd0;
@@ -163,6 +163,67 @@ body.showcase main{padding:0}
 #lightbox{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:2rem;cursor:zoom-out}
 #lightbox .lb{background:var(--card);color:var(--ink);border-radius:.8rem;padding:1.2rem;max-width:min(96vw,110rem);max-height:94vh;overflow:auto}
 #lightbox svg,#lightbox img{width:100%;height:auto;max-height:72vh;display:block}
+
+/* ---------------------------------------------------------------- Showcase playback controls */
+.sc-tlw{flex:1;position:relative;padding-bottom:1.35rem;min-width:0}.sc-tlw input{margin:0;width:100%;display:block}
+.sc-ticks{position:absolute;left:0;right:0;bottom:0;height:1.2rem;pointer-events:none}
+.sc-ticks span{position:absolute;bottom:0;transform:translateX(-50%);font-size:.78rem;color:#8c98ad;letter-spacing:.04em}
+.sc-ticks i{position:absolute;top:-.15rem;width:1px;height:.35rem;background:rgba(255,255,255,.22)}
+.sc-ctl2{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin:.3rem .4rem .1rem}
+.sc-seg{display:inline-flex;border:1px solid rgba(255,255,255,.14);border-radius:2rem;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.sc-seg::-webkit-scrollbar{display:none}
+.sc-seg button{border:none;border-radius:0;background:transparent;color:#aeb9cc;padding:.4rem .95rem;white-space:nowrap;flex:0 0 auto}
+.sc-seg button+button{border-left:1px solid rgba(255,255,255,.08)}
+.sc-seg button.on{background:rgba(88,196,255,.22);color:#fff}
+.sc-hint{font-size:.85rem}
+/* ---------------------------------------------------------------- responsive: tablet and phone, touch */
+button,select,input{touch-action:manipulation}
+.tw td:first-child,.tw th:first-child{position:sticky;left:0;background:var(--card);z-index:1}
+body.showcase .tw td:first-child,body.showcase .tw th:first-child{background:#0b1220}
+.ii{position:relative}.ii::after{content:"";position:absolute;inset:-.7rem}
+.tabs{scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tabs button{flex:0 0 auto;white-space:nowrap}
+@media(pointer:coarse){.row.legend{gap:0 .8rem}button,select,.chip,label.ck{min-height:44px}input[type=range]{min-height:44px}.chip{padding-top:.3rem;padding-bottom:.3rem}.sc-hint{display:none}.sc-ctl button{width:3.2rem;height:3.2rem;min-height:0}}
+@media(max-width:900px){
+ header{gap:.35rem .8rem;padding:.5rem .8rem}
+ #meta{display:none}
+ h1{font-size:1.05rem;flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .tabs{order:5;width:100%;margin-left:0;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:.15rem}
+ .zoom{display:none}
+ main{padding:.6rem}
+ .bar{padding:.5rem .8rem}
+ #chips{overflow-x:auto;padding:.4rem .8rem 0}
+ .card{padding:.7rem}
+ .grid3,#exgrid{grid-template-columns:minmax(0,1fr)}
+ #guide{width:100vw;border-left:none}
+ .gnav{overflow-x:auto;white-space:nowrap;flex:0 0 auto;padding-bottom:.4rem}
+ .chip2{flex:0 0 auto;max-width:78vw}
+ #pop{max-width:calc(100vw - 1rem)}
+ #tour{left:.6rem;right:.6rem;width:auto;bottom:.6rem}
+ #primer .pbox,#lightbox .lb{width:calc(100vw - 1rem)}
+ #occ{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem!important}
+ #occ>div{min-width:0}
+ .sc{padding:0 .9rem 2.5rem}
+ .sc-hero{padding:1.2rem 0 .8rem}
+ .sc-hero h2{font-size:2.2rem}.sc-sub{font-size:1.05rem}
+ .sc-eyebrow{font-size:.7rem;letter-spacing:.2em;padding-right:5rem}
+ .sc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin-top:1rem}
+ .sc-kpi{padding:.85rem .85rem .75rem;border-radius:.9rem}.sc-num{font-size:2.3rem}.sc-num small{font-size:1.05rem}.sc-lab{font-size:.88rem;margin-top:.4rem}.sc-lab2{font-size:.78rem}
+ .sc-gear{top:.2rem}
+ .sc-menu{top:3rem;width:min(21rem,calc(100vw - 1.8rem))}
+ .sc-side{position:static}
+ .sc-stage{margin-top:.8rem;gap:.9rem}
+ .sc-mapcard{padding:.4rem}
+ .sc-date{left:.9rem;top:.8rem}.sc-date b{font-size:1.45rem}.sc-date span{display:none}.sc-seg button{padding:.35rem .5rem;font-size:.82rem}
+ .sc-live b{font-size:1.45rem}
+ .sc-card{padding:.9rem}
+ .sc-ctl{gap:.6rem;margin:.5rem .2rem 0}
+ .sc-ctl2{margin:.2rem .2rem 0}
+ .sc-facts{gap:.45rem}.sc-pill{font-size:.82rem;padding:.3rem .7rem}
+ .sc-chartwrap svg{min-width:0}
+}
+@media(max-width:700px){header{position:static}}
+@media(max-height:520px){header{position:static}}
+@media(prefers-reduced-motion:reduce){.sc>section{animation:none}*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
@@ -227,6 +288,11 @@ function prepare(d) {
   const g = mp.grid;
   mp.xmin = g.x0_km - g.dx_km / 2; mp.xmax = g.x0_km + (g.nx - 0.5) * g.dx_km;
   mp.ymin = g.y0_km - g.dx_km / 2; mp.ymax = g.y0_km + (g.ny - 0.5) * g.dx_km;
+  if (mp.land_vec) { // vector land: rings of delta-coded int16 vertices -> absolute km (optional; raster fallback when absent)
+    const lv = mp.land_vec, dd = new Int16Array(b64bytes(lv.d.b64).buffer), u = lv.unit_m / 1000; let q = 0; mp.LV = [];
+    lv.n.forEach((n, r) => { const a = new Float64Array(2 * n); let x = lv.start[2 * r], y = lv.start[2 * r + 1]; a[0] = lv.origin_km[0] + x * u; a[1] = lv.origin_km[1] + y * u;
+      for (let k = 1; k < n; k++) { x += dd[q++]; y += dd[q++]; a[2 * k] = lv.origin_km[0] + x * u; a[2 * k + 1] = lv.origin_km[1] + y * u; } mp.LV.push(a); });
+  }
   if (mp.era5_mask) {
     mp.M = new Uint8Array(b64bytes(mp.era5_mask.b64).buffer);
     // smooth version of the ERA5 mask (two box blurs, ~200 km): >= 0.5 inside the box, fading to 0 outside, no pixel staircase
@@ -345,7 +411,9 @@ function pathOf(xs, ys, X, Y) {
 let K = 1, ML = 54, MR = 10;
 /* UI scale: root font size follows the viewport width (13 px laptop .. 18 px 4K) times the user zoom. */
 function setScale() {
-  const px = clamp(0.4 * window.innerWidth / 100 * 1 + 7.5, 13, S && S.tab === "showcase" ? 26 : 18) * (S ? S.zoom : 1);   // the Showcase may scale up further on 4K
+  let px = clamp(0.4 * window.innerWidth / 100 * 1 + 7.5, 13, S && S.tab === "showcase" ? 26 : 18);
+  if (Math.min(window.innerWidth, window.innerHeight) < 600) px = Math.max(px, 15.5); else if (window.innerWidth < 1000) px = Math.max(px, 14.5);   // phone / tablet: readable body text
+  px *= (S ? S.zoom : 1);   // the Showcase may scale up further on 4K
   document.documentElement.style.fontSize = px.toFixed(2) + "px";
   K = px / 13; ML = Math.round(54 * K); MR = Math.round(10 * K);
   const wide = window.innerWidth >= 2400; document.body.classList.toggle("wide", wide); S && (S.wide = wide);
@@ -518,6 +586,7 @@ function renderExplorer() {
      <div class="row legend">
        <label class="ck"><input type="checkbox" data-l="wind" ${S.layers.wind ? "checked" : ""}>wind speed</label>
        <label class="ck"><input type="checkbox" data-l="particles" ${S.layers.particles ? "checked" : ""}>particles</label>
+       <label class="ck"><input type="checkbox" id="hfx" ${S.hfx ? "checked" : ""}>hide particles while playing</label>
        <label class="ck"><input type="checkbox" data-l="iso" ${S.layers.iso ? "checked" : ""}>isotachs 18/26 kn</label>
        <label class="ck"><input type="checkbox" data-l="band" ${S.layers.band ? "checked" : ""}>only 18-26 kn</label>
        <label class="ck"><input type="checkbox" data-l="arrows" ${S.layers.arrows ? "checked" : ""}>arrows</label>
@@ -556,6 +625,7 @@ function renderExplorer() {
   $("#spd").value = S.speed; $("#spd").onchange = e => S.speed = +e.target.value;
   $("#smooth").value = S.smooth; $("#smooth").onchange = e => { S.smooth = +e.target.value; buildTS(); moveCursor(); };
   $("#play").onclick = () => { S.play = !S.play; $("#play").textContent = S.play ? "Pause" : "Play"; if (S.play) { S.last = performance.now(); requestAnimationFrame(tick); } };
+  $("#hfx").onchange = e => { S.hfx = e.target.checked; };
   document.querySelectorAll("[data-l]").forEach(c => c.onchange = () => { S.layers[c.dataset.l] = c.checked; drawMap(); });
   $("#fsel").onchange = e => { S.focus = e.target.value; buildTS(); buildLosses(); moveCursor(); };
   $("#wsel").onchange = e => { S.win = +e.target.value; buildTS(); buildLosses(); moveCursor(); };
@@ -675,7 +745,7 @@ const SEA = "#0d1829";
 let LUT = buildLUT();
 function mapGeom(cv = $("#map"), maxH = null) {
   const m = D.map, asp = (m.ymax - m.ymin) / (m.xmax - m.xmin);
-  let Wr = Math.max(320, cv.parentElement.clientWidth - 2);
+  let Wr = Math.max(240, cv.parentElement.clientWidth - 2);
   if (maxH) Wr = Math.min(Wr, maxH / asp); else if (S.wide) Wr = Math.min(Wr, (window.innerHeight - 24 * 13 * K) / asp);   // as tall as the viewport allows
   const W = Wr / K, H = Math.round(W * asp), dpr = window.devicePixelRatio || 1, RF = 3;  // RF: device px per raster px
   return {W, H, Wr, Hr: Math.round(Wr * asp), dpr, cw: Math.round(Wr * dpr / RF), ch: Math.round(Wr * asp * dpr / RF),
@@ -691,18 +761,37 @@ function sdfAt(xk, yk) {
   const i = Math.floor(fi), j = Math.floor(fj), a = fi - i, b = fj - j, S0 = m.SDF, n = g.nx;
   return 0.1 * ((1 - a) * (1 - b) * S0[j * n + i] + a * (1 - b) * S0[j * n + i + 1] + (1 - a) * b * S0[(j + 1) * n + i] + a * b * S0[(j + 1) * n + i + 1]);
 }
+const statKey = G => G.cw + "x" + G.ch + "|" + Math.round(G.Wr * G.dpr) + "|" + (S.dark ? 1 : 0);
+function landPath(G) { // Path2D of the vector land in map units (cached per geometry)
+  const k = G.W + "x" + G.H; if (D.map.LP && D.map.LP.k === k) return D.map.LP.p;
+  const p = new Path2D();
+  for (const a of D.map.LV) { p.moveTo(G.PX(a[0]), G.PY(a[1])); for (let i = 2; i < a.length; i += 2) p.lineTo(G.PX(a[i]), G.PY(a[i + 1])); p.closePath(); }
+  D.map.LP = {k, p}; return p;
+}
+function buildLandLayer(G, hl, mk) { // smooth vector land + thin coastline, faded outside the ERA5 box by the low-res mask canvas mk
+  const pw = Math.round(G.Wr * G.dpr), ph = Math.round(G.Hr * G.dpr), c = document.createElement("canvas"); c.width = pw; c.height = ph;
+  const cx = c.getContext("2d"), sc = pw / G.W; cx.setTransform(sc, 0, 0, sc, 0, 0);
+  const P = landPath(G); cx.fillStyle = S.dark ? "#1a212e" : "#232a36"; cx.fill(P, "evenodd");
+  cx.lineJoin = "round"; cx.lineWidth = S.dark ? 0.9 : 1; cx.strokeStyle = S.dark ? "rgba(214,224,240,.42)" : "#5a6270"; cx.stroke(P);
+  cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalCompositeOperation = "destination-in"; cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high"; cx.drawImage(mk, 0, 0, pw, ph);
+  hl.land = c;
+}
 function buildStatic(G, hl = LANDH, buffer = true) { // translucent dark land + coastline; outside of the ERA5 box fades smoothly into the background
   const m = D.map, w = G.cw, h = G.ch, pxk = (m.xmax - m.xmin) / w;
   const oc = document.createElement("canvas"); oc.width = w; oc.height = h;
-  const cx = oc.getContext("2d"), im = cx.createImageData(w, h);
+  const cx = oc.getContext("2d"), im = cx.createImageData(w, h), vec = !!m.LV, mkc = vec ? document.createElement("canvas") : null;
+  let mi = null; if (vec) { mkc.width = w; mkc.height = h; mi = mkc.getContext("2d").createImageData(w, h); }
   for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
     const xk = m.xmin + (px + 0.5) / w * (m.xmax - m.xmin), yk = m.ymax - (py + 0.5) / h * (m.ymax - m.ymin), d = sdfAt(xk, yk), o = (py * w + px) * 4;
     const B = maskB(xk, yk);
+    if (vec) { const k = clamp((B - 0.5) / 0.4, 0, 1); mi.data[o + 3] = Math.round(255 * k * k * (3 - 2 * k)); }
     if (B < 0.5) { const t = B / 0.5, al = Math.round(255 * (1 - t * t * (3 - 2 * t))); im.data.set([13, 24, 41, al], o); if (B < 0.2) continue; }
+    if (vec) { if (B >= 0.5 && buffer && d >= 0 && d < 20) { const k = Math.min(1, (B - 0.5) / 0.4), f = k * k * (3 - 2 * k); im.data.set([255, 255, 255, Math.round(26 * f)], o); } continue; }
     if (B > 0.97 && Math.abs(d) < 0.75 * pxk) im.data.set([232, 238, 250, 170], o);
     else if (B >= 0.5) { const k = Math.min(1, (B - 0.5) / 0.4), f = k * k * (3 - 2 * k); if (d < 0) im.data.set([16, 20, 28, Math.round(150 * f)], o); else if (buffer && d < 20) im.data.set([255, 255, 255, Math.round(26 * f)], o); }
   }
-  cx.putImageData(im, 0, 0); hl.cv = oc; hl.key = G.cw + "x" + G.ch;
+  cx.putImageData(im, 0, 0); hl.cv = oc; hl.key = statKey(G); hl.land = null;
+  if (vec) { mkc.getContext("2d").putImageData(mi, 0, 0); buildLandLayer(G, hl, mkc); }
 }
 function windFrame(s, tsec, G, hw = WLH) { // colour raster of the wind speed (bilinear in space and time); cached
   const w = s.wind, m = D.map, f = tsec / w.dt_s, k0 = clamp(Math.floor(f), 0, w.nt - 2), a = clamp(f - k0, 0, 1);
@@ -737,17 +826,20 @@ function windFrame(s, tsec, G, hw = WLH) { // colour raster of the wind speed (b
 
 /* ---------------------------------------------------------------- animated wind particles (canvas overlay)
    Thousands of short streaks advected by the time-interpolated wind; trails fade by erasing the canvas a little each frame. */
+const RM = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : {matches: false};
 const LONGRUN = () => D.meta.duration_s / DAY > 45;
 const FX = {L: {}, raf: 0, ms: 0, last: 0};
 function fxAttach(id, cv, cfg) {
-  let L = FX.L[id]; if (!L || L.cv !== cv) L = FX.L[id] = {cv, ctx: cv.getContext("2d"), w: 0, h: 0, x: null};
+  let L = FX.L[id]; if (!L || L.cv !== cv) L = FX.L[id] = {cv, ctx: cv.getContext("2d"), w: 0, h: 0, x: null, vis: 1};
   Object.assign(L, cfg); fxSize(L); fxKick();
 }
 function fxKick() { if (!FX.raf && !document.hidden) FX.raf = requestAnimationFrame(fxLoop); }
 function fxSize(L) {
   const cv = L.cv; if (L.x && L.w === cv.width && L.h === cv.height) return;
   L.w = cv.width; L.h = cv.height;
-  const n = clamp(Math.round(L.w * L.h / 450), 1500, 9000), m = D.map;   // adaptive: about 4-9k at 4K
+  const cssA = (parseFloat(cv.style.width) || L.w) * (parseFloat(cv.style.height) || L.h), m = D.map;
+  const low = window.innerWidth < 900 || (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;   // fewer streaks on phones and weak devices
+  const n = clamp(Math.round(cssA / 430 * (low ? 0.5 : 1)), 600, 9000);                                                        // about 4-9k on a 4K screen
   L.n = n; L.x = new Float32Array(n); L.y = new Float32Array(n); L.age = new Int16Array(n);
   for (let i = 0; i < n; i++) { L.x[i] = m.xmin + Math.random() * (m.xmax - m.xmin); L.y[i] = m.ymin + Math.random() * (m.ymax - m.ymin); L.age[i] = Math.random() * 150; }
 }
@@ -758,7 +850,7 @@ function fxStep(L, dtms) {
   const CT = w.CT, ST = w.ST, Wd = L.w, Hd = L.h, kx = Wd / (m.xmax - m.xmin), ky = Hd / (m.ymax - m.ymin);
   const stepk = 0.5 * clamp(dtms / 16.67, 0.3, 3) * (L.speed || 1);   // km per (m/s) per frame: 1 frame = 0.14 h of wind drift
   ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.09)"; ctx.fillRect(0, 0, Wd, Hd);
-  ctx.globalCompositeOperation = "source-over"; ctx.lineWidth = Math.max(1, (L.lw || 1.1) * (window.devicePixelRatio || 1) * Math.max(1, K * 0.8)); ctx.lineCap = "round";
+  ctx.globalCompositeOperation = "source-over"; ctx.lineWidth = Math.max(1, (L.lw || 1.1) * (Wd / (parseFloat(L.cv.style.width) || Wd)) * Math.max(1, K * 0.8)); ctx.lineCap = "round";
   ctx.strokeStyle = "rgba(255,255,255,.88)"; ctx.beginPath();
   const hasB = !!m.B, X = L.x, Y = L.y, AG = L.age, xmin = m.xmin, xmax = m.xmax, ymin = m.ymin, ymax = m.ymax, gx = w.x0_km, gy = w.y0_km, dx = w.dx_km;
   for (let i = 0; i < L.n; i++) {
@@ -778,22 +870,36 @@ function fxStep(L, dtms) {
   ctx.stroke();
 }
 function fxLoop(now) {
-  FX.raf = 0; let any = false; const t0 = performance.now(), dt = FX.last ? now - FX.last : 16.7; FX.last = now;
+  FX.raf = 0; let any = false; const t0 = performance.now(), dt = FX.last ? Math.min(100, now - FX.last) : 16.7; FX.last = now;
+  FX.dt = FX.dt ? 0.95 * FX.dt + 0.05 * dt : dt;
   for (const id of Object.keys(FX.L)) {
     const L = FX.L[id];
     if (!L.cv.isConnected) { delete FX.L[id]; continue; }
-    if (!L.on()) { if (L.drawn) { L.ctx.clearRect(0, 0, L.w, L.h); L.drawn = false; } continue; }
-    fxSize(L); fxStep(L, dt); L.drawn = true; any = true;
+    if (!L.on() || RM.matches) { if (L.drawn) { L.ctx.clearRect(0, 0, L.w, L.h); L.drawn = false; } continue; }
+    const tgt = L.hide && L.hide() ? 0 : 1;   // hidden while a replay is playing: fade out in 0.3 s, back in over 1 s once paused
+    L.vis = tgt > L.vis ? Math.min(1, L.vis + dt / 1000) : Math.max(0, L.vis - dt / 300);
+    L.cv.style.opacity = L.vis.toFixed(3); any = true;
+    if (L.vis <= 0.001 && tgt === 0) { if (L.drawn) { L.ctx.clearRect(0, 0, L.w, L.h); L.drawn = false; } continue; }
+    fxSize(L); fxStep(L, dt); L.drawn = true;
   }
-  if (any) { FX.ms = 0.92 * FX.ms + 0.08 * (performance.now() - t0); window.__fxms = FX.ms; if (!document.hidden) FX.raf = requestAnimationFrame(fxLoop); }
+  if (any) {
+    FX.ms = 0.92 * FX.ms + 0.08 * (performance.now() - t0); window.__fxms = FX.ms;
+    if (FX.dt > 30 && now - (FX.cool || 0) > 2000) { FX.cool = now; for (const id of Object.keys(FX.L)) if (FX.L[id].n > 700) FX.L[id].n = Math.floor(FX.L[id].n * 0.85); }   // adaptive: keep 30-60 fps
+    if (!document.hidden) FX.raf = requestAnimationFrame(fxLoop);
+  }
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { FX.last = 0; fxKick(); } });
 function paintBase(cx, G, s, tsec, hl, hw, buffer, force = false) { // sea, Windy-like wind field, translucent land
   cx.fillStyle = SEA; cx.fillRect(0, 0, G.W, G.H);
   cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
-  if (force || S.layers.wind) cx.drawImage(windFrame(s, tsec, G, hw), 0, 0, G.W, G.H);
-  if (!hl.cv || hl.key !== G.cw + "x" + G.ch) buildStatic(G, hl, buffer);
+  if (!hl.cv || hl.key !== statKey(G)) buildStatic(G, hl, buffer);
+  if (force || S.layers.wind) {
+    cx.save();
+    if (hl.land) { const c2 = new Path2D(); c2.rect(0, 0, G.W, G.H); c2.addPath(landPath(G)); cx.clip(c2, "evenodd"); }   // wind masked by the vector land
+    cx.drawImage(windFrame(s, tsec, G, hw), 0, 0, G.W, G.H); cx.restore();
+  }
   cx.drawImage(hl.cv, 0, 0, G.W, G.H);
+  if (hl.land) cx.drawImage(hl.land, 0, 0, G.W, G.H);
 }
 function drawGrat(cx, G) {
   const m = D.map; cx.strokeStyle = "rgba(210,220,240,.16)"; cx.lineWidth = 0.7; cx.fillStyle = "rgba(220,228,245,.6)"; cx.font = "10px system-ui";
@@ -834,9 +940,10 @@ function drawMap() {
   if (cv.width !== Math.round(G.Wr * dpr) || cv.height !== Math.round(G.Hr * dpr)) { cv.width = Math.round(G.Wr * dpr); cv.height = Math.round(G.Hr * dpr); }
   cv.style.width = G.Wr + "px"; cv.style.height = G.Hr + "px";
   if (fxc) {
-    if (fxc.width !== cv.width || fxc.height !== cv.height) { fxc.width = cv.width; fxc.height = cv.height; }
+    const fw = Math.round(G.Wr * Math.min(dpr, 2)), fh = Math.round(G.Hr * Math.min(dpr, 2));
+    if (fxc.width !== fw || fxc.height !== fh) { fxc.width = fw; fxc.height = fh; }
     fxc.style.width = G.Wr + "px"; fxc.style.height = G.Hr + "px";
-    fxAttach("map", fxc, {seed, tsec: () => S.tf * dtS(), on: () => S.layers.particles && S.layers.wind && S.tab === "ex"});
+    fxAttach("map", fxc, {seed, tsec: () => S.tf * dtS(), on: () => S.layers.particles && S.layers.wind && S.tab === "ex", hide: () => S.play && S.hfx});
   }
   const cx = cv.getContext("2d"); cx.setTransform(dpr * K, 0, 0, dpr * K, 0, 0);
   const tsec = S.tf * dtS();
@@ -985,7 +1092,8 @@ const SCT = {
   f2: {fr: n => `${n} replanifications autonomes`, en: n => `${n} autonomous re-plans`},
   f3: {fr: n => `${n} incident${n > 1 ? "s" : ""} de sécurité côtière`, en: n => `${n} coastal-safety incident${n === 1 ? "" : "s"}`},
   map: {fr: "Le vent réel, et le chemin du navire", en: "The real wind, and the ship's path"},
-  mapn: {fr: "Chaque trait blanc est du vent ; la couleur donne sa force. Le tracé est celui du routeur.", en: "Each white streak is wind; colour gives its strength. The trace is the router's."},
+  mapn: {fr: "Les traits blancs montrent le vent ; la couleur donne sa force. Le tracé est celui du routeur.", en: "The white streaks show the wind; colour gives its strength. The trace is the router's."},
+  mapnp: {fr: "Le tracé montre le chemin du navire ; la couleur donne la force du vent.", en: "The trace shows the ship's path; colour gives the wind strength."},
   today: {fr: "Au fil de l'année", en: "Through the year"},
   wind: {fr: "Vent", en: "Wind"}, spd: {fr: "Vitesse", en: "Speed"}, pwr: {fr: "Puissance", en: "Power"},
   cum: {fr: "Énergie cumulée [GWh]", en: "Cumulative energy [GWh]"},
@@ -1004,6 +1112,7 @@ const SCT = {
     {t: {fr: "Tests physiques automatisés", en: "Automated physical tests"}, d: {fr: "Vent uniforme, front synthétique, linéarité, raffinement de grille : vérifiés à chaque exécution.", en: "Uniform wind, toy front, linearity, grid refinement: checked on every run."}},
     {t: {fr: "Borne de prescience parfaite", en: "Perfect-foresight bound"}, d: {fr: "Chaque résultat est mesuré au plafond théorique d'une prescience parfaite.", en: "Every result is measured against the theoretical ceiling of perfect foresight."}}],
   set: {fr: "Réglages", en: "Settings"}, setr: {fr: "Routeur", en: "Router"}, setm: {fr: "Mission", en: "Mission"}, sets: {fr: "Vitesse", en: "Speed"}, setp: {fr: "Particules de vent", en: "Wind particles"}, eng: {fr: "Vues d'ingénierie", en: "Engineering views"},
+  hint: {fr: "Espace : lecture / pause", en: "Space: play / pause"},
   replay: {fr: "Rejouer", en: "Replay"}
 };
 const SCICON = {
@@ -1017,6 +1126,21 @@ const SCICON = {
 };
 const T_ = (o, ...a) => { const v = o[S.lang] !== undefined ? o[S.lang] : o.en; return typeof v === "function" ? v(...a) : v; };
 const nf = (v, d = 0) => v.toLocaleString(S.lang === "fr" ? "fr-FR" : "en-US", {minimumFractionDigits: d, maximumFractionDigits: d});
+const SC_SPEEDS = [[24, "1 j/s", "1 d/s"], [72, "3 j/s", "3 d/s"], [168, "1 sem/s", "1 wk/s"], [336, "2 sem/s", "2 wk/s"], [720, "1 mois/s", "1 mo/s"]];
+function scSpeed0() { try { const v = +localStorage.getItem("hz-scspeed"); if (SC_SPEEDS.some(q => q[0] === v)) return v; } catch (e) { /* ignore */ } return 168; }
+function scTicks(s) { // month ticks and initials (J F M ...) along the replay timeline
+  const t0 = Date.parse(s.epoch || D.meta.epoch), span = (s.n - 1) * dtS() * 1000, ini = S.lang === "fr" ? "JFMAMJJASOND" : "JFMAMJJASOND";
+  const d0 = new Date(t0), out = []; let y = d0.getUTCFullYear(), mo = d0.getUTCMonth();
+  for (let k = 0; k < 14; k++) {
+    const a = Date.UTC(y, mo, 1), b = Date.UTC(y, mo + 1, 1), fa = clamp((a - t0) / span, 0, 1), fb = clamp((b - t0) / span, 0, 1);
+    if (a - t0 > span) break;
+    const pos = f => `calc(8px + (100% - 16px) * ${f.toFixed(4)})`;
+    if (a > t0) out.push(`<i style="left:${pos(fa)}"></i>`);
+    out.push(`<span style="left:${pos((fa + fb) / 2)}">${ini[(mo % 12 + 12) % 12]}</span>`);
+    mo++; if (mo > 11) { mo = 0; y++; }
+  }
+  return out.join("");
+}
 const nfi = v => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, S.lang === "fr" ? "\u202f" : ",");
 let SCI = null;
 function scEligible() {
@@ -1052,7 +1176,6 @@ function renderShowcase() {
    <section class="sc-hero"><div class="sc-gear"><button id="scgear">${esc(T_(SCT.set))}</button><div class="sc-menu" id="scmenu">
       <label>${esc(T_(SCT.setr))}<select id="scr">${SCI.cands.map(n => `<option ${n === S.sc.router ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
       ${D.seeds.length > 1 ? `<label>${esc(T_(SCT.setm))}<select id="scs">${D.seeds.map((q, i) => `<option value="${i}" ${i === S.sc.si ? "selected" : ""}>${esc(mlabel(q))}</option>`).join("")}</select></label>` : ""}
-      <label>${esc(T_(SCT.sets))}<select id="scsp">${[[48, "2 d/s"], [144, "6 d/s"], [288, "12 d/s"]].map(([v, l]) => `<option value="${v}" ${v === S.sc.speed ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label>${esc(T_(SCT.setp))}<input type="checkbox" id="scfxc" ${S.sc.fx ? "checked" : ""}></label>
       <label>${esc(T_(SCT.eng))}<button id="sceng">&rarr;</button></label></div></div>
      <div class="sc-eyebrow">${esc(T_(SCT.eyebrow))}</div><h2>${esc(T_(SCT.hero))}</h2><p class="sc-sub">${esc(T_(SCT.sub))}</p>
@@ -1060,8 +1183,9 @@ function renderShowcase() {
      <div class="sc-facts"><span class="sc-pill"><i></i>${esc(ERAk ? T_(SCT.f1, yr) : T_(SCT.f1s, yr))}</span><span class="sc-pill"><i></i>${esc(T_(SCT.f2, nfi(M.replans)))}</span><span class="sc-pill"><i></i>${esc(T_(SCT.f3, M.coast))}</span></div></section>
    <section class="sc-stage"><div class="sc-card sc-mapcard"><div class="mapw"><canvas id="scmap"></canvas><canvas id="scfx"></canvas></div>
       <div class="sc-date"><b id="scdate"></b><span>${esc(T_(SCT.map))}</span></div>
-      <div class="sc-ctl"><button id="scplay" aria-label="play"></button><input type="range" id="scsl" min="0" max="${M.s.n - 1}" step="1" value="0"><span class="meta" id="scmo"></span></div></div>
-    <aside class="sc-card sc-side"><h3>${esc(T_(SCT.today))}</h3><div class="sc-note">${esc(T_(SCT.mapn))}</div>
+      <div class="sc-ctl"><button id="scplay" aria-label="play"></button><div class="sc-tlw"><input type="range" id="scsl" min="0" max="${M.s.n - 1}" step="1" value="0"><div class="sc-ticks">${scTicks(M.s)}</div></div></div>
+      <div class="sc-ctl2"><div class="sc-seg" id="scseg">${SC_SPEEDS.map(([v, f, e]) => `<button data-sp="${v}" class="${v === S.sc.speed ? "on" : ""}">${esc(S.lang === "fr" ? f : e)}</button>`).join("")}</div><span class="meta sc-hint">${esc(T_(SCT.hint))}</span></div></div>
+    <aside class="sc-card sc-side"><h3>${esc(T_(SCT.today))}</h3><div class="sc-note" id="scnote">${esc(T_(S.sc.play ? SCT.mapnp : SCT.mapn))}</div>
       <div class="sc-live"><div><b id="sclw">-</b><span>${esc(T_(SCT.wind))} [${fr ? "nd" : "kn"}]</span></div><div><b id="scls">-</b><span>${esc(T_(SCT.spd))} [${fr ? "nd" : "kn"}]</span></div><div><b id="sclp">-</b><span>${esc(T_(SCT.pwr))} [MW]</span></div></div>
       <div class="sc-note" style="margin-top:1.1rem">${esc(T_(SCT.cum))}</div>${bars}
       ${SCI.fixed ? `<div class="sc-delta"><b id="scd">-</b> ${esc(T_(SCT.ahead))}</div>` : ""}
@@ -1075,7 +1199,7 @@ function renderShowcase() {
   $("#sceng").onclick = () => setTab("ov");
   $("#scr").onchange = e => { S.sc.router = e.target.value; renderShowcase(); };
   if ($("#scs")) $("#scs").onchange = e => { S.sc.si = +e.target.value; S.sc.tf = 0; renderShowcase(); };
-  $("#scsp").onchange = e => { S.sc.speed = +e.target.value; };
+  $("#scseg").onclick = e => { const b = e.target.closest("[data-sp]"); if (!b) return; S.sc.speed = +b.dataset.sp; try { localStorage.setItem("hz-scspeed", String(S.sc.speed)); } catch (er) { /* ignore */ } $("#scseg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#scfxc").onchange = e => { S.sc.fx = e.target.checked; S.sc.dirty = true; fxKick(); };
   $("#scplay").onclick = () => { if (S.sc.tf >= M.s.n - 1.5) S.sc.tf = 0; S.sc.play = !S.sc.play; S.sc.last = 0; scPlayIcon(); };
   $("#scsl").oninput = e => { S.sc.tf = +e.target.value; S.sc.dirty = true; scLive(); };
@@ -1086,11 +1210,12 @@ function scFoot(yr, era) {
   const p = D.meta.params || {}, fr = S.lang === "fr", bits = [];
   if (p.forecasts) bits.push((fr ? "Prévisions fournies au routeur : " : "Forecasts given to the router: ") + p.forecasts);
   if (p.polar) bits.push((fr ? "Polaire du navire : " : "Ship polar: ") + p.polar);
-  return (fr ? `Résultats de simulation sur ${era ? "météo réelle ERA5" : "météo synthétique"} ${yr}. ` : `Simulation results on ${era ? "real ERA5 weather" : "synthetic weather"} ${yr}. `) + bits.join(". ") + (bits.length ? "." : "") + "  ·  v" + (D.meta.inspector_version || "4.5");
+  return (fr ? `Résultats de simulation sur ${era ? "météo réelle ERA5" : "météo synthétique"} ${yr}. ` : `Simulation results on ${era ? "real ERA5 weather" : "synthetic weather"} ${yr}. `) + bits.join(". ") + (bits.length ? "." : "") + "  ·  v" + (D.meta.inspector_version || "4.6");
 }
-function scPlayIcon() { const b = $("#scplay"); if (b) b.innerHTML = S.sc.play ? '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 4 L20 12 L7 20 Z"/></svg>'; }
+function scPlayIcon() { const nt = $("#scnote"); if (nt) nt.textContent = T_(S.sc.play ? SCT.mapnp : SCT.mapn); const b = $("#scplay"); if (b) b.innerHTML = S.sc.play ? '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 4 L20 12 L7 20 Z"/></svg>'; }
 function scCount() {
   const t0 = performance.now(), els = [...document.querySelectorAll(".sc-num")];
+  if (RM.matches) { els.forEach(el => { el.firstChild.nodeValue = el.dataset.pre + nf(+el.dataset.v, +el.dataset.d); }); return; }
   const step = now => {
     const k = clamp((now - t0) / 1700, 0, 1), e = 1 - Math.pow(1 - k, 3);
     els.forEach(el => { const v = +el.dataset.v, d = +el.dataset.d, sm = el.querySelector("small"); el.firstChild.nodeValue = el.dataset.pre + nf(v * e, d); void sm; });
@@ -1125,12 +1250,13 @@ function scLoop(now) {
 const SCL = {}, SCW = {plain: true};
 function scDraw(M) {
   const cv = $("#scmap"), fxc = $("#scfx"); if (!cv) return;
-  const s = M.s, G = mapGeom(cv, Math.max(480, window.innerHeight - 6 * 13 * K)), dpr = G.dpr, tf = S.sc.tf, tsec = tf * dtS(), i = clamp(Math.floor(tf), 0, s.n - 2);
+  const s = M.s, G = mapGeom(cv, window.innerWidth < 900 ? 1e5 : Math.max(480, window.innerHeight - 6 * 13 * K)), dpr = G.dpr, tf = S.sc.tf, tsec = tf * dtS(), i = clamp(Math.floor(tf), 0, s.n - 2);
   if (cv.width !== Math.round(G.Wr * dpr) || cv.height !== Math.round(G.Hr * dpr)) { cv.width = Math.round(G.Wr * dpr); cv.height = Math.round(G.Hr * dpr); }
   cv.style.width = G.Wr + "px"; cv.style.height = G.Hr + "px";
-  if (fxc.width !== cv.width || fxc.height !== cv.height) { fxc.width = cv.width; fxc.height = cv.height; }
+  const fw = Math.round(G.Wr * Math.min(dpr, 2)), fh = Math.round(G.Hr * Math.min(dpr, 2));
+  if (fxc.width !== fw || fxc.height !== fh) { fxc.width = fw; fxc.height = fh; }
   fxc.style.width = G.Wr + "px"; fxc.style.height = G.Hr + "px";
-  fxAttach("sc", fxc, {seed: () => D.seeds[S.sc.si], tsec: () => S.sc.tf * dtS(), on: () => S.sc.fx && S.tab === "showcase", lw: 1.25});
+  fxAttach("sc", fxc, {seed: () => D.seeds[S.sc.si], tsec: () => S.sc.tf * dtS(), on: () => S.sc.fx && S.tab === "showcase", hide: () => S.sc.play, lw: 1.25});
   const cx = cv.getContext("2d"); cx.setTransform(dpr * K, 0, 0, dpr * K, 0, 0);
   paintBase(cx, G, s, tsec, SCL, SCW, false, true);
   const R = M.R, P = (r, k) => [G.PX(r.X[k]), G.PY(r.Y[k])];
@@ -1148,7 +1274,7 @@ function scDraw(M) {
     const [x, y] = P(r, i); cx.strokeStyle = col; cx.fillStyle = "rgba(8,12,22,.6)"; cx.lineWidth = 1.6; cx.beginPath(); cx.arc(x, y, 5, 0, 7); cx.fill(); cx.stroke();
     cx.font = "11px system-ui"; cx.lineWidth = 3; cx.strokeStyle = "rgba(8,12,22,.85)"; cx.strokeText(lab, x + 9, y + dy); cx.fillStyle = "#e8edf5"; cx.fillText(lab, x + 9, y + dy);
   };
-  if (M.F) halo(M.F, "#9aa8c2", T_(SCT.fixed.short), 18); halo(M.O, "#ffffff", T_(SCT.n.oracle), -8);
+  if (M.F) halo(M.F, "#9aa8c2", G.W < 420 ? "" : T_(SCT.fixed.short), 18); halo(M.O, "#ffffff", G.W < 420 ? "" : T_(SCT.n.oracle), -8);
   const [px, py] = P(R, i), j0 = Math.max(0, i - 4), j1 = Math.min(R.X.length - 1, i + 4), ang = Math.atan2(G.PY(R.Y[j1]) - G.PY(R.Y[j0]), G.PX(R.X[j1]) - G.PX(R.X[j0]));
   const gr = cx.createRadialGradient(px, py, 0, px, py, 26); gr.addColorStop(0, "rgba(88,196,255,.55)"); gr.addColorStop(1, "rgba(88,196,255,0)"); cx.fillStyle = gr; cx.beginPath(); cx.arc(px, py, 26, 0, 7); cx.fill();
   cx.save(); cx.translate(px, py); cx.rotate(ang); cx.fillStyle = "#fff"; cx.strokeStyle = "#58c4ff"; cx.lineWidth = 1.6;
@@ -1200,9 +1326,9 @@ function monthly(n, only = null) { // pooled over seeds (or one seed index): per
 function renderSeasons() {
   const names = D.pnames.filter(n => S.sel.has(n)), mo = Object.fromEntries(names.map(n => [n, monthly(n)])), cats = MONTHS[S.lang];
   const ref = names.includes(S.ref) ? S.ref : null, any = names.length ? mo[names[0]] : [], used = any.map((a, i) => a.h > 0 ? i : -1).filter(i => i >= 0);
-  const W = 760 * K, H = 230 * K, pick = f => used.map(i => i);
+  const aw = $("#app").clientWidth || 800, W = Math.round(window.innerWidth < 1050 ? aw - 36 * K : aw / 2 - 40 * K), H = Math.round((W < 520 ? 190 : 230) * K), pick = f => used.map(i => i);
   const series = key => names.map(n => ({name: n, color: D.color[n], v: used.map(i => key === "cf" ? 100 * mo[n][i][key] : mo[n][i][key])}));
-  const lbl = used.map(i => cats[i]);
+  const lbl = used.map(i => W < 560 ? cats[i][0].toUpperCase() : cats[i]);
   const tws = {name: "TWS", color: "#8a8f98", v: used.map(i => any[i].tws)};
   let tbl = `<tr><th>Policy</th>${used.map(i => `<th>${cats[i]}</th>`).join("")}</tr>`;
   for (const n of names) tbl += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></td>${used.map(i => { const v = mo[n][i].cf, b = ref && n !== ref ? v - mo[ref][i].cf : NaN; return `<td>${fmt(100 * v, 1)}${isFinite(b) ? ` <span class="meta ${b >= 0 ? "pos" : "neg"}">${b >= 0 ? "+" : ""}${fmt(100 * b, 1)}</span>` : ""}</td>`; }).join("")}</tr>`;
@@ -1234,7 +1360,8 @@ function initOcc() {
   buildOcc();
 }
 function buildOcc() {
-  const s = seed(), names = selNames(s), R = (S.wide ? 120 : 100) * K;
+  const s = seed(), names = selNames(s); let R = (S.wide ? 120 : 100) * K;
+  if (window.innerWidth < 900) { const av = $("#occ").parentElement.clientWidth - 12; R = clamp(av / 2 - 8 - 40 * K, 60, 100 * K); }
   $("#occ").innerHTML = names.map(n => `<div style="text-align:center"><canvas data-n="${esc(n)}" width="10" height="10"></canvas><div class="ro"><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></div><div class="meta" data-h="${esc(n)}"></div></div>`).join("");
   S.occR = R;
 }
@@ -1386,6 +1513,15 @@ function showPop(t) {
 }
 const hidePop = () => { $("#pop").style.display = "none"; };
 function initPop() {
+  document.addEventListener("click", e => { // touch: tap an (i) / term to open its definition, tap anywhere else to close
+    const t = e.target.closest("[data-d]");
+    if (t && G.defs[t.dataset.d] && window.matchMedia("(hover: none)").matches) {
+      e.preventDefault(); e.stopPropagation(); const pop = $("#pop");
+      if (pop.style.display === "block" && pop._for === t) hidePop(); else { showPop(t); pop._for = t; }
+      return;
+    }
+    if (!e.target.closest("#pop")) hidePop();
+  }, true);
   document.addEventListener("mouseover", e => { const t = e.target.closest("[data-d]"); if (t) showPop(t); else if (e.target.closest("#pop")) clearTimeout(popTimer); });
   document.addEventListener("mouseout", e => { if (e.target.closest("[data-d]") || e.target.closest("#pop")) { clearTimeout(popTimer); popTimer = setTimeout(hidePop, 250); } });
   document.addEventListener("click", e => {
@@ -1524,23 +1660,25 @@ async function boot() {
   let dark = false; try { dark = localStorage.getItem("hz-dark") === "1"; } catch (e) { /* ignore */ }
   let lang = "fr"; try { lang = localStorage.getItem("hz-lang") || "fr"; } catch (e) { /* ignore */ }
   let zoom = 1; try { zoom = parseFloat(localStorage.getItem("hz-zoom")) || 1; } catch (e) { /* ignore */ }
-  S = {zoom, sc: {si: 0, router: null, tf: 0, play: true, speed: 144, fx: true, last: 0, dirty: true, raf: 0}, occ: {tws: "all", w: "time", sc: "mission"}, occR: 0, ptws: 20, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "CF", dark, smooth: 6, speed: 24, win: 24, play: false,
+  S = {zoom, hfx: true, sc: {si: 0, router: null, tf: 0, play: !RM.matches, speed: scSpeed0(), fx: true, last: 0, dirty: true, raf: 0}, occ: {tws: "all", w: "time", sc: "mission"}, occR: 0, ptws: 20, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "CF", dark, smooth: 6, speed: 24, win: 24, play: false,
     A: non.includes("B1_5d") ? "B1_5d" : non[0] || pn[0], B: non.includes("B1_15d") ? "B1_15d" : non[1] || pn[0], focus: null,
     layers: {wind: true, band: false, iso: false, particles: true, arrows: false, storms: true, plans: true, full: D.meta.duration_s / DAY <= 45}};
   SCI = scEligible();
   if (SCI) { S.sc.router = SCI.best; S.tab = "showcase"; document.body.classList.add("showcase"); $("#tab-showcase").style.display = ""; $("#tab-showcase").classList.add("on"); $("#tab-ov").classList.remove("on"); }
-  $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.5");
+  $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.6");
   const m = D.meta;
   $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
   $("#tab-showcase").onclick = () => setTab("showcase"); $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); $("#tab-seasons").onclick = () => setTab("seasons"); if (D.meta.duration_s / DAY >= 45) $("#tab-seasons").style.display = ""; if (D.polar) $("#tab-polar").style.display = "";
   $("#theme").onclick = () => { S.dark = !S.dark; applyTheme(); renderAll(); };
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeGuide(); hidePop(); }
+    if (S.tab === "showcase" && e.key === " " && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.tagName !== "BUTTON") { e.preventDefault(); const b = $("#scplay"); if (b) b.click(); }
     if (S.tab !== "ex" || /INPUT|SELECT/.test(e.target.tagName) && e.target.type !== "range") return;
     if (e.key === "ArrowRight") setTf(S.tf + (e.shiftKey ? 24 : 1) * 3600 / dtS()); else if (e.key === "ArrowLeft") setTf(S.tf - (e.shiftKey ? 24 : 1) * 3600 / dtS());
     else if (e.key === " ") { e.preventDefault(); $("#play").click(); }
   });
-  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { setScale(); LANDH.key = null; renderAll(); }, 150); });
+  let rt, lw = window.innerWidth, lh = window.innerHeight;
+  window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (window.innerWidth === lw && Math.abs(window.innerHeight - lh) < 150) return; lw = window.innerWidth; lh = window.innerHeight; setScale(); LANDH.key = null; SCL.key = null; renderAll(); }, 150); });
   const zs = [0.85, 1, 1.15, 1.3, 1.5], setZ = z => { S.zoom = z; try { localStorage.setItem("hz-zoom", String(z)); } catch (e) { /* ignore */ } setScale(); LANDH.key = null; renderAll(); };
   $("#zm").onclick = () => setZ(zs[Math.max(0, zs.indexOf(S.zoom) - 1)] || 1); $("#zp").onclick = () => setZ(zs[Math.min(zs.length - 1, zs.indexOf(S.zoom) + 1)] || 1); $("#z0").onclick = () => setZ(1);
   $("#guide-btn").onclick = () => S.gopen ? closeGuide() : openGuide(); $("#gclose").onclick = closeGuide;

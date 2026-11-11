@@ -51,7 +51,8 @@ Optional additions (still ``schema_version`` 1, all backward compatible):
 
 ``polar`` : dict  ``tws_kn, twa_deg, u_ms`` axes, ``p`` (int16 ``(nTWS, nTWA, nU)``, kW =
     ``q * scale_kw``, ``-32768`` = infeasible) and ``meta``.
-``meta.weather_kind`` : ``"synthetic"`` | ``"era5"``;  ``map.era5_mask`` : uint8 ``(ny, nx)``.
+``meta.weather_kind`` : ``"synthetic"`` | ``"era5"``;  ``map.era5_mask`` : uint8 ``(ny, nx)``;
+``map.land_vec`` : optional vector land (see :func:`_export_land_vec`).
 Per seed ``epoch`` (ISO UTC) and ``label``; per run ``speed_ms`` (block-mean ground speed).
 
 Encoded arrays are ``{"dtype", "shape", "b64"}`` (little-endian raw bytes, base64).
@@ -377,6 +378,79 @@ def _forecast_error(weather, truth: WindField, results: Mapping[str, MissionResu
 
 
 # -------------------------------------------------------------------------------------- export
+def _export_land_vec(grid, land_path=None, *, simplify_m: float = 2500.0,
+                     unit_m: float = 100.0, margin_cells: float = 2.0) -> dict | None:
+    """Vector land polygons (Natural Earth) in the grid projection, delta-quantised.
+
+    The land is read with :func:`horizon.geo.coast.load_land_polygons`, projected to the grid CRS,
+    clipped to the map extent (plus ``margin_cells`` cells), simplified and stored as closed rings
+    (even-odd fill): ``{"unit_m", "origin_km", "n", "start", "d"}`` where ring ``i`` has ``n[i]``
+    vertices, its first vertex is ``start[2i:2i+2]`` (int units from ``origin_km``) and the other
+    vertices are int16 deltas in ``d`` (``2 (n[i]-1)`` values per ring, interleaved x, y).
+
+    Parameters
+    ----------
+    grid : Grid  Map grid.
+    land_path : str or Path, optional  ``ne_*_land.shp`` (default: ``ne_10m_land``, then 50m).
+    simplify_m : float  Douglas-Peucker tolerance in projected metres.
+    unit_m : float  Quantisation step [m].
+    margin_cells : float  Clip margin around the grid extent [cells].
+
+    Returns
+    -------
+    dict or None  ``None`` when the shapefile is missing or no land falls inside the extent.
+    """
+    import shapely
+    from pyproj import CRS, Transformer
+
+    from horizon.geo import coast as _coast
+
+    path = land_path
+    if path is None:
+        for nm in ("ne_10m_land.shp", "ne_50m_land.shp"):
+            if (_coast._NE_DIR / nm).exists():
+                path = _coast._NE_DIR / nm
+                break
+    if path is None or not Path(path).exists():
+        return None
+    h = grid.dx * (0.5 + margin_cells)
+    xa, xb = grid.x0 - h, grid.x0 + (grid.nx - 1) * grid.dx + h
+    ya, yb = grid.y0 - h, grid.y0 + (grid.ny - 1) * grid.dx + h
+    ex = np.array([xa, xb, xb, xa])
+    ey = np.array([ya, ya, yb, yb])
+    lons, lats = grid.to_lonlat(np.r_[ex, 0.5 * (xa + xb)], np.r_[ey, ya])
+    pad = 3.0
+    bbox = (float(np.min(lons)) - pad, float(np.max(lons)) + pad,
+            float(np.min(lats)) - pad, float(np.max(lats)) + pad)
+    geom = _coast.load_land_polygons(path, bbox)
+    if geom.is_empty:
+        return None
+    tr = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_wkt(grid.crs_wkt), always_xy=True)
+    geom = shapely.transform(geom, lambda c: np.column_stack(tr.transform(c[:, 0], c[:, 1])))
+    geom = shapely.intersection(shapely.make_valid(geom), shapely.box(xa, ya, xb, yb))
+    geom = shapely.simplify(geom, simplify_m)
+    geom = shapely.segmentize(geom, 3.0e6)
+    polys = [g for g in getattr(geom, "geoms", [geom]) if g.geom_type == "Polygon"]
+    rings = [r for p in polys for r in (p.exterior, *p.interiors)]
+    n, start, deltas = [], [], []
+    ox, oy = grid.x0, grid.y0
+    for r in rings:
+        c = np.asarray(r.coords)[:-1]
+        if len(c) < 3:
+            continue
+        q = np.column_stack([np.rint((c[:, 0] - ox) / unit_m),
+                             np.rint((c[:, 1] - oy) / unit_m)]).astype(np.int64)
+        n.append(len(q))
+        start += [int(q[0, 0]), int(q[0, 1])]
+        deltas.append(np.diff(q, axis=0).ravel())
+    if not n:
+        return None
+    d = np.concatenate(deltas)
+    d = np.clip(d, -32768, 32767)
+    return {"unit_m": unit_m, "origin_km": [ox / 1e3, oy / 1e3], "n": n, "start": start,
+            "d": encode_array(d, "int16")}
+
+
 def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: str = "Oracle",
                     title: str = "HORIZON router inspector", p_rated_kw: float = 3000.0,
                     export_dt_s: float = 3600.0, wind_dt_s: float | None = None,
@@ -387,7 +461,8 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
                     params: Mapping | None = None, forecast_error: bool = True,
                     fc_horizon_days: float = 5.0, fc_issue_every_s: float = 86400.0,
                     polar=None, weather_kind: str | None = None,
-                    era5_mask: np.ndarray | None = None, wind_budget_mb: float = 6.0,
+                    era5_mask: np.ndarray | None = None, land_vec: bool | str | Path = True,
+                    wind_budget_mb: float = 6.0,
                     max_plan_records: int = 400) -> dict:
     """Collect backtest outputs into the inspector schema (see module docstring).
 
@@ -415,6 +490,8 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     weather_kind : str, optional  ``"synthetic"`` or ``"era5"`` (ERA5 hides storm layers and labels
         missions with their real UTC dates).
     era5_mask : (ny, nx) bool array, optional  True inside the ERA5 box (cells outside are greyed).
+    land_vec : bool or path, optional  Embed Natural Earth vector land as ``map.land_vec``
+        (``True`` = default shapefile, a path = that shapefile, ``False`` = raster land only).
     wind_budget_mb : float  Size budget of the wind snapshots of one seed (raw int8, MB).
     max_plan_records : int  Per run, at most this many replans keep their ``plan`` / ``diag``
         (evenly thinned) so that year-long missions stay compact.
@@ -489,6 +566,10 @@ def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: st
     if era5_mask is not None:
         m = np.asarray(era5_mask, bool).astype(np.uint8)
         out["map"]["era5_mask"] = encode_array(m, "uint8")
+    if land_vec:
+        lv = _export_land_vec(grid, None if land_vec is True else land_vec)
+        if lv is not None:
+            out["map"]["land_vec"] = lv
     if polar is not None:
         out["polar"] = _export_polar(polar)
     return out
