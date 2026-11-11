@@ -19,6 +19,23 @@ from horizon.weather.fields import WindField
 __all__ = ["DPResult", "Path", "solve_dp", "resample_wind"]
 
 _ENV_CACHE: dict = {}
+_FEAS_CACHE: dict = {}  # (id(stencil), id(sdf), d_min) -> (stencil, sdf, ok); refs keep ids valid
+
+
+def _arc_ok(st: Stencil, coast: CoastModel, d_min: float) -> np.ndarray:
+    """Time-independent arc feasibility mask, cached per (stencil, SDF, d_min) (S5 review:
+    recomputed at every solve, ~9 % of a 40 km DP; ENS_REF does 7 solves per replan)."""
+    key = (id(st), id(coast.sdf), float(d_min))
+    hit = _FEAS_CACHE.get(key)
+    if hit is not None and hit[0] is st and hit[1] is coast.sdf:
+        return hit[2]
+    g = coast.grid
+    ok = arc_feasibility(st.valid, st.di, st.dj, st.length_m, coast.sdf, g.x0, g.y0, g.dx,
+                         float(d_min))
+    if len(_FEAS_CACHE) >= 6:
+        _FEAS_CACHE.pop(next(iter(_FEAS_CACHE)))
+    _FEAS_CACHE[key] = (st, coast.sdf, ok)
+    return ok
 
 
 def _envelope_for(polar: PolarTable, fa: float) -> EnvelopeTable:
@@ -224,8 +241,7 @@ def solve_dp(wind: WindField, t0_s: float, n_steps: int, dt_s: float, polar: Pol
     times = t0_s + dt_s * np.arange(n_steps + 1)
     uv = np.ascontiguousarray(resample_wind(wind, times))
     nav = np.ascontiguousarray(coast.sdf >= d_min - SDF_TOL_M)
-    ok = arc_feasibility(st.valid, st.di, st.dj, st.length_m, coast.sdf, grid.x0, grid.y0,
-                         grid.dx, float(d_min))
+    ok = _arc_ok(st, coast, d_min)
     V = np.empty((n_steps + 1, grid.ny, grid.nx), dtype=np.float32)
     term = np.zeros(grid.shape, np.float32) if terminal is None else np.asarray(terminal)
     if term.shape != grid.shape:

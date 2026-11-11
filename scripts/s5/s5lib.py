@@ -406,7 +406,7 @@ def build_environment(ctx, env: dict, seed: int, start_iso: str, days: float):
                          analog_scale=env["analog_scale"])
     epoch = np.datetime64(f"{start_iso}T00:00:00", "s")
     wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, days * 86400.0, params=params,
-                             seed=seed)
+                             seed=seed, fast_filter=os.environ.get("HORIZON_FAST_FILTER") == "1")
     if env["truth_polar_scale"] == 1.0 and env["truth_polar_twa_shift"] == 0.0:
         pm = ctx.pm
     else:
@@ -501,7 +501,11 @@ def run_case(spec: dict, log=print, segment_s: float = 10 * 86400.0) -> dict:
         "guard_interventions": int(mr.guard_interventions),
         "coast_violations": int(mr.coast_violations), "n_replans": int(mr.n_replans),
         "n_dp_fallback": getattr(pol, "n_dp_fallback", None),
-        "n_clamped": int(getattr(pm, "n_clamped", 0)), "resumed_from": res.resumed_from,
+        "n_clamped": int(sum(m.n_clamped for m in res.segments)),  # also pre-resume segments
+        "policy_stats": {k: int(getattr(pol, k)) for k in
+                         ("n_refined", "n_warm_start", "n_not_converged", "n_hold_fallback")
+                         if hasattr(pol, k)} or None,
+        "resumed_from": res.resumed_from,
         "wall_s": setup_s + float(sum(m.wall_s for m in res.segments)),
         "cpu_s": time.process_time() - cpu0 + setup_s,
         "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,

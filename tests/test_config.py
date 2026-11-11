@@ -56,3 +56,19 @@ def test_s5_router_defaults_match_presets():
         spec = L.normalise({"router": {"name": name}, "start": "2015-01-01"})
         got = L.router_config(name, L.full_router(spec), L.full_env(spec))
         assert got == PRESETS[name], name
+
+
+def test_policy_counters_survive_checkpoint_state():
+    """Bug (S5 review): fallback counters were lost on resume; they now travel in the state."""
+    coast = build_basin_coast(40e3)
+    polar = synthetic_polar()
+    hold = hold_power_curve(polar)
+    clim = np.zeros(coast.grid.shape, np.float32)
+    p = make_policy(HorizonConfig(), polar, hold, coast, clim)
+    p.n_dp_fallback, p.n_warm_start, p.base.n_hold_fallback = 3, 2, 1
+    st = p.get_state()
+    q = make_policy(HorizonConfig(), polar, hold, coast, clim)
+    q.set_state(__import__("json").loads(__import__("json").dumps(st)))
+    assert (q.n_dp_fallback, q.n_warm_start, q.base.n_hold_fallback) == (3, 2, 1)
+    m = make_policy(HorizonConfig(mean_members=4), polar, hold, coast, clim)  # forwarded
+    assert hasattr(m, "get_state") and m.n_refined == 0

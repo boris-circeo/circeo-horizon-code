@@ -281,3 +281,32 @@ def test_lazy_members_and_memory(wx):
     assert np.array_equal(first, full.uv[0])
     nb = wx.ensemble_nbytes(50, 15 * DAY)
     assert nb == 50 * 121 * wx.grid.ny * wx.grid.nx * 8 and nb < 400e6
+
+
+# ---------------------------------------------------------------- S5 external review
+@pytest.mark.parametrize("now_h", [4, 10, 16])
+def test_forecast_covers_requested_horizon_off_cycle(wx, now_h):
+    """Bug: when ``now - analysis`` is not a multiple of dt the valid times ended up to dt/2
+    short of ``now + horizon`` (round instead of ceil), so the DP tail read persistence."""
+    now, h = now_h * 3600.0, 48 * 3600.0
+    e = wx.forecast(now, h, 1, dt_s=10800.0)
+    assert e.times_s[-1] >= now + h - 1e-6
+
+
+def test_fast_filter_matches_fft(archive, grid):
+    """The dense circulant filter equals the FFT filter to float32 round-off."""
+    from horizon.weather.forecast_model import _SmoothNoise
+    f = _SmoothNoise(grid, 800.0)
+    z = np.random.default_rng(1).standard_normal((5, 2) + grid.shape).astype(np.float32)
+    assert np.abs(f.filter(z) - f.filter_dense(z)).max() < 1e-5
+
+
+def test_white_series_cache_is_exact(archive, grid):
+    a = ERA5ForecastWeather(archive, grid, EPOCH, 30 * DAY, seed=3)
+    b = ERA5ForecastWeather(archive, grid, EPOCH, 30 * DAY, seed=3)
+    b._series_cache_bytes = 0  # cache off
+    x1 = a.forecast(30 * 3600.0, 3 * DAY, 2)
+    a.forecast(36 * 3600.0, 5 * DAY, 2)  # warms / lengthens the cache
+    x2 = a.forecast(30 * 3600.0, 3 * DAY, 2)
+    x3 = b.forecast(30 * 3600.0, 3 * DAY, 2)
+    assert np.array_equal(x1.uv, x2.uv) and np.array_equal(x1.uv, x3.uv)
