@@ -218,12 +218,13 @@ class DeterministicMPCPolicy:
         DP terminal value is ``terminal_clim_kw * min(terminal_days * 24 h, mission time left
         after the window)`` (see :func:`horizon.polar.climatology.terminal_value`).
     terminal_days : float  [d]  Remaining-time scale of that terminal value.
+    max_span : int  DP macro-arc span (stencil, default 2).
     """
 
     def __init__(self, polar: PolarTable, hold_curve: HoldCurve, coast: CoastModel,
                  horizon_days: float = 5.0, dt_s: float = DT_PLAN_S, d_min_m: float = 20e3,
                  reward_model: str = "envelope", terminal_clim_kw: np.ndarray | None = None,
-                 terminal_days: float = 5.0):
+                 terminal_days: float = 5.0, max_span: int = 2):
         self.polar, self.hold, self.coast = polar, hold_curve, coast
         self.horizon_s = horizon_days * 86400.0
         self.dt_s = dt_s
@@ -231,7 +232,8 @@ class DeterministicMPCPolicy:
         self.reward_model = reward_model
         self.terminal_clim_kw = terminal_clim_kw
         self.terminal_days = terminal_days
-        self._stencil = build_stencil(coast.grid, dt_s)
+        self.max_span = max_span
+        self._stencil = build_stencil(coast.grid, dt_s, max_span=max_span)
         self.last_result = None  # DPResult of the latest plan (read by the S2 refiner wrapper)
 
     def plan(self, t_s, x, y, provider):

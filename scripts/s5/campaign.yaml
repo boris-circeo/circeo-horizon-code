@@ -1,0 +1,180 @@
+# Sprint-5 sensitivity campaign (WP4). Re-read by queue.py every cycle: APPEND experiments freely.
+#
+# experiment fields
+#   id        unique name (shown in status.py / aggregate.py)
+#   tier      A (key) | B | C | D...  (priority: all of A before B before C; order in file within a tier)
+#   router    B1c_5d_REF | ENS_REF | Oracle_REF_H | B0
+#   seeds     forecast seeds (default [1]); windows: bench6 | ens4 | any name under `windows:`
+#   variants  list of {name, router: {overrides}, env: {overrides}}   (explicit variants)
+#   vary      {router.<param>|env.<param>: [values]}                    (one variant per value)
+#   oracle / b0 : true -> ALSO run Oracle_REF_H / B0 in the SAME environment (gap, hindsight bound)
+# Router overrides: horizon_days, replan_h, refiner_h (0 = off), terminal (clim|zero), terminal_days,
+#   max_span, router_polar (nominal|truth); ENS_REF also members, k, gamma, alpha.
+# Env overrides: error_scale, latency_h, consistency, spread_factor, season_amp, manoeuvre (bool),
+#   tau_scale, man_rho, man_fixed_kwh, truth_polar_scale, truth_polar_twa_shift, d_min_km, grid_km,
+#   start (offshore | lorient | mid_atlantic | "lon,lat").
+# Cases identical after normalisation (default-valued overrides dropped) are shared and run once.
+# Default environment = "v2": manoeuvre losses ON, nominal ForecastErrorParams, d_min 20 km, 40 km grid.
+
+duration_days: 30
+tiers: [A, B, C, D]
+windows:
+  bench6: ["2015-01-01", "2015-03-01", "2015-05-01", "2015-07-01", "2015-09-01", "2015-11-01"]
+  ens4: ["2015-01-01", "2015-05-01", "2015-07-01", "2015-11-01"]
+  ens2: ["2015-01-01", "2015-07-01"]
+
+experiments:
+  # ------------------------------------------------------------------ Tier A (key)
+  - {id: base_B1c, tier: A, router: B1c_5d_REF, seeds: [1, 2], oracle: true, b0: true}
+  - {id: base_ENS, tier: A, router: ENS_REF, seeds: [1]}
+  - id: fc_error_scale_B1c
+    tier: A
+    router: B1c_5d_REF
+    vary: {env.error_scale: [0.0, 0.5, 1.5, 2.0]}
+  - id: fc_error_scale_ENS
+    tier: A
+    router: ENS_REF
+    vary: {env.error_scale: [0.5, 1.5]}
+  - id: fc_latency_B1c
+    tier: A
+    router: B1c_5d_REF
+    vary: {env.latency_h: [0.0, 12.0]}
+  - id: manoeuvre_off_B1c
+    tier: A
+    router: B1c_5d_REF
+    oracle: true
+    b0: true
+    variants: [{name: manoeuvre_off, env: {manoeuvre: false}}]
+  - id: manoeuvre_tau2.5_B1c
+    tier: A
+    router: B1c_5d_REF
+    oracle: true
+    variants: [{name: tau_x2.5, env: {tau_scale: 2.5}}]
+  - id: refiner_B1c
+    tier: A
+    router: B1c_5d_REF
+    vary: {router.refiner_h: [0.0, 24.0, 72.0]}
+  - id: horizon_B1c
+    tier: A
+    router: B1c_5d_REF
+    vary: {router.horizon_days: [3.0, 7.0, 10.0]}
+  - id: terminal_zero_B1c
+    tier: A
+    router: B1c_5d_REF
+    vary: {router.terminal: [zero]}
+
+  # ------------------------------------------------------------------ Tier B
+  - id: replan_B1c
+    tier: B
+    router: B1c_5d_REF
+    vary: {router.replan_h: [3.0, 12.0, 24.0]}
+  - id: fc_consistency_off_B1c
+    tier: B
+    router: B1c_5d_REF
+    vary: {env.consistency: [false]}
+  - id: fc_season0_B1c
+    tier: B
+    router: B1c_5d_REF
+    vary: {env.season_amp: [0.0]}
+  - id: polar_scale_B1c
+    tier: B
+    router: B1c_5d_REF
+    oracle: true
+    b0: true
+    vary: {env.truth_polar_scale: [0.9, 1.1]}
+  - id: polar_twa_shift_B1c
+    tier: B
+    router: B1c_5d_REF
+    oracle: true
+    vary: {env.truth_polar_twa_shift: [-10.0, 10.0]}
+  - id: dmin_B1c
+    tier: B
+    router: B1c_5d_REF
+    oracle: true
+    vary: {env.d_min_km: [10.0, 40.0]}
+  - id: fc_spread_ENS
+    tier: B
+    router: ENS_REF
+    windows: ens4
+    vary: {env.spread_factor: [0.6, 1.4]}
+  - id: ens_members_ENS
+    tier: B
+    router: ENS_REF
+    windows: ens4
+    vary: {router.members: [10, 40]}
+  - id: ens_k_ENS
+    tier: B
+    router: ENS_REF
+    windows: ens4
+    vary: {router.k: [3, 10]}
+  - id: ens_gamma_ENS
+    tier: B
+    router: ENS_REF
+    windows: ens4
+    vary: {router.gamma: [0.3]}
+
+  # ------------------------------------------------------------------ Tier C
+  - id: maxspan_B1c
+    tier: C
+    router: B1c_5d_REF
+    vary: {router.max_span: [1, 3]}
+  - id: start_point_B1c
+    tier: C
+    router: B1c_5d_REF
+    vary: {env.start: [lorient, mid_atlantic]}
+  - id: grid20_B1c
+    tier: C
+    router: B1c_5d_REF
+    variants: [{name: grid20_span2, env: {grid_km: 20.0}}]
+
+  # ------------------------------------------------------------------ orchestrator addendum (E-xx)
+  # E-11 / H-4-13: ensemble-mean deterministic router (10 members) and lead-blended (control<=72 h)
+  - id: ensmean_B1m
+    tier: A
+    router: B1m_5d_REF
+    windows: ens4
+    variants: [{name: mean10, router: {}}, {name: blend72, router: {blend_h: 72.0}}]
+  # E-12 simple baselines v1 dismissed (greedy hold-power in 24 h reach; max-wind; 10 d DP no refiner)
+  - {id: simple_greedy_hold24, tier: A, router: GREEDY_HOLD24}
+  - {id: simple_greedy_maxwind, tier: A, router: GREEDY_MAXWIND}
+  - id: simple_dp10_norefiner
+    tier: A
+    router: B1c_5d_REF
+    variants: [{name: dp10_noref, router: {horizon_days: 10.0, refiner_h: 0.0}}]
+  # E-04 horizon x terminal grid (terminal clim cells are in horizon_B1c / base; zero cells here)
+  - id: grid_horizon_terminal_zero
+    tier: A
+    router: B1c_5d_REF
+    variants:
+      - {name: h3_zero, router: {horizon_days: 3.0, terminal: zero}}
+      - {name: h7_zero, router: {horizon_days: 7.0, terminal: zero}}
+      - {name: h10_zero, router: {horizon_days: 10.0, terminal: zero}}
+  # H-9-1 survival: storm penalty above 45 kn in DP + refiner (exposure metrics are always recorded)
+  - id: storm_avoid45_B1c
+    tier: B
+    router: B1c_5d_REF
+    vary: {router.storm_kn: [45.0]}
+  # E-14: oracle look-ahead 30 d vs 15 d (base oracle) on 2 windows
+  - id: oracle_h30
+    tier: A
+    router: Oracle_REF_H
+    windows: ens2
+    vary: {router.horizon_days: [30.0]}
+  # E-02: forecast-error STRUCTURE at matched control RMSE (scripts/s5/calibrate_structure.py:
+  # analog 0.96, displacement-only 1.27, amplitude+noise-only 2.53 - mean D1-D7 RMSE match)
+  - id: fc_structure_B1c
+    tier: A
+    router: B1c_5d_REF
+    windows: ens4
+    variants:
+      - {name: analog, env: {structure: analog, analog_scale: 0.961}}
+      - {name: disp_only, env: {disp_scale: 1.27, amp_scale: 0.0, noise_scale: 0.0}}
+      - {name: ampnoise_only, env: {disp_scale: 0.0, amp_scale: 2.53, noise_scale: 2.53}}
+  - id: fc_structure_ENS
+    tier: A
+    router: ENS_REF
+    windows: ens4
+    variants:
+      - {name: analog, env: {structure: analog, analog_scale: 0.961}}
+      - {name: disp_only, env: {disp_scale: 1.27, amp_scale: 0.0, noise_scale: 0.0}}
+      - {name: ampnoise_only, env: {disp_scale: 0.0, amp_scale: 2.53, noise_scale: 2.53}}

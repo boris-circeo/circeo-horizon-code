@@ -54,7 +54,7 @@ class EnsembleMPCPolicy:
                  gamma: float = 0.3, alpha: float = 0.2, split_h: float = 48.0,
                  dt_s: float = DT_PLAN_S, d_min_m: float = 20e3, reward_model: str = "envelope",
                  reduction_tau_d: float = 7.0, terminal_clim_kw: np.ndarray | None = None,
-                 terminal_days: float = 5.0):
+                 terminal_days: float = 5.0, max_span: int = 2):
         self.polar, self.hold, self.coast = polar, hold_curve, coast
         self.horizon_s = horizon_days * 86400.0
         self.n_members, self.k = n_members, k
@@ -64,7 +64,8 @@ class EnsembleMPCPolicy:
         self.tau_s = reduction_tau_d * 86400.0
         self.terminal_clim_kw = terminal_clim_kw  # [kW] climatological hold power, or None
         self.terminal_days = terminal_days
-        self._stencil = build_stencil(coast.grid, dt_s)
+        self.max_span = max_span
+        self._stencil = build_stencil(coast.grid, dt_s, max_span=max_span)
         self.last_diagnostics: dict | None = None
         # DPResult of the trunk (``V[n_split]`` = aggregated value v_bar): read by RefinedMPCPolicy
         self.last_result = None

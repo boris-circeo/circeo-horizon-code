@@ -38,7 +38,7 @@ import numpy as np
 from horizon.geo.coast import SDF_TOL_M, CoastModel
 from horizon.sim.policies import Plan
 from horizon.sim.power import HOLD_SPEED_MS, PowerModel
-from horizon.sim.simulator import MissionResult, SimState, advance, energy_on_truth
+from horizon.sim.simulator import MissionResult, SimState, advance, energy_on_truth_ex, track_tws
 
 __all__ = ["PersistentResult", "RunInterrupted", "SegmentMetrics", "run_persistent",
            "segment_boundaries"]
@@ -63,6 +63,8 @@ class SegmentMetrics:
     replans : int. min_margin_m : float  [m]  Minimum ``SDF - d_min`` over executed chords.
     n_clamped : int  FeasiblePowerModel samples evaluated at a reduced speed.
     wall_s : float  [s]  Wall time of the segment (not part of the checkpoint identity).
+    n_tack, n_gybe, n_turn : int  Manoeuvres charged (0 when the manoeuvre model is off).
+    storm35_h, storm45_h : float [h] with true TWS above 35 / 45 kn; mean_tws : float [m/s].
     """
 
     label: str
@@ -76,6 +78,12 @@ class SegmentMetrics:
     min_margin_m: float
     n_clamped: int
     wall_s: float
+    n_tack: int = 0
+    n_gybe: int = 0
+    n_turn: int = 0
+    storm35_h: float = 0.0
+    storm45_h: float = 0.0
+    mean_tws: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -150,7 +158,8 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
                    out_dir, duration_s: float | None = None, replan_s: float = 6 * 3600.0,
                    sim_dt_s: float = 900.0, u_max: float = 8.0, d_min_m: float = 20e3,
                    segments="month", p_rated_kw: float = 3000.0, tag: str = "", resume: bool = True,
-                   stop_after_segments: int | None = None, log=None) -> PersistentResult:
+                   stop_after_segments: int | None = None, log=None,
+                   manoeuvre=None) -> PersistentResult:
     """Run a (year-long) mission segment by segment with checkpoints; resumable.
 
     Parameters
@@ -171,6 +180,8 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
     stop_after_segments : int, optional  Raise :class:`RunInterrupted` after that many NEW
         segments (tests).
     log : callable, optional  ``log(str)`` progress sink.
+    manoeuvre : ManoeuvreModel, optional  Manoeuvre losses (:mod:`horizon.sim.manoeuvre`); None or
+        disabled reproduces Sprint 4 (same run signature, bit-identical results).
 
     Returns
     -------
@@ -196,6 +207,9 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
            "epoch": str(epoch), "end_s": end_s, "replan_s": replan_s, "sim_dt_s": sim_dt_s,
            "u_max": u_max, "d_min_m": d_min_m, "segments": segments if segments == "month"
            else float(segments), "grid": [g.nx, g.ny, g.dx], "bounds": bnd}
+    man_on = manoeuvre is not None and manoeuvre.enabled
+    if man_on:
+        sig["manoeuvre"] = manoeuvre.signature()
     meta_path = out / "meta.json"
     if meta_path.exists() and resume:
         old = json.loads(meta_path.read_text())
@@ -215,7 +229,7 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
             break
         done.append(json.loads(js.read_text()))
     state = SimState(0, float(x0), float(y0))
-    carried = {"energy_kwh": 0.0}
+    carried = {"energy_kwh": 0.0, "man_prev": None}
     if done:
         st = done[-1]["state"]
         plan = st["plan"]
@@ -226,6 +240,8 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
             float(st["next_replan"]), list(st["replans"]), int(st["guard_interventions"]),
             [tuple(e) for e in st["guard_events"]], float(st["min_margin_m"]))
         carried["energy_kwh"] = float(st["energy_kwh"])
+        mp = st.get("man_prev")
+        carried["man_prev"] = None if mp is None else tuple(mp)
         if st.get("policy_state") is not None and hasattr(policy, "set_state"):
             policy.set_state(st["policy_state"])
     resumed = len(done)
@@ -245,7 +261,9 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
         h0 = np.floor(t_a / 3600.0) * 3600.0
         h1 = min(np.ceil(t_b / 3600.0) * 3600.0 + 3600.0, end_s)
         truth = weather.truth(dt_s=3600.0, start_s=float(h0), end_s=float(max(h1, h0 + 3600.0)))
-        p = energy_on_truth(truth, power_model, t_a, sim_dt_s, xs, ys, ve, vn)
+        p, kind, carried["man_prev"] = energy_on_truth_ex(
+            truth, power_model, t_a, sim_dt_s, xs, ys, ve, vn, manoeuvre, carried["man_prev"])
+        tws = track_tws(truth, t_a, sim_dt_s, xs, ys)
         del truth
         e_seg = float(p.sum() * sim_dt_s / 3600.0)
         carried["energy_kwh"] += e_seg
@@ -255,10 +273,14 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
             float(np.mean(np.hypot(ve, vn) < HOLD_SPEED_MS)),
             float(np.hypot(ve, vn).sum() * sim_dt_s / 1e3), state.guard_interventions - g0,
             len(state.replans) - r0, float(state.min_margin_m),
-            int(getattr(power_model, "n_clamped", 0) - c0), time.perf_counter() - t_wall)
+            int(getattr(power_model, "n_clamped", 0) - c0), time.perf_counter() - t_wall,
+            int((kind == 1).sum()), int((kind == 2).sum()), int((kind == 3).sum()),
+            float((tws > 35 * 0.514444).sum() * sim_dt_s / 3600.0),
+            float((tws > 45 * 0.514444).sum() * sim_dt_s / 3600.0), float(tws.mean()))
+        extra = {"man_kind": kind} if man_on else {}
         _atomic_npz(out / f"seg_{k:04d}.npz", x=xs[:-1], y=ys[:-1], power_kw=p,
                     heading_deg=np.degrees(np.arctan2(ve, vn)) % 360.0, speed_ms=np.hypot(ve, vn),
-                    replans=np.array(state.replans[r0:]))
+                    replans=np.array(state.replans[r0:]), **extra)
         pl = state.plan
         _atomic_json(out / f"seg_{k:04d}.json", {
             "metrics": m.__dict__,
@@ -271,6 +293,7 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
                 "guard_interventions": state.guard_interventions,
                 "guard_events": [list(e) for e in state.guard_events],
                 "min_margin_m": state.min_margin_m, "energy_kwh": carried["energy_kwh"],
+                "man_prev": carried["man_prev"],
                 "policy_state": policy.get_state() if hasattr(policy, "get_state") else None}})
         metrics.append(m)
         if log:
@@ -281,19 +304,22 @@ def run_persistent(policy, weather, start_lonlat, power_model: PowerModel, coast
         if stop_after_segments is not None and new >= stop_after_segments and k < len(bnd) - 2:
             raise RunInterrupted(f"stopped after {new} new segments")
 
-    res = _assemble(out, len(bnd) - 1, sim_dt_s, g, coast, state, d_min_m)
+    res = _assemble(out, len(bnd) - 1, sim_dt_s, g, coast, state, d_min_m, man_on)
     _atomic_json(out / "summary.json", {
         "segments": [m.__dict__ for m in metrics], "energy_kwh": float(res.energy_kwh[-1]),
         "guard_interventions": state.guard_interventions, "coast_violations": res.coast_violations,
-        "min_margin_m": state.min_margin_m})
+        "min_margin_m": state.min_margin_m,
+        "manoeuvres": {"tack": int(sum(m.n_tack for m in metrics)),
+                       "gybe": int(sum(m.n_gybe for m in metrics)),
+                       "turn": int(sum(m.n_turn for m in metrics))}})
     return PersistentResult(res, metrics, resumed, out)
 
 
 def _assemble(out: Path, n_seg: int, sim_dt_s: float, g, coast: CoastModel, state: SimState,
-              d_min_m: float) -> MissionResult:
+              d_min_m: float, man_on: bool = False) -> MissionResult:
     parts = [np.load(out / f"seg_{k:04d}.npz") for k in range(n_seg)]
     cat = {key: np.concatenate([z[key] for z in parts]) for key in
-           ("x", "y", "power_kw", "heading_deg", "speed_ms")}
+           ("x", "y", "power_kw", "heading_deg", "speed_ms") + (("man_kind",) if man_on else ())}
     xs = np.concatenate([cat["x"], [state.x]])
     ys = np.concatenate([cat["y"], [state.y]])
     n = cat["power_kw"].size
@@ -304,4 +330,4 @@ def _assemble(out: Path, n_seg: int, sim_dt_s: float, g, coast: CoastModel, stat
         sim_dt_s * np.arange(n + 1), xs, ys, np.asarray(lon), np.asarray(lat), cat["power_kw"],
         energy, cat["heading_deg"], cat["speed_ms"], np.array(state.replans), viol,
         float(sim_dt_s), state.guard_interventions, tuple(state.guard_events),
-        float(state.min_margin_m))
+        float(state.min_margin_m), cat["man_kind"] if man_on else None)

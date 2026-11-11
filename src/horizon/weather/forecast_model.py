@@ -161,6 +161,59 @@ class ForecastErrorParams:
     latency_ens_h: float = 6.0
     latency_ctrl_h: float = 4.0
     cycle_h: float = 6.0
+    # --- Sprint 5 experiment knobs (defaults = Sprint-4 behaviour bit-for-bit) ---
+    error_scale: float = 1.0
+    """Multiplier of ALL perturbation amplitudes (displacement, amplitude modulation, noise).
+    0 = perfect forecast (every member is the truth)."""
+    perfect: bool = False
+    """Perfect-forecast mode: every member (and the control) equals the truth, whatever the other
+    parameters; equivalent to ``error_scale = 0`` but short-circuits the random fields."""
+
+    disp_scale: float = 1.0
+    amp_scale: float = 1.0
+    noise_scale: float = 1.0
+    """Per-component multipliers (E-02 structure experiments: displacement-only /
+    amplitude+noise-only errors at matched RMSE; calibrate with ``analyze``-style skill runs)."""
+    analog_scale: float = 1.0
+    """Extra multiplier of the analog blend ``b`` (calibrated to the default model's RMSE)."""
+    structure: str = "default"
+    """``"default"``: displaced-truth errors (keeps the true storm structure at every lead).
+    ``"analog"``: structure-DESTROYING errors ``d = b(lead) (A - w)`` with ``A`` the truth of the
+    same valid time shifted by a random 5-25 d (piecewise constant over 4 d, so issue-to-issue
+    consistent); ``b`` is set so that the control RMSE matches ``error_scale *
+    TARGET_CONTROL_RMSE`` (the calibration target of the default model): same RMSE, no phase
+    information about the real fronts."""
+
+    @property
+    def is_perfect(self) -> bool:
+        return bool(self.perfect) or self.error_scale == 0.0
+
+    @classmethod
+    def with_knobs(cls, error_scale: float = 1.0, latency_h: float | None = None,
+                   consistency: bool | None = None, spread_factor: float | None = None,
+                   season_amp: float | None = None, perfect: bool = False,
+                   base: "ForecastErrorParams | None" = None) -> "ForecastErrorParams":
+        """Clean experiment interface: ``base`` (default params) with the knobs applied.
+
+        ``latency_h``: availability latency of the ENS cycle [h] (the control latency is
+        ``max(latency_h - 2, 0)``); 0 = a cycle is usable at its analysis time. ``consistency``:
+        issue-to-issue consistency on / off. ``spread_factor`` kappa < 1 under-, > 1 over-
+        dispersive. ``season_amp``: seasonal skill modulation (0 = none). ``None`` keeps the
+        base value.
+        """
+        from dataclasses import replace
+        b = base or cls()
+        kw: dict = {"error_scale": float(error_scale), "perfect": bool(perfect)}
+        if latency_h is not None:
+            kw.update(use_latency=True, latency_ens_h=float(latency_h),
+                      latency_ctrl_h=max(float(latency_h) - 2.0, 0.0))
+        if consistency is not None:
+            kw["issue_consistency"] = bool(consistency)
+        if spread_factor is not None:
+            kw["spread_factor"] = float(spread_factor)
+        if season_amp is not None:
+            kw["season_amp"] = float(season_amp)
+        return replace(b, **kw)
 
     @classmethod
     def legacy(cls, **kw) -> "ForecastErrorParams":
@@ -361,9 +414,11 @@ class ERA5ForecastWeather:
         nt = lead_s.size
         ny, nx = self.grid.shape
         sc = 1.0 if season is None else season[:, None, None]
-        s_d = _interp_knots(lead_s, p.disp_km)[:, None, None] * 1e3 / np.sqrt(2.0) * sc
-        s_a = _interp_knots(lead_s, p.amp_frac)[:, None, None] * sc
-        s_n = _interp_knots(lead_s, p.noise_ms)[:, None, None, None]
+        es = p.error_scale
+        s_d = (_interp_knots(lead_s, p.disp_km)[:, None, None] * 1e3 / np.sqrt(2.0) * sc * es
+               * p.disp_scale)
+        s_a = _interp_knots(lead_s, p.amp_frac)[:, None, None] * sc * es * p.amp_scale
+        s_n = _interp_knots(lead_s, p.noise_ms)[:, None, None, None] * es * p.noise_scale
         # backward warp with bilinear sampling of the truth (components kept true east/north)
         fi = np.clip(self._I[None] + s_d * xi_d[:, 0] / self.grid.dx, 0.0, nx - 1.0)
         fj = np.clip(self._J[None] + s_d * xi_d[:, 1] / self.grid.dx, 0.0, ny - 1.0)
@@ -388,7 +443,31 @@ class ERA5ForecastWeather:
         xi_n = _ar1(self._f_noise.draw(rng, (nt, 2)), np.exp(-dt_s / (p.noise_tau_h * 3600.0)))
         return self._warp(w, lead_s, xi_d, xi_a, xi_n, season)
 
+    def _analog_draw(self, w, lead, t, analysis_s, stream) -> np.ndarray:
+        """Structure-destroying perturbation (see ``ForecastErrorParams.structure``)."""
+        p = self.params
+        blk = int(np.floor(analysis_s / (96 * 3600.0)))
+        rng = np.random.default_rng(np.random.SeedSequence([self.seed, 77, stream[0], stream[1],
+                                                            blk + _SHIFT]))
+        shift = rng.uniform(5.0, 25.0) * _DAY * (1 if rng.random() < 0.5 else -1)
+        lo = (self.archive.start - self.epoch) / np.timedelta64(1, "s")
+        hi = (self.archive.end - self.epoch) / np.timedelta64(1, "s")
+        if t.max() + shift > hi or t.min() + shift < lo:
+            shift = -shift
+        if t.max() + shift > hi or t.min() + shift < lo:
+            shift = 0.0 if t.max() + 15 * _DAY > hi else shift
+            shift = np.clip(shift, lo - t.min(), hi - t.max())
+        a = self._truth_at(t + shift)
+        diff = a - w
+        rms = np.sqrt(np.maximum((diff.astype(np.float64) ** 2).sum(-1).mean(axis=(1, 2)), 1e-9))
+        tgt = np.interp(lead / _DAY, list(TARGET_CONTROL_RMSE), list(TARGET_CONTROL_RMSE.values()))
+        # control error = b (A_k - A_t), rms ~ b * rms(A - w)
+        b = np.clip(tgt * p.error_scale * p.analog_scale / rms, 0.0, 1.0)
+        return (b[:, None, None, None] * diff).astype(np.float32)
+
     def _draw(self, w, lead, t, dt_s, analysis_s, stream, season) -> np.ndarray:
+        if self.params.structure == "analog":
+            return self._analog_draw(w, lead, t, analysis_s, stream)
         if self.params.issue_consistency:
             xi = self._unit_fields(stream, analysis_s, t)
             return self._warp(w, lead, *xi, season=season)
@@ -409,6 +488,11 @@ class ERA5ForecastWeather:
         lead = np.arange(nt) * dt_s
         t = analysis_s + lead
         w = self._truth_at(t)
+        if self.params.is_perfect:  # perfect-forecast mode: every member is the truth
+            def gen_perfect():
+                for _ in range(n_members):
+                    yield np.array(w, dtype=np.float32)
+            return t, gen_perfect()
         season = self._season(t) if self.params.season_amp else None
         kap = self.params.spread_factor
         centre = w - self._draw(w, lead, t, dt_s, analysis_s, (0, 0), season)

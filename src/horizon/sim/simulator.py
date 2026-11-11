@@ -31,7 +31,8 @@ from horizon.sim.power import PowerModel
 from horizon.weather.fields import Ensemble, WindField
 
 __all__ = ["CausalityError", "ForecastProvider", "MissionResult", "SimState", "advance",
-           "energy_on_truth", "run_mission", "sample_wind", "truncate_horizon"]
+           "energy_on_truth", "energy_on_truth_ex", "run_mission", "sample_wind", "track_tws",
+           "truncate_horizon"]
 
 
 class CausalityError(RuntimeError):
@@ -90,6 +91,8 @@ class MissionResult:
     guard_events : tuple of (t_s, x, y, fraction) of the first interventions (at most 1000).
     min_margin_m : float [m]  Minimum over all executed chords of ``SDF - d_min`` (exact on the
         bilinear SDF; ``>= 0`` means the continuous executed track never went below ``d_min``).
+    manoeuvre_kind : (n,) int8 or None  Per-step manoeuvre class (0 none, 1 tack, 2 gybe, 3 turn)
+        when the manoeuvre model is enabled (:mod:`horizon.sim.manoeuvre`).
     """
 
     t_s: np.ndarray
@@ -107,6 +110,7 @@ class MissionResult:
     guard_interventions: int = 0
     guard_events: tuple = ()
     min_margin_m: float = float("nan")
+    manoeuvre_kind: np.ndarray | None = None
 
     @property
     def n_replans(self) -> int:
@@ -234,19 +238,47 @@ def advance(policy: Policy, weather, coast: CoastModel, state: SimState, n_steps
     return xs, ys, ve, vn
 
 
-def energy_on_truth(truth: WindField, power_model: PowerModel, t_start_s: float, sim_dt_s: float,
-                    xs, ys, ve, vn) -> np.ndarray:
-    """Mean power [kW] of each step on the true wind (mid-step time and mid-chord position)."""
+def energy_on_truth_ex(truth: WindField, power_model: PowerModel, t_start_s: float,
+                       sim_dt_s: float, xs, ys, ve, vn, manoeuvre=None, prev=None):
+    """As :func:`energy_on_truth` plus manoeuvre losses; returns ``(p_kw, kind, new_prev)``.
+
+    ``manoeuvre`` : :class:`~horizon.sim.manoeuvre.ManoeuvreModel` or None / disabled (then
+    ``kind`` is all zeros and ``p_kw`` is bit-identical to the Sprint-4 value). ``prev`` is the
+    detector state carried across segments (see :func:`horizon.sim.manoeuvre.detect_manoeuvres`).
+    """
     n = ve.size
     t_mid = t_start_s + sim_dt_s * (np.arange(n) + 0.5)
     u, v = sample_wind(truth, t_mid, 0.5 * (xs[:-1] + xs[1:]), 0.5 * (ys[:-1] + ys[1:]))
-    return np.asarray(power_model.power_kw(u, v, ve, vn), dtype=float)
+    p = np.asarray(power_model.power_kw(u, v, ve, vn), dtype=float)
+    if manoeuvre is None or not manoeuvre.enabled:
+        return p, np.zeros(n, np.int8), prev
+    from horizon.sim.manoeuvre import apply_manoeuvre_losses, detect_manoeuvres
+    from horizon.sim.power import HOLD_SPEED_MS
+
+    moving = np.hypot(ve, vn) >= HOLD_SPEED_MS
+    psi = np.degrees(np.arctan2(ve, vn)) % 360.0
+    kind, new_prev = detect_manoeuvres(psi, u, v, moving, manoeuvre, prev)
+    return apply_manoeuvre_losses(p, kind, sim_dt_s, manoeuvre), kind, new_prev
+
+
+def track_tws(truth: WindField, t_start_s: float, sim_dt_s: float, xs, ys) -> np.ndarray:
+    """True wind speed [m/s] experienced at mid-step / mid-chord (exposure metrics)."""
+    n = len(xs) - 1
+    t_mid = t_start_s + sim_dt_s * (np.arange(n) + 0.5)
+    u, v = sample_wind(truth, t_mid, 0.5 * (xs[:-1] + xs[1:]), 0.5 * (ys[:-1] + ys[1:]))
+    return np.hypot(u, v)
+
+
+def energy_on_truth(truth: WindField, power_model: PowerModel, t_start_s: float, sim_dt_s: float,
+                    xs, ys, ve, vn) -> np.ndarray:
+    """Mean power [kW] of each step on the true wind (mid-step time and mid-chord position)."""
+    return energy_on_truth_ex(truth, power_model, t_start_s, sim_dt_s, xs, ys, ve, vn)[0]
 
 
 def run_mission(policy: Policy, weather, truth: WindField, start_lonlat: tuple[float, float],
                 duration_s: float, power_model: PowerModel, coast: CoastModel,
                 replan_s: float = 6 * 3600.0, sim_dt_s: float = 900.0, u_max: float = 8.0,
-                d_min_m: float = 20e3, guard: bool = True) -> MissionResult:
+                d_min_m: float = 20e3, guard: bool = True, manoeuvre=None) -> MissionResult:
     """Run one closed-loop mission.
 
     Parameters
@@ -264,6 +296,7 @@ def run_mission(policy: Policy, weather, truth: WindField, start_lonlat: tuple[f
     u_max : float  [m/s]  Ground-speed cap.
     d_min_m : float  [m]
     guard : bool  Enable the coast safety guard (default; disable only to diagnose planners).
+    manoeuvre : ManoeuvreModel, optional  Charge manoeuvre losses (None / disabled = Sprint 4).
 
     Returns
     -------
@@ -276,7 +309,7 @@ def run_mission(policy: Policy, weather, truth: WindField, start_lonlat: tuple[f
     xs, ys, ve, vn = advance(policy, weather, coast, state, n, duration_s, replan_s, sim_dt_s,
                              u_max, d_min_m, guard)
     t_grid = sim_dt_s * np.arange(n + 1)
-    p = energy_on_truth(truth, power_model, 0.0, sim_dt_s, xs, ys, ve, vn)
+    p, kind, _ = energy_on_truth_ex(truth, power_model, 0.0, sim_dt_s, xs, ys, ve, vn, manoeuvre)
     energy = np.concatenate([[0.0], np.cumsum(p * sim_dt_s / 3600.0)])
     lon, lat = g.to_lonlat(xs, ys)
     viol = int(np.count_nonzero(~(coast.sdf_at(xs, ys) >= d_min_m - SDF_TOL_M)))
@@ -284,4 +317,5 @@ def run_mission(policy: Policy, weather, truth: WindField, start_lonlat: tuple[f
                          np.degrees(np.arctan2(ve, vn)) % 360.0, np.hypot(ve, vn),
                          np.array(state.replans), viol, float(sim_dt_s),
                          state.guard_interventions, tuple(state.guard_events),
-                         float(state.min_margin_m))
+                         float(state.min_margin_m),
+                         kind if (manoeuvre is not None and manoeuvre.enabled) else None)

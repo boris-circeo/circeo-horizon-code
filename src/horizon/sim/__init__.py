@@ -1,5 +1,6 @@
 """Closed-loop causal simulator, baseline policies, hindsight oracle and metrics (DES-860 §8)."""
 
+from horizon.sim.manoeuvre import ManoeuvreModel
 from horizon.sim.metrics import MissionMetrics, mission_metrics
 from horizon.sim.policies import (
     DeterministicMPCPolicy,
@@ -22,12 +23,15 @@ from horizon.sim.simulator import (
     SimState,
     advance,
     energy_on_truth,
+    energy_on_truth_ex,
     run_mission,
 )
 
 __all__ = [
-    "CausalityError", "DeterministicMPCPolicy", "DirectPowerModel", "EnvelopePowerModel",
+    "ManoeuvreModel", "CausalityError", "DeterministicMPCPolicy", "DirectPowerModel",
+    "EnvelopePowerModel",
     "FeasiblePowerModel", "ForecastProvider", "HoldAtPointPolicy", "MissionMetrics",
     "MissionResult", "SimState", "OraclePolicy", "Plan", "Policy", "PowerModel",
-    "advance", "best_climatological_point", "energy_on_truth", "mission_metrics", "run_mission",
+    "advance", "best_climatological_point", "energy_on_truth", "energy_on_truth_ex",
+    "mission_metrics", "run_mission",
 ]

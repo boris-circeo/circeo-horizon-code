@@ -100,7 +100,7 @@ def test_safe_stats_and_hook(figures):
     from horizon.viz import build_html, load_export
 
     data = load_export(EXPORT)
-    page = build_html(data, tech_figures=figures[:1])
+    page = build_html(data, tech_figures=figures[:1], gzip_data=False)
     m = re.search(r'<script id="hz-content" type="application/json">(.*?)</script>', page, re.S)
     content = json.loads(m.group(1).replace("\\u003c", "<"))
     assert content["tech_figures"][0]["id"] == figures[0]["id"]
