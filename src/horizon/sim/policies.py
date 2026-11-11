@@ -90,14 +90,6 @@ class Policy(Protocol):
         ...
 
 
-def _nearest_cell(grid: Grid, mask: np.ndarray, x: float, y: float) -> tuple[int, int]:
-    """Indices ``(j, i)`` of the cell with ``mask`` True nearest to ``(x, y)`` [m]."""
-    X, Y = grid.xy_mesh()
-    d2 = np.where(mask, (X - x) ** 2 + (Y - y) ** 2, np.inf)
-    j, i = np.unravel_index(int(np.argmin(d2)), d2.shape)
-    return int(j), int(i)
-
-
 def _safe_start(coast: CoastModel, d_min: float, finite: np.ndarray, path_fn, x: float, y: float,
                 n_try: int = 24):
     """Start cell + path whose FIRST chord (actual position -> first plan node) is coast-clear.
