@@ -198,11 +198,32 @@ def test_size_budget(export):
     assert len(html.encode()) < 15e6
 
 
+def test_lite_export_thins_data_and_keeps_metrics(export):
+    from horizon.viz import lite_export, validate_export
+    from horizon.viz.export import decode_array
+
+    export, _ = export
+    lite = lite_export(export, wind_step=2, track_step=3, wind_stride=1, wind_quant=3)
+    validate_export(lite)
+    s0, s1 = export["seeds"][0], lite["seeds"][0]
+    assert lite["meta"]["lite"] and lite["meta"]["export_dt_s"] == 3 * export["meta"]["export_dt_s"]
+    assert s1["wind"]["nt"] == len(range(0, s0["wind"]["nt"], 2))
+    assert s1["wind"]["dt_s"] == 2 * s0["wind"]["dt_s"]
+    assert len(s1["t_s"]) == len(range(0, len(s0["t_s"]), 3))
+    assert np.all(decode_array(s1["wind"]["u"]) % 3 == 0)
+    for n, r in s0["runs"].items():
+        assert s1["runs"][n]["metrics"] == r["metrics"]
+        assert s1["runs"][n]["replans"] == r["replans"]
+    html = build_html(export, lite=True)
+    assert 'data-enc="gzip-base64"' in html and "fflate" in html
+
+
 @pytest.mark.parametrize("gz", [True, False])
 def test_html_embeds_data_and_is_offline(export, gz):
     data, _ = export
     html = build_html(data, gzip_data=gz)
-    assert 'id="hz-data"' in html and html.count("<script") == 3 and "hz-content" in html
+    assert 'id="hz-data"' in html and html.count("<script") == 4
+    assert "hz-content" in html and "fflate" in html
     assert "<!--__DATA__-->" not in html and "<!--__TITLE__-->" not in html
     assert not re.findall(r"https?://", html)
     assert not re.search(r"<(script|link|img)[^>]+(src|href)\s*=\s*(?![\"']?data:)", html)

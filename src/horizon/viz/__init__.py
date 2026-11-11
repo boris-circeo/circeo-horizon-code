@@ -5,6 +5,7 @@ from horizon.viz.export import (
     RecordingPolicy,
     SeedRun,
     export_backtest,
+    lite_export,
     load_export,
     merge_exports,
     save_export,
@@ -13,4 +14,5 @@ from horizon.viz.export import (
 from horizon.viz.inspector import build_html, write_inspector
 
 __all__ = ["SCHEMA_VERSION", "RecordingPolicy", "SeedRun", "build_html", "export_backtest",
-           "load_export", "merge_exports", "save_export", "validate_export", "write_inspector"]
+           "lite_export", "load_export", "merge_exports", "save_export", "validate_export",
+           "write_inspector"]

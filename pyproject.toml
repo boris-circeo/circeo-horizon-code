@@ -32,7 +32,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "horizon.geo" = ["assets/*.npz"]
-"horizon.viz" = ["template.html", "content/*"]
+"horizon.viz" = ["template.html", "content/*", "vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

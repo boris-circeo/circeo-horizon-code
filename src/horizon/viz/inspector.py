@@ -14,11 +14,11 @@ import json
 import re
 from pathlib import Path
 
-from horizon.viz.export import load_export, validate_export
+from horizon.viz.export import lite_export, load_export, validate_export
 
 __all__ = ["build_html", "write_inspector"]
 
-INSPECTOR_VERSION = "4.7"
+INSPECTOR_VERSION = "4.7.1"
 """Inspector release shown in the page header and stored in ``meta.inspector_version``."""
 _TEMPLATE = Path(__file__).with_name("template.html")
 _CONTENT = Path(__file__).with_name("content")
@@ -85,14 +85,18 @@ def _tech_figures(data: dict, spec) -> list:
     return []
 
 
-def build_html(data: dict, gzip_data: bool = True, tech_figures: list | bool | None = None) -> str:
+def build_html(data: dict, gzip_data: bool = True, tech_figures: list | bool | None = None,
+               lite: bool | dict = False) -> str:
     """Render the inspector page for an export dict.
 
     Parameters
     ----------
     data : dict  Export produced by :func:`horizon.viz.export.export_backtest`.
-    gzip_data : bool  Embed as gzip + base64 (smaller; needs ``DecompressionStream``, available
-        in current Chrome/Edge/Firefox/Safari) or as plain JSON.
+    gzip_data : bool  Embed as gzip + base64 (smaller; decompressed natively when available,
+        else with the bundled pure-JS fallback) or as plain JSON.
+    tech_figures : list or bool, optional  Technical Guide figures (see :func:`_tech_figures`).
+    lite : bool or dict  Thin the data with :func:`horizon.viz.export.lite_export` for a small,
+        shareable file (a dict gives its keyword arguments).
 
     Returns
     -------
@@ -101,6 +105,9 @@ def build_html(data: dict, gzip_data: bool = True, tech_figures: list | bool | N
     """
     validate_export(data)
     tech = _tech_figures(data, tech_figures)
+    if lite:
+        data = lite_export(data, **(lite if isinstance(lite, dict) else {}))
+        validate_export(data)
     data = {k: v for k, v in data.items() if k != "tech_figures"}
     data = {**data, "meta": {**data["meta"], "inspector_version": INSPECTOR_VERSION}}
     raw = json.dumps(data, separators=(",", ":"), allow_nan=False).encode()
@@ -115,15 +122,24 @@ def build_html(data: dict, gzip_data: bool = True, tech_figures: list | bool | N
     if tech:
         content_d["tech_figures"] = tech
     content = json.dumps(content_d, separators=(",", ":"), ensure_ascii=False)
-    tag += ('<script id="hz-content" type="application/json">'
-            + content.replace("<", "\\u003c") + "</script>")
+    # Pure-JS gunzip fallback (fflate 0.8.2, MIT) for browsers/webviews whose native
+    # DecompressionStream is missing or fails (e.g. some mobile in-app viewers).
+    ff = (_TEMPLATE.parent / "vendor" / "fflate.umd.js").read_text(encoding="utf-8")
+    tag += "<script>/* fflate 0.8.2 (c) Arjun Barrett, MIT licence */\n" + ff + "</script>"
+    if gzip_data:   # the guide and the (SVG) technical figures compress ~5x
+        cpay = base64.b64encode(gzip.compress(content.encode(), 9, mtime=0)).decode("ascii")
+        tag += ('<script id="hz-content" type="application/octet-stream" '
+                f'data-enc="gzip-base64">{cpay}</script>')
+    else:
+        tag += ('<script id="hz-content" type="application/json">'
+                + content.replace("<", "\\u003c") + "</script>")
     page = _TEMPLATE.read_text(encoding="utf-8")
     page = page.replace("<!--__TITLE__-->", html.escape(data["title"]))
     return page.replace("<!--__DATA__-->", tag)
 
 
 def write_inspector(results: str | Path | dict, out: str | Path, gzip_data: bool = True,
-                    tech_figures: list | bool | None = None) -> Path:
+                    tech_figures: list | bool | None = None, lite: bool | dict = False) -> Path:
     """Write the inspector HTML.
 
     Parameters
@@ -131,9 +147,10 @@ def write_inspector(results: str | Path | dict, out: str | Path, gzip_data: bool
     results : path or dict  An export file (``.json`` / ``.json.gz``) or the export dict.
     out : path  Output ``.html``.
     gzip_data : bool  See :func:`build_html`.
+    tech_figures, lite : see :func:`build_html`.
     """
     data = results if isinstance(results, dict) else load_export(results)
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_html(data, gzip_data, tech_figures), encoding="utf-8")
+    out.write_text(build_html(data, gzip_data, tech_figures, lite), encoding="utf-8")
     return out

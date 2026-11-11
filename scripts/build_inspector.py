@@ -22,6 +22,12 @@ def main() -> None:
     ap.add_argument("--no-gzip", action="store_true", help="embed plain JSON instead of gzip")
     ap.add_argument("--tech-figures", action="store_true",
                     help="compute the technical Guide figures (client data; slow once)")
+    ap.add_argument("--lite", action="store_true",
+                    help="shareable lite file (wind every 12 h, tracks every 3 h; ~3 MB, phones)")
+    ap.add_argument("--wind-step", type=int, default=2, help="--lite: every n-th wind snapshot")
+    ap.add_argument("--track-step", type=int, default=3, help="--lite: every n-th track sample")
+    ap.add_argument("--wind-stride", type=int, default=1, help="--lite: keep every n-th wind cell")
+    ap.add_argument("--wind-quant", type=int, default=3, help="--lite: wind code rounding step")
     a = ap.parse_args()
     p = Path(a.results)
     files = sorted(f for f in p.iterdir() if f.name.endswith((".json", ".json.gz"))) \
@@ -31,7 +37,11 @@ def main() -> None:
     data = load_export(files[0])
     for f in files[1:]:
         merge_exports(data, load_export(f))
-    out = write_inspector(data, a.out, gzip_data=not a.no_gzip, tech_figures=a.tech_figures or None)
+    lite = {"wind_step": a.wind_step, "track_step": a.track_step,
+            "wind_stride": a.wind_stride,
+            "wind_quant": a.wind_quant} if a.lite else False
+    out = write_inspector(data, a.out, gzip_data=not a.no_gzip, tech_figures=a.tech_figures or None,
+                          lite=lite)
     print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB)")
 
 

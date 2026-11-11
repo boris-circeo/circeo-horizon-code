@@ -10,8 +10,8 @@
 body.dark{--bg:#12151c;--card:#1b2029;--ink:#e6e9f0;--mute:#98a2b3;--line:#2b3240;--grid:#262c38;--accent:#7aa2ff;
 --land:#4a4a46;--buf:#3a3a36;--band:rgba(245,170,20,.14);--sea:#1b2433;--hl:#3a3320;--bad:#ff7b72;--good:#58d68d}
 *{box-sizing:border-box}
-html{font-size:13px}
-body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html{font-size:13px;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom);background:var(--bg);color:var(--ink);font:1rem/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{display:flex;flex-wrap:wrap;gap:0.615rem 1.385rem;align-items:center;padding:0.769rem 1.231rem;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
 h1{font-size:1.231rem;margin:0}
 .meta{color:var(--mute);font-size:0.923rem}
@@ -20,7 +20,7 @@ button,select{font:inherit;color:var(--ink);background:var(--card);border:1px so
 button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 button:hover{border-color:var(--accent)}
 .bar{display:flex;flex-wrap:wrap;gap:0.462rem 1.077rem;align-items:center;padding:0.615rem 1.231rem;border-bottom:1px solid var(--line);background:var(--card)}
-.chip{display:inline-flex;align-items:center;gap:0.385rem;padding:0.154rem 0.692rem 0.154rem 0.462rem;border:1px solid var(--line);border-radius:7.615rem;cursor:pointer;user-select:none}
+.chip{display:inline-flex;align-items:center;gap:0.385rem;padding:0.154rem 0.692rem 0.154rem 0.462rem;border:1px solid var(--line);border-radius:7.615rem;cursor:pointer;-webkit-user-select:none;user-select:none}
 .chip.off{opacity:.4}
 .rb{display:inline-block;font-size:.72rem;line-height:1.35;padding:0 .5rem;margin-left:.4rem;border-radius:1rem;border:1px solid currentColor;font-weight:600;letter-spacing:.02em;vertical-align:middle;white-space:nowrap;background:transparent}
 .rb-bound{color:#7d55c7}.rb-frontier{color:#0a8f62}.rb-intermediate{color:#b87a00}.rb-reference{color:#667386}
@@ -107,7 +107,7 @@ body.wide .card{margin-bottom:.9rem}
 .brand{display:none;font-weight:300;letter-spacing:.42em;font-size:1.05rem}
 body.showcase{--bg:#05080f;--card:#0b1220;--ink:#eef2f9;--mute:#8c98ad;--line:rgba(255,255,255,.09);--grid:rgba(255,255,255,.06);--accent:#58c4ff;--hl:#12203a;
  background:radial-gradient(70rem 36rem at 12% -8%,rgba(40,90,170,.34),transparent 60%),radial-gradient(60rem 34rem at 100% 4%,rgba(110,50,150,.22),transparent 60%),#05080f}
-body.showcase header{background:rgba(5,8,15,.72);backdrop-filter:blur(14px);border-bottom-color:rgba(255,255,255,.07)}
+body.showcase header{background:rgba(5,8,15,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom-color:rgba(255,255,255,.07)}
 body.showcase #ttl,body.showcase #meta,body.showcase #bar,body.showcase #chips,body.showcase #theme{display:none}
 body.showcase .brand{display:inline}
 body.showcase main{padding:0}
@@ -160,6 +160,8 @@ body.showcase main{padding:0}
 .sc-item{padding:1.3rem 1.3rem 1.2rem;border-radius:1.1rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025)}
 .sc-item svg{width:2.7rem;height:2.7rem;stroke:#58c4ff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-bottom:.7rem}
 .sc-item b{display:block;font-size:1.12rem;font-weight:500;color:#fff;margin-bottom:.25rem}.sc-item span{color:#aab6ca;font-size:.97rem;line-height:1.45}
+.loading{padding:4rem 1rem;text-align:center;color:var(--mute);font-size:1.1rem}.loading .spin{width:2rem;height:2rem;margin:0 auto 1rem;border:.25rem solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:hzspin 1s linear infinite}@keyframes hzspin{to{transform:rotate(360deg)}}
+#litebar{display:flex;gap:.8rem;align-items:center;justify-content:space-between;margin:.4rem .8rem;padding:.5rem .9rem;border-radius:.7rem;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:.9rem;line-height:1.35}#litebar button{flex:none;min-height:0;padding:.1rem .6rem}
 .sc-duo{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(18rem,1fr);gap:1.3rem;margin-top:1.3rem;align-items:stretch}.sc-duo .sc-chart{margin-top:0}
 .sc-polar canvas{display:block;margin:.2rem auto 0;max-width:100%;border:none}.sc-pcap{margin-top:.7rem;color:#c4cfe2;font-size:.97rem;line-height:1.5}.sc-pcap b{color:#fff;font-weight:500}
 .sc-leg svg{vertical-align:middle;margin-right:.45rem;overflow:visible}
@@ -279,32 +281,63 @@ const mshort = q => ERA() ? (q.epoch || D.meta.epoch).slice(5, 10) : String(q.se
 const info = k => G.defs[k] ? `<i class="ii" data-d="${esc(k)}">i</i>` : "";
 
 // ------------------------------------------------------------------ data loading
-function b64bytes(b64) {
-  const bin = atob(b64), u = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+function b64bytes(b64) { // chunked base64 decode (a single huge atob() string can exhaust memory in iOS web views)
+  const n = b64.length, pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0, u = new Uint8Array(n / 4 * 3 - pad), CH = 1 << 16;   // CH: multiple of 4
+  let o = 0;
+  for (let p = 0; p < n; p += CH) { const bin = atob(b64.slice(p, p + CH)); for (let i = 0; i < bin.length; i++) u[o++] = bin.charCodeAt(i); }
   return u;
 }
-async function loadData() {
-  const el = document.getElementById("hz-data");
-  if (el.dataset.enc === "json") return JSON.parse(el.textContent);
-  if (typeof DecompressionStream === "undefined") throw new Error("This browser lacks DecompressionStream; use a current Chrome, Edge, Firefox or Safari.");
-  const ds = new Blob([b64bytes(el.textContent.trim())]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return JSON.parse(await new Response(ds).text());
+/* --- execution context: constrained viewers (WhatsApp / iOS Quick Look, Android WebView, low memory) start in a LIGHT mode --- */
+const UA = navigator.userAgent || "", HASHQ = location.search + location.hash;
+const CTX = (() => {
+  const ios = /iPhone|iPad|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+  const inApp = (ios && !/Safari\//.test(UA)) || /; wv\)|WhatsApp|FBAN|FBAV|Instagram|MicroMessenger|Telegram/i.test(UA);
+  const mem = navigator.deviceMemory || 8, small = Math.min(screen.width || 9999, screen.height || 9999) < 600, noDS = typeof DecompressionStream === "undefined";
+  const lowMem = mem <= 2 || (small && (noDS || mem <= 4)), force = /[?&#]light\b/.test(HASHQ) ? true : /[?&#]full\b/.test(HASHQ) ? false : null;
+  return {ios, inApp, lowMem, noDS, light: force === null ? (inApp || lowMem) : force};
+})();
+const LITE = CTX.light;
+const nextPaint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));   // let the browser paint a progress message
+function loadNote(i) {
+  let fr = true; try { fr = (localStorage.getItem("hz-lang") || (navigator.language || "fr")).slice(0, 2) !== "en"; } catch (e) { /* ignore */ }
+  const m = [["Chargement des données…", "Loading data…"], ["Décompression…", "Decompressing…"], ["Préparation de l'inspecteur…", "Preparing the inspector…"]][i], a = document.getElementById("app");
+  if (a) a.innerHTML = `<div class="loading"><div class="spin"></div>${m[fr ? 0 : 1]}</div>`;
+}
+async function gunzipText(bytes) {
+  // 1) native streaming gunzip (fast); 2) pure-JS fallback (fflate) for webviews where the native path is
+  // missing or fails ("I/O read operation failed" on some mobile viewers, no DecompressionStream in iOS Quick Look)
+  if (typeof DecompressionStream !== "undefined" && !/[?&#]nods\b/.test(HASHQ)) {
+    try {
+      const ds = new Response(bytes).body.pipeThrough(new DecompressionStream("gzip"));
+      return await new Response(ds).text();
+    } catch (e) { console.warn("native gunzip failed, using fallback:", e); }
+  }
+  if (typeof fflate === "undefined") throw new Error("Cannot decompress data in this browser; open the file in Chrome, Safari, Firefox or Edge.");
+  return new TextDecoder().decode(fflate.gunzipSync(bytes));
+}
+async function readBlock(id) { // embedded JSON block (plain or gzip+base64); the DOM copy is released as soon as it is decoded
+  const el = document.getElementById(id), enc = el.dataset.enc;
+  if (enc !== "gzip-base64") { const o = JSON.parse(el.textContent); el.textContent = ""; return o; }
+  let bytes = b64bytes(el.textContent.trim()); el.textContent = "";
+  if (id === "hz-data") { loadNote(1); await nextPaint(); }
+  const txt = await gunzipText(bytes); bytes = null;
+  return JSON.parse(txt);
 }
 const nz = a => Float64Array.from(a, v => v === null ? NaN : v);
 function prepare(d) {
   const mp = d.map;
-  mp.SDF = new Int16Array(b64bytes(mp.sdf.b64).buffer);
+  const bin = (o, T) => { const a = new T(b64bytes(o.b64).buffer); delete o.b64; return a; };   // decode, then free the base64 string
+  mp.SDF = bin(mp.sdf, Int16Array);
   const g = mp.grid;
   mp.xmin = g.x0_km - g.dx_km / 2; mp.xmax = g.x0_km + (g.nx - 0.5) * g.dx_km;
   mp.ymin = g.y0_km - g.dx_km / 2; mp.ymax = g.y0_km + (g.ny - 0.5) * g.dx_km;
   if (mp.land_vec) { // vector land: rings of delta-coded int16 vertices -> absolute km (optional; raster fallback when absent)
-    const lv = mp.land_vec, dd = new Int16Array(b64bytes(lv.d.b64).buffer), u = lv.unit_m / 1000; let q = 0; mp.LV = [];
+    const lv = mp.land_vec, dd = bin(lv.d, Int16Array), u = lv.unit_m / 1000; let q = 0; mp.LV = [];
     lv.n.forEach((n, r) => { const a = new Float64Array(2 * n); let x = lv.start[2 * r], y = lv.start[2 * r + 1]; a[0] = lv.origin_km[0] + x * u; a[1] = lv.origin_km[1] + y * u;
       for (let k = 1; k < n; k++) { x += dd[q++]; y += dd[q++]; a[2 * k] = lv.origin_km[0] + x * u; a[2 * k + 1] = lv.origin_km[1] + y * u; } mp.LV.push(a); });
   }
   if (mp.era5_mask) {
-    mp.M = new Uint8Array(b64bytes(mp.era5_mask.b64).buffer);
+    mp.M = bin(mp.era5_mask, Uint8Array);
     // smooth version of the ERA5 mask (two box blurs, ~200 km): >= 0.5 inside the box, fading to 0 outside, no pixel staircase
     const nx = g.nx, ny = g.ny, R = 8; let A = Float32Array.from(mp.M), Bq = new Float32Array(nx * ny);
     for (let pass = 0; pass < 2; pass++) {
@@ -313,7 +346,7 @@ function prepare(d) {
     }
     mp.B = A;
   }
-  if (d.polar) { const pl = d.polar; pl.P = new Int16Array(b64bytes(pl.p.b64).buffer); pl.nT = pl.tws_kn.length; pl.nA = pl.twa_deg.length; pl.nU = pl.u_ms.length; pl.umax = pl.u_ms[pl.nU - 1]; }
+  if (d.polar) { const pl = d.polar; pl.P = bin(pl.p, Int16Array); pl.nT = pl.tws_kn.length; pl.nA = pl.twa_deg.length; pl.nU = pl.u_ms.length; pl.umax = pl.u_ms[pl.nU - 1]; }
   d.pnames = d.policies.map(p => p.name);
   d.color = {}; let k = 0;
   d.pnames.forEach(n => { d.color[n] = FIXED[n] || PAL[k++ % PAL.length]; });
@@ -321,8 +354,8 @@ function prepare(d) {
   d.pnames.sort((a, b) => ROLE_ORDER.indexOf(roleOf(a, d.meta)) - ROLE_ORDER.indexOf(roleOf(b, d.meta)));   // bound, frontier, intermediate, reference (colours already assigned)
   for (const s of d.seeds) {
     const w = s.wind;
-    w.U = new Int8Array(b64bytes(w.u.b64).buffer); w.V = new Int8Array(b64bytes(w.v.b64).buffer);
-    w.TH = new Float32Array(b64bytes(w.theta.b64).buffer);
+    w.U = bin(w.u, Int8Array); w.V = bin(w.v, Int8Array);
+    w.TH = bin(w.theta, Float32Array);
     s.T = nz(s.t_s); s.n = s.T.length;
     for (const [name, r] of Object.entries(s.runs)) {
       r.name = name;
@@ -330,6 +363,7 @@ function prepare(d) {
       r.SP = r.speed_ms ? nz(r.speed_ms) : Float64Array.from(r.X.slice(0, -1), (x, k) => Math.hypot(r.X[k + 1] - x, r.Y[k + 1] - r.Y[k]) * 1000 / d.meta.export_dt_s);
       r.P = nz(r.power_kw); r.H = nz(r.hold_frac); r.TWS = nz(r.tws_ms); r.TWA = nz(r.twa_deg);
       r.plans = r.replans.filter(q => q.plan);
+      for (const k of ["lon", "lat", "x_km", "y_km", "energy_kwh", "power_kw", "hold_frac", "tws_ms", "twa_deg"]) delete r[k];   // typed copies exist (memory)
     }
   }
 }
@@ -552,7 +586,9 @@ function renderAll() {
   if (S.tab === "showcase") { renderShowcase(); return; }
   renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : S.tab === "polar" ? renderPolar() : S.tab === "seasons" ? renderSeasons() : renderExplorer();
 }
+function releaseCaches() { for (const o of [LANDH, WLH, SCL, SCW]) { o.cv = null; o.land = null; o.key = null; } }   // offscreen canvases are rebuilt on demand
 function setTab(t) {
+  if (t !== S.tab) releaseCaches();
   S.tab = t; for (const k of ["showcase", "ov", "ex", "polar", "seasons"]) $("#tab-" + k).classList.toggle("on", t === k);
   document.body.classList.toggle("showcase", t === "showcase");
   setScale(); LANDH.key = null; SCL.key = null;
@@ -794,7 +830,9 @@ function mapGeom(cv = $("#map"), maxH = null) {
   const m = D.map, asp = (m.ymax - m.ymin) / (m.xmax - m.xmin);
   let Wr = Math.max(240, cv.parentElement.clientWidth - 2);
   if (maxH) Wr = Math.min(Wr, maxH / asp); else if (S.wide) Wr = Math.min(Wr, (window.innerHeight - 24 * 13 * K) / asp);   // as tall as the viewport allows
-  const W = Wr / K, H = Math.round(W * asp), dpr = window.devicePixelRatio || 1, RF = 3;  // RF: device px per raster px
+  const W = Wr / K, H = Math.round(W * asp), RF = LITE ? 6 : 3;  // RF: device px per raster px (coarser wind raster in light mode)
+  const asp2 = H / W; let dpr = Math.min(window.devicePixelRatio || 1, LITE ? 2 : 3);
+  dpr = Math.max(1, Math.min(dpr, Math.sqrt((LITE || CTX.ios ? 4e6 : 36e6) / Math.max(1, Wr * Wr * asp2))));   // canvas memory cap (iOS limits)
   return {W, H, Wr, Hr: Math.round(Wr * asp), dpr, cw: Math.round(Wr * dpr / RF), ch: Math.round(Wr * asp * dpr / RF),
     PX: x => (x - m.xmin) / (m.xmax - m.xmin) * W, PY: y => H - (y - m.ymin) / (m.ymax - m.ymin) * H};
 }
@@ -885,8 +923,8 @@ function fxSize(L) {
   const cv = L.cv; if (L.x && L.w === cv.width && L.h === cv.height) return;
   L.w = cv.width; L.h = cv.height;
   const cssA = (parseFloat(cv.style.width) || L.w) * (parseFloat(cv.style.height) || L.h), m = D.map;
-  const low = window.innerWidth < 900 || (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;   // fewer streaks on phones and weak devices
-  const n = clamp(Math.round(cssA / 430 * (low ? 0.5 : 1)), 600, 9000);                                                        // about 4-9k on a 4K screen
+  const low = LITE || window.innerWidth < 900 || (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;   // fewer streaks on phones and weak devices
+  const n = clamp(Math.round(cssA / 430 * (low ? 0.5 : 1)), 600, LITE ? 1500 : 9000);                                                        // about 4-9k on a 4K screen
   L.n = n; L.x = new Float32Array(n); L.y = new Float32Array(n); L.age = new Int16Array(n);
   for (let i = 0; i < n; i++) { L.x[i] = m.xmin + Math.random() * (m.xmax - m.xmin); L.y[i] = m.ymin + Math.random() * (m.ymax - m.ymin); L.age[i] = Math.random() * 150; }
 }
@@ -1267,7 +1305,7 @@ function scFoot(yr, era) {
   const p = D.meta.params || {}, fr = S.lang === "fr", bits = [];
   if (p.forecasts) bits.push((fr ? "Prévisions fournies au routeur : " : "Forecasts given to the router: ") + p.forecasts);
   if (p.polar) bits.push((fr ? "Polaire du navire : " : "Ship polar: ") + p.polar);
-  return (fr ? `Résultats de simulation sur ${era ? "météo réelle ERA5" : "météo synthétique"} ${yr}. ` : `Simulation results on ${era ? "real ERA5 weather" : "synthetic weather"} ${yr}. `) + bits.join(". ") + (bits.length ? "." : "") + "  ·  v" + (D.meta.inspector_version || "4.7");
+  return (fr ? `Résultats de simulation sur ${era ? "météo réelle ERA5" : "météo synthétique"} ${yr}. ` : `Simulation results on ${era ? "real ERA5 weather" : "synthetic weather"} ${yr}. `) + bits.join(". ") + (bits.length ? "." : "") + "  ·  v" + (D.meta.inspector_version || "4.7.1");
 }
 function scPlayIcon() { const nt = $("#scnote"); if (nt) nt.textContent = T_(S.sc.play ? SCT.mapnp : SCT.mapn); const b = $("#scplay"); if (b) b.innerHTML = S.sc.play ? '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 4 L20 12 L7 20 Z"/></svg>'; }
 function scCount() {
@@ -1295,6 +1333,8 @@ function scLive() {
 }
 function scLoop(now) {
   S.sc.raf = 0; if (S.tab !== "showcase" || !$("#scmap")) return;
+  if (LITE && S.sc.play && S.sc.ld && now - S.sc.ld < 66) { S.sc.raf = requestAnimationFrame(scLoop); return; }   // ~15 fps in light mode
+  S.sc.ld = now;
   const M = scModel();
   if (S.sc.play) {
     const dt = S.sc.last ? Math.min(0.1, (now - S.sc.last) / 1000) : 0; S.sc.last = now;
@@ -1337,12 +1377,15 @@ function scDraw(M) {
   cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(-8, 6); cx.lineTo(-4, 0); cx.lineTo(-8, -6); cx.closePath(); cx.fill(); cx.stroke(); cx.restore();
   drawLegend(cx, G, false); drawScKey(cx, G);
 }
+function rrect(cx, x, y, w, h, r) { // rounded rectangle path (CanvasRenderingContext2D.roundRect is missing before Safari 16)
+  cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath();
+}
 function drawScKey(cx, G) { // fixed legend (glass panel, bottom-right): same symbols as on the map
   const rows = [["r", T_(SCT.n.router), T_(SCT.lg.router)], ["o", T_(SCT.n.oracle), T_(SCT.lg.oracle)]]; if (SCI.fixed) rows.push(["f", T_(SCT.fixed.short), T_(SCT.lg.fixed)]);
   const small = G.W < 520, rh = small ? 18 : 31, pw0 = small ? 6 : 14, f1 = small ? "600 10px system-ui" : "600 11.5px system-ui", f2 = "10.5px system-ui"; let tw = 0;
   for (const r of rows) { cx.font = f1; tw = Math.max(tw, cx.measureText(r[1]).width); if (!small) { cx.font = f2; tw = Math.max(tw, cx.measureText(r[2]).width); } }
   const w = pw0 + (small ? 20 : 24) + tw + (small ? 8 : 12), h = rows.length * rh + 12, x0 = G.W - w - (small ? 8 : 12), y0 = G.H - h - (small ? 8 : 12);
-  cx.fillStyle = "rgba(8,12,22,.66)"; cx.strokeStyle = "rgba(255,255,255,.12)"; cx.lineWidth = 1; cx.beginPath(); cx.roundRect(x0, y0, w, h, 8); cx.fill(); cx.stroke();
+  cx.fillStyle = "rgba(8,12,22,.66)"; cx.strokeStyle = "rgba(255,255,255,.12)"; cx.lineWidth = 1; cx.beginPath(); rrect(cx, x0, y0, w, h, 8); cx.fill(); cx.stroke();
   rows.forEach(([k, a, b], q) => {
     const y = y0 + 6 + q * rh + rh / 2, x = x0 + pw0 + 4;
     if (k === "r") { cx.save(); cx.translate(x, y); cx.fillStyle = "#fff"; cx.strokeStyle = "#58c4ff"; cx.lineWidth = 1.6; cx.beginPath(); cx.moveTo(8, 0); cx.lineTo(-6, 4.5); cx.lineTo(-3, 0); cx.lineTo(-6, -4.5); cx.closePath(); cx.fill(); cx.stroke(); cx.restore(); }
@@ -1796,6 +1839,13 @@ function applyLang() {
   document.querySelectorAll("[data-ui]").forEach(e => { e.textContent = ui(e.dataset.ui); });
   $("#lang").textContent = S.lang === "fr" ? "EN" : "FR"; $("#theme").textContent = ui(S.dark ? "light" : "dark");
   try { localStorage.setItem("hz-lang", S.lang); } catch (e) { /* ignore */ }
+  liteBar();
+}
+function liteBar() { // light-mode notice (constrained viewers)
+  if (!LITE || S.liteOff) return; let b = $("#litebar");
+  if (!b) { b = document.createElement("div"); b.id = "litebar"; $("#app").before(b); }
+  b.innerHTML = `<span>${S.lang === "fr" ? "Version allégée pour ce lecteur. Pour l'expérience complète, ouvrez ce fichier dans Safari/Chrome sur ordinateur." : "Light version for this viewer. For the full experience, open this file in Safari/Chrome on a computer."}</span><button id="litex" aria-label="close">&times;</button>`;
+  $("#litex").onclick = () => { S.liteOff = true; b.remove(); };
 }
 
 // ------------------------------------------------------------------ boot
@@ -1805,8 +1855,10 @@ function applyTheme() {
 }
 async function boot() {
   try {
-    D = await loadData(); prepare(D); G = JSON.parse(document.getElementById("hz-content").textContent);
-  } catch (e) { $("#app").innerHTML = `<div class="err">Failed to load data: ${esc(e.message)}</div>`; return; }
+    loadNote(0); await nextPaint();
+    D = await readBlock("hz-data"); loadNote(2); await nextPaint();
+    prepare(D); G = await readBlock("hz-content");
+  } catch (e) { $("#app").innerHTML = `<div class="err">Failed to load data: ${esc(e.message)}<br>Open this file in Chrome, Safari or Firefox (desktop or mobile browser).</div>`; return; }
   const pn = D.pnames, non = pn.filter(n => n !== D.meta.reference);
   let dark = false; try { dark = localStorage.getItem("hz-dark") === "1"; } catch (e) { /* ignore */ }
   let lang = "fr"; try { lang = localStorage.getItem("hz-lang") || "fr"; } catch (e) { /* ignore */ }
@@ -1814,9 +1866,10 @@ async function boot() {
   S = {zoom, hfx: true, sc: {si: 0, router: null, tf: 0, play: !RM.matches, speed: scSpeed0(), fx: true, last: 0, dirty: true, raf: 0}, occ: {tws: "all", w: "time", sc: "mission"}, occR: 0, ptws: 20, wide: false, tsU: null, lang, gopen: false, si: 0, tab: "ov", tf: 0, sel: new Set(pn), ref: D.meta.reference, metric: "CF", dark, smooth: 6, speed: 24, win: 24, play: false,
     A: non.includes("B1_5d") ? "B1_5d" : non[0] || pn[0], B: non.includes("B1_15d") ? "B1_15d" : non[1] || pn[0], focus: null,
     layers: {wind: true, band: false, iso: false, particles: true, arrows: false, storms: true, plans: true, full: D.meta.duration_s / DAY <= 45}};
+  if (LITE) { S.sc.play = false; S.sc.fx = false; S.layers.particles = false; }
   SCI = scEligible();
   if (SCI) { S.sc.router = SCI.best; S.tab = "showcase"; document.body.classList.add("showcase"); $("#tab-showcase").style.display = ""; $("#tab-showcase").classList.add("on"); $("#tab-ov").classList.remove("on"); }
-  $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.7");
+  $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.7.1") + (D.meta.lite ? " lite" : "");
   const m = D.meta;
   $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
   $("#tab-showcase").onclick = () => setTab("showcase"); $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); $("#tab-seasons").onclick = () => setTab("seasons"); if (D.meta.duration_s / DAY >= 45) $("#tab-seasons").style.display = ""; if (D.polar) $("#tab-polar").style.display = "";
@@ -1838,6 +1891,7 @@ async function boot() {
   document.addEventListener("keydown", e => { if (e.key === "Escape") $("#lightbox").style.display = "none"; });
   $("#tourbtn").onclick = () => runTour(0); $("#primerbtn").onclick = () => runPrimer(0);
   setScale(); initPop(); applyTheme(); applyLang(); renderGuide(); renderAll();
+  window.__hzReady = Math.round(performance.now());   // boot time [ms] (diagnostics)
   let seen = false; try { seen = localStorage.getItem("hz-tour") === "1"; } catch (e) { /* ignore */ }
   let pseen = false; try { pseen = localStorage.getItem("hz-primer") === "1"; } catch (e) { /* ignore */ }
   if (S.tab !== "showcase") { if (!pseen) runPrimer(0, seen ? null : () => runTour(0)); else if (!seen) runTour(0); }

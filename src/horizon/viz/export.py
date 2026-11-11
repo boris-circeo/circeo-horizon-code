@@ -79,7 +79,8 @@ from horizon.sim.simulator import MissionResult, sample_wind
 from horizon.weather.fields import WindField
 
 __all__ = ["SCHEMA_VERSION", "SeedRun", "RecordingPolicy", "export_backtest", "merge_exports",
-           "encode_array", "decode_array", "save_export", "load_export", "validate_export"]
+           "encode_array", "decode_array", "save_export", "load_export", "validate_export",
+           "lite_export"]
 
 SCHEMA_VERSION = 1
 PRODUCTIVE_TWS_KN = (18.0, 26.0)
@@ -449,6 +450,68 @@ def _export_land_vec(grid, land_path=None, *, simplify_m: float = 2500.0,
     d = np.clip(d, -32768, 32767)
     return {"unit_m": unit_m, "origin_km": [ox / 1e3, oy / 1e3], "n": n, "start": start,
             "d": encode_array(d, "int16")}
+
+
+def lite_export(data: Mapping, *, wind_step: int = 2, track_step: int = 3,
+                wind_stride: int = 1, wind_quant: int = 3) -> dict:
+    """Reduced copy of an export for constrained viewers (phones, in-app web views).
+
+    The wind snapshots are thinned in time (every ``wind_step``-th snapshot) and optionally in
+    space (every ``wind_stride``-th cell), and the hourly tracks / time series are thinned to
+    every ``track_step``-th sample. Run metrics, replans, diagnostics, the map and the polar are
+    unchanged, so every KPI shown by the inspector is identical to the full export; only the
+    temporal resolution of animations and curves is coarser.
+
+    Parameters
+    ----------
+    data : Mapping  Export produced by :func:`export_backtest` (not modified).
+    wind_step : int  Keep every ``wind_step``-th wind snapshot (12 h from 6 h with 2).
+    track_step : int  Keep every ``track_step``-th track sample (3 h from 1 h with 3).
+    wind_stride : int  Keep every ``wind_stride``-th wind cell in x and y (1 = unchanged).
+    wind_quant : int  Round the int8 wind codes to multiples of this (3 = 0.72 m/s steps for a
+        0.24 m/s code; compresses better, invisible in the colour field).
+
+    Returns
+    -------
+    dict  A new export (``meta.lite = True``, ``meta.export_dt_s`` scaled by ``track_step``).
+    """
+    out = {k: v for k, v in data.items() if k != "seeds"}
+    out["meta"] = {**data["meta"], "lite": True,
+                   "export_dt_s": data["meta"]["export_dt_s"] * track_step}
+    seeds = []
+    for s in data["seeds"]:
+        t = np.asarray(s["t_s"], float)
+        idx = np.arange(0, len(t), track_step)
+        w = dict(s["wind"])
+        u = decode_array(w["u"])[::wind_step, ::wind_stride, ::wind_stride]
+        v = decode_array(w["v"])[::wind_step, ::wind_stride, ::wind_stride]
+        if wind_quant > 1:
+            u, v = (np.clip(np.rint(a / wind_quant) * wind_quant, -127, 127) for a in (u, v))
+        th = decode_array(w["theta"])[::wind_stride, ::wind_stride]
+        w.update(nt=int(u.shape[0]), ny=int(u.shape[1]), nx=int(u.shape[2]),
+                 dt_s=w["dt_s"] * wind_step, dx_km=w["dx_km"] * wind_stride,
+                 u=encode_array(u, "int8"), v=encode_array(v, "int8"),
+                 theta=encode_array(th, "float32"))
+        storms = s.get("storms") or []
+        runs = {}
+        for name, r in s["runs"].items():
+            r2 = dict(r)
+            for k in ("lon", "lat", "x_km", "y_km", "energy_kwh"):
+                r2[k] = [r[k][i] for i in idx]
+            for k in ("power_kw", "hold_frac", "speed_ms", "tws_ms", "twa_deg"):
+                if k in r:
+                    r2[k] = [r[k][min(i, len(r[k]) - 1)] for i in idx[:-1]]
+            runs[name] = r2
+        s2 = {**s, "t_s": [s["t_s"][i] for i in idx], "wind": w, "runs": runs,
+              "storms": storms[::wind_step] if len(storms) == data_nt(s) else storms}
+        seeds.append(s2)
+    out["seeds"] = seeds
+    return out
+
+
+def data_nt(seed: Mapping) -> int:
+    """Number of wind snapshots of a seed (before thinning)."""
+    return int(seed["wind"]["nt"])
 
 
 def export_backtest(runs: Sequence[SeedRun], coast: CoastModel, *, reference: str = "Oracle",
