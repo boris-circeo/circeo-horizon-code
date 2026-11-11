@@ -31,17 +31,18 @@ from horizon.sim import (  # noqa: E402
     best_climatological_point,
 )
 from horizon.sim.longrun import run_persistent  # noqa: E402
+from horizon.sim.policies_ens import EnsembleMPCPolicy  # noqa: E402
 from horizon.sim.policies_refine import (  # noqa: E402
     OracleHorizonRefinedPolicy,
     OracleRefinedPolicy,
     RefinedMPCPolicy,
 )
-from horizon.weather.forecast_model import ERA5ForecastWeather  # noqa: E402
+from horizon.weather.forecast_model import ERA5ForecastWeather, ForecastErrorParams  # noqa: E402
 
 LORIENT = (-3.4, 47.7)
 
 
-def build(policy, ctx, wx, clim, horizon_h_days=15.0):
+def build(policy, ctx, wx, clim, horizon_h_days=15.0, members=20, k=6):
     pol, hold, coast = ctx.polar, ctx.hold, ctx.coast
 
     def b1(c=None):
@@ -54,6 +55,10 @@ def build(policy, ctx, wx, clim, horizon_h_days=15.0):
         return RefinedMPCPolicy(b1())
     if policy == "B1c_5d_REF":
         return RefinedMPCPolicy(b1(clim))
+    if policy == "ENS_REF":
+        return RefinedMPCPolicy(EnsembleMPCPolicy(
+            pol, hold, coast, horizon_days=10.0, n_members=members, k=k, gamma=0.0, alpha=0.2,
+            terminal_clim_kw=clim, terminal_days=R.TERM_DAYS))
     if policy == "Oracle_REF_H":
         return OracleHorizonRefinedPolicy(wx, pol, hold, coast, horizon_days=horizon_h_days,
                                           terminal_clim_kw=clim, terminal_days=R.TERM_DAYS)
@@ -76,6 +81,10 @@ def main():
     ap.add_argument("--segments", default="month")
     ap.add_argument("--horizon-days", type=float, default=15.0, help="Oracle_REF_H look-ahead")
     ap.add_argument("--ramp-km", type=float, default=40.0)
+    ap.add_argument("--seed", type=int, default=1, help="forecast-error seed")
+    ap.add_argument("--members", type=int, default=20)
+    ap.add_argument("--k", type=int, default=6)
+    ap.add_argument("--legacy", action="store_true", help="ForecastErrorParams.legacy()")
     ap.add_argument("--stop-after", type=int, default=None, help="(tests) stop after N segments")
     a = ap.parse_args()
     ctx = R.Ctx()
@@ -93,9 +102,11 @@ def main():
         start = tuple(float(v) for v in a.start.split(","))
     print(f"start lon/lat {start[0]:.3f} {start[1]:.3f}", flush=True)
     epoch = np.datetime64(f"{a.epoch}T00:00:00", "s")
-    wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, a.days * 86400.0, seed=1)
+    params = ForecastErrorParams.legacy() if a.legacy else ForecastErrorParams()
+    wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, a.days * 86400.0, params=params,
+                             seed=a.seed)
     pol = (HoldAtPointPolicy(*ctx.grid.to_xy(*start)) if a.policy == "B0"
-           else build(a.policy, ctx, wx, clim, a.horizon_days))
+           else build(a.policy, ctx, wx, clim, a.horizon_days, a.members, a.k))
     ctx.pm.n_clamped = 0
     t0 = time.perf_counter()
     r = run_persistent(pol, wx, start, ctx.pm, ctx.coast, a.out, duration_s=a.days * 86400.0,
@@ -103,8 +114,9 @@ def main():
                        stop_after_segments=a.stop_after, log=lambda s: print(s, flush=True))
     res = r.result
     wall = time.perf_counter() - t0
-    out = {"policy": a.policy, "days": a.days, "start": start, "energy_mwh": r.energy_kwh / 1e3,
-           "guard_interventions": res.guard_interventions, "coast_violations": res.coast_violations,
+    out = {"policy": a.policy, "seed": a.seed, "legacy": a.legacy, "days": a.days, "start": start,
+           "energy_mwh": r.energy_kwh / 1e3, "guard_interventions": res.guard_interventions,
+           "coast_violations": res.coast_violations,
            "min_margin_km": res.min_margin_m / 1e3, "wall_s": wall,
            "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,
            "wrapped_requests": wx.n_wrapped_requests, "resumed_from": r.resumed_from,
