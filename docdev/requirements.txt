@@ -1,0 +1,8 @@
+# Document chain
+pypdf>=5.0            # cover + body merge, page numbers for the table of contents
+pyyaml>=6.0           # hypothesis register (tools/hyp_table.py)
+# Figures (read-only use of the horizon package: `pip install -e ..[value]` from the repo root)
+numpy>=1.24
+matplotlib>=3.7
+# System tools (not pip): pandoc >= 3.0, graphviz (optional), node >= 18 + playwright-core,
+#                          google-chrome / chromium

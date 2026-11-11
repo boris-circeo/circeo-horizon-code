@@ -10,3 +10,5 @@ data/cache/
 outputs/
 # The design specification is CONFIDENTIAL and never committed.
 *DES-860*
+docdev/out/
+docdev/node_modules/

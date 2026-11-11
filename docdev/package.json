@@ -1,0 +1,8 @@
+{
+  "name": "circeo-ops-des-861",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chaine de production du document CIRCEO-OPS-DES-861 (HORIZON v2)",
+  "scripts": { "render": "node render.js" },
+  "comment": "render.js uses playwright-core (or playwright) driving the system Chrome; KaTeX and Plus Jakarta Sans are vendored in vendor/."
+}
