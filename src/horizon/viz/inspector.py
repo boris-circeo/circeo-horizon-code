@@ -18,7 +18,7 @@ from horizon.viz.export import load_export, validate_export
 
 __all__ = ["build_html", "write_inspector"]
 
-INSPECTOR_VERSION = "4.6"
+INSPECTOR_VERSION = "4.7"
 """Inspector release shown in the page header and stored in ``meta.inspector_version``."""
 _TEMPLATE = Path(__file__).with_name("template.html")
 _CONTENT = Path(__file__).with_name("content")

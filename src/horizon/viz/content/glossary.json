@@ -372,8 +372,8 @@
    "more": "hyp"
   },
   "fewseeds": {
-   "en": "Only {n} seeds: differences of a few percent are not conclusive.",
-   "fr": "Seulement {n} tirages : des écarts de quelques pourcents ne sont pas concluants.",
+   "en": "Few runs ({n}): differences of a few percent are not conclusive.",
+   "fr": "Peu de tirages ({n}) : des écarts de quelques pourcents ne sont pas concluants.",
    "more": "limits"
   },
   "holdheavy": {

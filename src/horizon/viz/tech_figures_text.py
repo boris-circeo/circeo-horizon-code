@@ -7,6 +7,7 @@ a small markdown subset (bold lead-ins, bullet lists, paragraphs) rendered by th
 """
 
 TEXTS = {}
+TEXTS["architecture"] = {k: "" for k in ("title_en","title_fr","caption_en","caption_fr","body_en","body_fr")}
 
 # --------------------------------------------------------------------------------- 1. polar
 TEXTS["polar"] = {
@@ -149,20 +150,20 @@ TEXTS["forecast"] = {
     "title_en": "5. Forecasts and ensembles: how wrong, how uncertain, how reduced",
     "title_fr": "5. Prévisions et ensembles : quelle erreur, quelle incertitude, quelle réduction",
     "caption_en": "Error of the control and of the ensemble mean, and ensemble spread [m/s] against lead time [days], "
-                  "winter and summer (a, b); wind map at lead 5 d for the issue of {issue} (c); the 6 medoid "
-                  "scenarios and their weights [%] (d).",
+                  "winter and summer (a, b); wind map at lead 5 d for the issue of {issue} (c); spread / error "
+                  "ratio [-] (d).",
     "caption_fr": "Erreur du contrôle et de la moyenne d'ensemble, et dispersion de l'ensemble [m/s] selon l'échéance "
-                  "[jours], hiver et été (a, b) ; carte du vent à 5 jours pour l'émission du {issue} (c) ; les 6 "
-                  "scénarios médoïdes et leurs poids [%] (d).",
+                  "[jours], hiver et été (a, b) ; carte du vent à 5 jours pour l'émission du {issue} (c) ; rapport "
+                  "dispersion / erreur [-] (d).",
     "body_en": """**What it shows.** The routers do not see the true wind but forecasts, here produced by the project's forecast-error model (version 2) around the real ERA5 wind: a control run plus 20 ensemble members whose errors grow with lead time, with fresh cycles every 6 hours and a seasonal modulation. Panels (a) and (b) verify it against the truth on the sea cells over 8 weekly issues in winter and 8 in summer.
 
 **How to read it.** Vertical axis: root-mean-square error of the vector wind in m/s. Horizontal: lead time in days. The orange curve is the single control forecast, the blue one the mean of the 20 members (smoother, therefore closer to the truth), the green dashed one the spread of the ensemble (its own estimate of its uncertainty). A calibrated ensemble has spread equal to the error of its mean.
 
 **What to notice.**
 - Control error grows from about 1 m/s at day 0 to {winter_ctrl_d3:.1f} m/s at day 3 and {winter_ctrl_d5:.1f} m/s at day 5 in winter (summer: {summer_ctrl_d3:.1f} and {summer_ctrl_d5:.1f}). Beyond 3-4 days a single forecast is a poor guide.
-- The ensemble mean is clearly better than the control (day 5: {winter_mean_d5:.1f} vs {winter_ctrl_d5:.1f} m/s in winter) and the spread matches it ({winter_spr_d5:.1f} m/s): the ensemble is calibrated by construction. Winter errors are larger than summer ones.
+- The ensemble mean is clearly better than the control (day 5: {winter_mean_d5:.1f} vs {winter_ctrl_d5:.1f} m/s in winter) and the spread matches it ({winter_spr_d5:.1f} m/s): the ensemble is roughly calibrated. Winter errors are larger than summer ones.
 - Panel (c): the 14 m/s contour at 5 days; colours show where the members disagree (spread up to 6 m/s). The ensemble mean contour is smoother than the truth and the control, which is exactly the information a router can use.
-- Panel (d): the 20 members are reduced to {k} real members (medoids) by a principal-component analysis (the {n_modes} leading modes) followed by clustering; weights go from {w_min:.0f} % to {w_max:.0f} %. The reduction keeps {dist_expl:.0f} % of the scenario distortion, which is modest.
+- Panel (d): the spread / error-of-the-mean ratio averages {ratio_w:.2f} in winter and {ratio_s:.2f} in summer over days 1 to 7 (1 = calibrated): the ensemble is somewhat over- or under-confident depending on the season, but of the right order.
 
 **Why it matters.** This is the reason B1 over-trusts distant days and why ENS builds its tail-risk (CVaR) objective on a handful of scenarios.
 
@@ -173,11 +174,11 @@ TEXTS["forecast"] = {
 
 **À retenir.**
 - L'erreur du contrôle passe d'environ 1 m/s au jour 0 à {winter_ctrl_d3:.1f} m/s au jour 3 et {winter_ctrl_d5:.1f} m/s au jour 5 en hiver (été : {summer_ctrl_d3:.1f} et {summer_ctrl_d5:.1f}). Au-delà de 3-4 jours, une prévision seule est un mauvais guide.
-- La moyenne d'ensemble est nettement meilleure que le contrôle (jour 5 : {winter_mean_d5:.1f} contre {winter_ctrl_d5:.1f} m/s en hiver) et la dispersion lui correspond ({winter_spr_d5:.1f} m/s) : l'ensemble est calibré par construction. Les erreurs d'hiver dépassent celles d'été.
+- La moyenne d'ensemble est nettement meilleure que le contrôle (jour 5 : {winter_mean_d5:.1f} contre {winter_ctrl_d5:.1f} m/s en hiver) et la dispersion lui correspond ({winter_spr_d5:.1f} m/s) : l'ensemble est à peu près calibré. Les erreurs d'hiver dépassent celles d'été.
 - Panneau (c) : le contour de 14 m/s à 5 jours ; la couleur indique où les membres divergent (dispersion jusqu'à 6 m/s). Le contour de la moyenne d'ensemble est plus lisse que la vérité et le contrôle, c'est exactement l'information qu'un routeur peut exploiter.
-- Panneau (d) : les 20 membres sont réduits à {k} membres réels (médoïdes) par une analyse en composantes principales (les {n_modes} premiers modes) puis un regroupement ; les poids vont de {w_min:.0f} % à {w_max:.0f} %. La réduction conserve {dist_expl:.0f} % de la distorsion, ce qui est modeste.
+- Panneau (d) : le rapport dispersion / erreur de la moyenne vaut en moyenne {ratio_w:.2f} en hiver et {ratio_s:.2f} en été sur les jours 1 à 7 (1 = calibré) : l'ensemble est un peu trop dispersé ou trop confiant selon la saison, mais du bon ordre.
 
-**Pourquoi c'est important.** C'est la raison pour laquelle B1 accorde trop de confiance aux jours lointains, et pour laquelle ENS construit son objectif de risque de queue (CVaR) sur une poignée de scénarios.
+**Pourquoi c'est important.** C'est la raison pour laquelle B1 accorde trop de confiance aux jours lointains, et pour laquelle ENS travaille avec un ensemble (figures suivantes).
 
 **Limites.** Les prévisions sont un modèle statistique, pas des prévisions archivées : les erreurs sont échangeables avec la vérité, sans structure météorologique ; 8 émissions par saison donnent des courbes bruitées.""",
 }
@@ -323,3 +324,150 @@ TEXTS["safety"] = {
 
 **Limites.** Distance seulement (pas de trafic, hauts-fonds, zones interdites ni houle) ; la côte vient d'un masque de terre sur grille de 10 km (40 km sur la grille de routage), la marge est donc une marge de modèle, à confirmer avec des cartes plus fines pour l'exploitation.""",
 }
+
+
+# ============================================================ v4.7: story order, numbering, new texts
+TEXTS["architecture"] = {
+    "title_en": "The router in one picture: three layers between the weather and the capacity factor",
+    "title_fr": "Le routeur en une image : trois couches entre la météo et le facteur de charge",
+    "caption_en": "Block diagram: inputs (weather, ship, coast), strategic exploration on a {dx:.0f} km x {dt:.0f} h graph with {K} macro-arcs, tactical refinement at {stage_min:.0f} min over {trunk:.0f} h, execution with a {replan:.0f} h replanning cycle, outputs (CF [%], gap [points]).",
+    "caption_fr": "Schéma bloc : entrées (météo, navire, côte), exploration stratégique sur un graphe de {dx:.0f} km x {dt:.0f} h à {K} macro-arcs, raffinement tactique au pas de {stage_min:.0f} min sur {trunk:.0f} h, exécution avec replanification toutes les {replan:.0f} h, sorties (CF [%], écart [points]).",
+    "body_en": """**Where we are in the story.** This is the map of the whole guide: each following figure zooms on one box of this diagram.
+
+**What it shows.** The router is a stack of three layers fed by three kinds of input. **Inputs**: the weather (the ERA5 truth in a backtest, or forecast ensembles with their latency), the ship (the BETA power polar, turned into a power envelope) and the coast (a signed distance field plus the Lorient port corridor). **1. Strategic exploration** reduces the ensemble to {k} scenarios, then runs one stochastic dynamic programme (DP) per scenario on a {dx:.0f} km x {dt:.0f} h graph, where each node offers {K} macro-arcs ({n_one} one-step and {n_two} two-step moves plus the hold). It looks 10-15 days ahead, aggregates the scenarios with a tail-risk measure (CVaR), closes the horizon with a terminal value, and keeps only a non-anticipative {trunk:.0f} h trunk: the part of the plan that is common to all scenarios. **2. Tactical refinement** turns this trunk into a smooth trajectory by continuous optimisation (CasADi/IPOPT) over {trunk:.0f} h at {stage_min:.0f} min ({stages} stages), with an exact coast constraint and the DP value as terminal reward. **3. Execution** applies the first {replan:.0f} h, lets the simulator (with a safety guard) move the ship, then replans with the new forecasts.
+
+**How to read it.** Boxes are computations, arrows are data flows with their units and resolutions; the orange dashed arrow is the replanning loop; the ruler at right gives the time scales from {replan:.0f} h to 15 days.
+
+**What to notice.** Each layer trades fidelity for reach: the coarse graph sees far but roughly, the refiner sees {trunk:.0f} h finely, and the loop corrects forecast errors every {replan:.0f} h.
+
+**Why it matters.** Every result in the last figure is the output of this chain; comparing routers means switching layers on or off.
+
+**What to look at in the inspector.** Overview tab: the router list (B0, B1, B1c, ENS, REF, Oracle) corresponds to nested subsets of these layers; Explorer tab: the track of any router shows the replanning loop in action.""",
+    "body_fr": """**Où nous en sommes.** C'est la carte de tout le guide : chaque figure suivante zoome sur une case de ce schéma.
+
+**Ce que montre la figure.** Le routeur est une pile de trois couches alimentée par trois types d'entrées. **Entrées** : la météo (la vérité ERA5 en backtest, ou des ensembles de prévisions avec leur latence), le navire (la polaire de puissance BETA, transformée en enveloppe de puissance) et la côte (un champ de distance signée plus le couloir du port de Lorient). **1. Exploration stratégique** : réduit l'ensemble à {k} scénarios, puis résout une programmation dynamique (DP) stochastique par scénario sur un graphe de {dx:.0f} km x {dt:.0f} h, où chaque nœud offre {K} macro-arcs ({n_one} à un pas, {n_two} à deux pas, plus l'attente). Elle regarde 10 à 15 jours, agrège les scénarios par une mesure de risque de queue (CVaR), ferme l'horizon par une valeur terminale, et ne garde qu'un tronc non anticipatif de {trunk:.0f} h : la partie du plan commune à tous les scénarios. **2. Raffinement tactique** : transforme ce tronc en trajectoire lisse par optimisation continue (CasADi/IPOPT) sur {trunk:.0f} h au pas de {stage_min:.0f} min ({stages} étapes), avec une contrainte de côte exacte et la valeur DP comme récompense terminale. **3. Exécution** : applique les {replan:.0f} premières heures, laisse le simulateur (avec garde de sécurité) déplacer le navire, puis replanifie avec les nouvelles prévisions.
+
+**Comment lire.** Les cases sont des calculs, les flèches des flux de données avec leurs unités et résolutions ; la flèche orange en tireté est la boucle de replanification ; la règle à droite donne les échelles de temps de {replan:.0f} h à 15 jours.
+
+**À retenir.** Chaque couche échange fidélité contre portée : le graphe grossier voit loin mais grossièrement, le raffineur voit {trunk:.0f} h finement, et la boucle corrige les erreurs de prévision toutes les {replan:.0f} h.
+
+**Pourquoi c'est important.** Chaque résultat de la dernière figure sort de cette chaîne ; comparer les routeurs, c'est activer ou désactiver des couches.
+
+**À regarder dans l'inspecteur.** Onglet Vue d'ensemble : la liste des routeurs (B0, B1, B1c, ENS, REF, Oracle) correspond à des sous-ensembles emboîtés de ces couches ; onglet Explorateur : la trace d'un routeur montre la boucle de replanification à l'œuvre.""",
+}
+
+TEXTS["ensemble"] = {
+    "title_en": "Ensembles and risk: from 20 forecasts to 6 scenarios and a tail-risk objective",
+    "title_fr": "Ensembles et risque : de 20 prévisions à 6 scénarios et un objectif de risque de queue",
+    "caption_en": "Wind speed [m/s] at the ship for the 20 members, the {k} medoids and the truth, issue {issue} (a); members in the plane of the first two EOF scores, clustered (b); mean hold power over days 2-5 [kW] per member with mean and CVaR 20 % (c); scenario weights [%] and power [kW] (d).",
+    "caption_fr": "Vitesse du vent [m/s] au navire pour les 20 membres, les {k} médoïdes et la vérité, émission du {issue} (a) ; membres dans le plan des deux premiers scores EOF, regroupés (b) ; puissance moyenne en attente sur les jours 2-5 [kW] par membre, avec moyenne et CVaR 20 % (c) ; poids des scénarios [%] et puissance [kW] (d).",
+    "body_en": """**Where we are in the story.** After the forecast verification (Fig. 3) and the DP graph (Fig. 6), this figure shows how the DP is fed with uncertainty; the next one closes the horizon with a terminal value.
+
+**What it shows.** Solving the DP on 20 members would be too slow, so the ensemble is reduced. The members are projected on empirical orthogonal functions (EOF: the dominant spatial patterns of the ensemble variability), then grouped by k-medoids (PAM) into {k} clusters, each represented by a real member (the medoid) with a weight equal to its cluster share. One DP is solved per medoid.
+
+**How to read it.** (a) wind speed in m/s against days since the issue: grey = the 14 other members, colours = medoids, black = truth; the shaded 48 h is the trunk on which a single plan is imposed. (b) each dot is a member, a star its medoid. (c) each bar is a member's mean hold power over days 2-5 in kW; the dashed line is the CVaR at 20 %, the mean of the worst 20 % of outcomes. (d) weights and powers of the {k} scenarios.
+
+**What to notice.**
+- Members agree for the first day and spread to {w_rng5:.0f} m/s at day 5; the truth stays inside the cloud, which is what an ensemble is for.
+- {n_modes} EOF modes keep {cum_modes:.0f} % of the variance; weights span {w_min:.0f} to {w_max:.0f} %.
+- The {k} scenarios give mean {mean_med:.0f} kW and CVaR {cvar_med:.0f} kW against {mean_all:.0f} / {cvar_all:.0f} kW for all 20: the reduction preserves the mean and, roughly, the tail.
+
+**Why it matters.** The router optimises a blend of the mean and the CVaR: it avoids plans that are good on average but disastrous in a minority of scenarios, and the non-anticipative trunk prevents it from betting on one scenario in the next 48 h.
+
+**Limits.** Only {k} scenarios, chosen on the wind alone; the CVaR is estimated on few points.
+
+**What to look at in the inspector.** Explorer tab: compare ENS with B1 on a stormy week (ENS keeps away from risky areas); Overview tab: the CF and gap of ENS versus B1.""",
+    "body_fr": """**Où nous en sommes.** Après la vérification des prévisions (Fig. 3) et le graphe DP (Fig. 6), cette figure montre comment la DP reçoit l'incertitude ; la suivante ferme l'horizon par une valeur terminale.
+
+**Ce que montre la figure.** Résoudre la DP sur 20 membres serait trop lent : l'ensemble est donc réduit. Les membres sont projetés sur des fonctions orthogonales empiriques (EOF : les structures spatiales dominantes de la variabilité de l'ensemble), puis regroupés par k-médoïdes (PAM) en {k} classes, chacune représentée par un membre réel (le médoïde) de poids égal à la part de sa classe. Une DP est résolue par médoïde.
+
+**Comment lire.** (a) vitesse du vent en m/s selon les jours depuis l'émission : gris = les 14 autres membres, couleurs = médoïdes, noir = vérité ; les 48 h ombrées sont le tronc sur lequel un plan unique est imposé. (b) chaque point est un membre, chaque étoile son médoïde. (c) chaque barre est la puissance moyenne en attente d'un membre sur les jours 2-5, en kW ; le tireté est la CVaR à 20 %, moyenne des 20 % de pires issues. (d) poids et puissances des {k} scénarios.
+
+**À retenir.**
+- Les membres s'accordent le premier jour et divergent de {w_rng5:.0f} m/s à 5 jours ; la vérité reste dans le nuage, ce à quoi sert un ensemble.
+- {n_modes} modes EOF conservent {cum_modes:.0f} % de la variance ; les poids vont de {w_min:.0f} à {w_max:.0f} %.
+- Les {k} scénarios donnent une moyenne de {mean_med:.0f} kW et une CVaR de {cvar_med:.0f} kW contre {mean_all:.0f} / {cvar_all:.0f} kW pour les 20 : la réduction préserve la moyenne et, à peu près, la queue.
+
+**Pourquoi c'est important.** Le routeur optimise un mélange de la moyenne et de la CVaR : il évite les plans bons en moyenne mais désastreux dans une minorité de scénarios, et le tronc non anticipatif l'empêche de parier sur un seul scénario dans les 48 h à venir.
+
+**Limites.** Seulement {k} scénarios, choisis sur le vent seul ; la CVaR est estimée sur peu de points.
+
+**À regarder dans l'inspecteur.** Onglet Explorateur : comparer ENS et B1 lors d'une semaine de tempête (ENS évite les zones à risque) ; onglet Vue d'ensemble : le CF et l'écart d'ENS par rapport à B1.""",
+}
+
+# story order: id -> (number, short title EN, short title FR, previous/next line EN, FR, inspector pointers EN, FR)
+_ORDER = ["architecture", "polar", "forecast", "safety", "envelope", "dp", "ensemble", "terminal", "refiner", "mpc", "results"]
+_SHORT = {
+    "polar": ("The ship and its power polar", "Le navire et sa polaire de puissance"),
+    "forecast": ("Weather and forecasts: how wrong are they?", "Météo et prévisions : quelle erreur ?"),
+    "safety": ("Coast and safety constraints", "Côte et contraintes de sécurité"),
+    "envelope": ("Power envelope: why zig-zagging beats any single heading", "Enveloppe de puissance : pourquoi louvoyer bat tout cap unique"),
+    "dp": ("Exploration: dynamic programming on the space-time graph", "Exploration : programmation dynamique sur le graphe espace-temps"),
+    "terminal": ("Terminal value and the hindsight bias E0", "Valeur terminale et biais de clairvoyance E0"),
+    "refiner": ("Refinement: from the grid path to a smooth trajectory", "Raffinement : du chemin sur grille à une trajectoire lisse"),
+    "mpc": ("Execution: receding-horizon replanning (MPC)", "Exécution : replanification à horizon glissant (MPC)"),
+    "results": ("Results over 2015: capacity factor and gap to the oracle", "Résultats 2015 : facteur de charge et écart à l'oracle"),
+}
+_NAV = {  # (where we are EN, FR)
+    "polar": ("Input 1/3, after the architecture (Fig. 1): the ship's power as a function of wind and speed; the next figure adds the weather.",
+              "Entrée 1/3, après l'architecture (Fig. 1) : la puissance du navire selon le vent et la vitesse ; la figure suivante ajoute la météo."),
+    "forecast": ("Input 2/3: the weather the router actually sees (forecasts, not truth); the next figure adds the coast constraints.",
+                 "Entrée 2/3 : la météo réellement vue par le routeur (prévisions, pas vérité) ; la figure suivante ajoute les contraintes de côte."),
+    "safety": ("Input 3/3: where the ship may go; next, the polar of Fig. 2 is turned into rewards (Fig. 5).",
+               "Entrée 3/3 : où le navire peut aller ; ensuite, la polaire de la Fig. 2 devient une récompense (Fig. 5)."),
+    "envelope": ("From inputs to rewards: this is the power the DP collects per step; the next figure builds the graph on which it is accumulated.",
+                 "Des entrées aux récompenses : c'est la puissance que la DP collecte à chaque pas ; la figure suivante construit le graphe où elle est cumulée."),
+    "dp": ("Exploration layer, step 1: one deterministic DP on the 40 km x 3 h graph; the next figure feeds it with several scenarios.",
+           "Couche d'exploration, étape 1 : une DP déterministe sur le graphe de 40 km x 3 h ; la figure suivante l'alimente avec plusieurs scénarios."),
+    "terminal": ("Exploration layer, closing the horizon: after the scenarios (Fig. 7), what the ship is worth at the end of the window; next, the refinement layer.",
+                 "Couche d'exploration, fermeture de l'horizon : après les scénarios (Fig. 7), ce que vaut le navire en fin de fenêtre ; ensuite, la couche de raffinement."),
+    "refiner": ("Layer 2: it takes the 48 h trunk of the exploration (Figs. 6-8) and smooths it; the next figure shows the replanning loop around it.",
+                "Couche 2 : elle reprend le tronc de 48 h de l'exploration (Fig. 6-8) et le lisse ; la figure suivante montre la boucle de replanification qui l'entoure."),
+    "mpc": ("Layer 3: the loop that applies 6 h of plan and replans; the last figure shows what all this earns over a year.",
+            "Couche 3 : la boucle qui applique 6 h de plan puis replanifie ; la dernière figure montre ce que tout cela rapporte sur un an."),
+    "results": ("The conclusion: outputs of the whole chain of Fig. 1, over the year 2015.",
+                "La conclusion : sorties de toute la chaîne de la Fig. 1, sur l'année 2015."),
+}
+_INSP = {
+    "polar": ("Polar tab: the same net-power polar, per wind speed.", "Onglet Polaire : la même polaire de puissance nette, par vitesse de vent."),
+    "forecast": ("Explorer tab: the wind map and the forecast layers along a router track.", "Onglet Explorateur : la carte de vent et les couches de prévision le long d'une trace."),
+    "safety": ("Explorer tab: the coast layer and the minimum margin of each router.", "Onglet Explorateur : la couche côte et la marge minimale de chaque routeur."),
+    "envelope": ("Polar tab: compare the single-heading polar with the envelope-based reward.", "Onglet Polaire : comparer la polaire à cap unique et la récompense issue de l'enveloppe."),
+    "dp": ("Explorer tab: the DP value field and the Oracle track.", "Onglet Explorateur : le champ de valeur DP et la trace de l'Oracle."),
+    "terminal": ("Overview tab: the E0 bias and the climatology row of the router cards.", "Onglet Vue d'ensemble : le biais E0 et la ligne climatologie des fiches routeur."),
+    "refiner": ("Explorer tab: compare REF and ENS tracks over the same days.", "Onglet Explorateur : comparer les traces REF et ENS sur les mêmes jours."),
+    "mpc": ("Explorer tab: step through the plans issued every 6 h along a B1 track.", "Onglet Explorateur : parcourir les plans émis toutes les 6 h le long d'une trace B1."),
+    "results": ("Overview tab and Seasons tab: monthly CF and gaps per router.", "Onglets Vue d'ensemble et Saisons : CF mensuel et écarts par routeur."),
+}
+_HONEST_ENV = (
+    "\n\n**Known limitation (planned for S5).** Manoeuvre losses (tack, gybe, heading change) are currently modelled only through the availability factor of the envelope mixing; abrupt heading changes in the DP and refiner tracks are not penalised.",
+    "\n\n**Limite connue (prévue en S5).** Les pertes de manoeuvre (virement, empannage, changement de cap) ne sont modélisées que par le facteur de disponibilité du mélange de l'enveloppe ; les changements de cap brusques dans les traces DP et raffineur ne sont pas pénalisés.",
+)
+
+
+def _finish():
+    n = len(_ORDER)
+    for i, fid in enumerate(_ORDER):
+        t = TEXTS[fid]
+        if fid != "architecture":
+            short = _SHORT.get(fid)
+            if short:
+                t["title_en"], t["title_fr"] = short
+        base_en, base_fr = t["title_en"], t["title_fr"]
+        base_en = base_en.split(". ", 1)[-1] if base_en[:2].strip(". ").isdigit() else base_en
+        base_fr = base_fr.split(". ", 1)[-1] if base_fr[:2].strip(". ").isdigit() else base_fr
+        t["title_en"] = f"Fig. {i + 1}/{n} · {base_en}"
+        t["title_fr"] = f"Fig. {i + 1}/{n} · {base_fr}"
+        if fid in _NAV:
+            t["body_en"] = f"**Where we are in the story.** {_NAV[fid][0]}\n\n" + t["body_en"]
+            t["body_fr"] = f"**Où nous en sommes.** {_NAV[fid][1]}\n\n" + t["body_fr"]
+        if fid in _INSP:
+            t["body_en"] += f"\n\n**What to look at in the inspector.** {_INSP[fid][0]}"
+            t["body_fr"] += f"\n\n**À regarder dans l'inspecteur.** {_INSP[fid][1]}"
+        if fid in ("envelope", "refiner"):
+            t["body_en"] += _HONEST_ENV[0]
+            t["body_fr"] += _HONEST_ENV[1]
+
+
+_finish()
+TEXTS = {k: TEXTS[k] for k in _ORDER}

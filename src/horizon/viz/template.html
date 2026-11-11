@@ -22,6 +22,11 @@ button:hover{border-color:var(--accent)}
 .bar{display:flex;flex-wrap:wrap;gap:0.462rem 1.077rem;align-items:center;padding:0.615rem 1.231rem;border-bottom:1px solid var(--line);background:var(--card)}
 .chip{display:inline-flex;align-items:center;gap:0.385rem;padding:0.154rem 0.692rem 0.154rem 0.462rem;border:1px solid var(--line);border-radius:7.615rem;cursor:pointer;user-select:none}
 .chip.off{opacity:.4}
+.rb{display:inline-block;font-size:.72rem;line-height:1.35;padding:0 .5rem;margin-left:.4rem;border-radius:1rem;border:1px solid currentColor;font-weight:600;letter-spacing:.02em;vertical-align:middle;white-space:nowrap;background:transparent}
+.rb-bound{color:#7d55c7}.rb-frontier{color:#0a8f62}.rb-intermediate{color:#b87a00}.rb-reference{color:#667386}
+body.dark .rb-bound{color:#b79bf0}body.dark .rb-frontier{color:#4fd6a0}body.dark .rb-intermediate{color:#f0b84a}body.dark .rb-reference{color:#9aa8bd}
+.ladder td,.ladder th{text-align:center}.ladder td:first-child,.ladder th:first-child{text-align:left}.ladder .yes{color:#0a8f62;font-weight:700}body.dark .ladder .yes{color:#4fd6a0}.ladder .no{color:var(--mute)}
+.ovperiod{font-weight:600;margin:.1rem 0 .5rem}
 .dot{width:0.769rem;height:0.769rem;border-radius:50%;display:inline-block}
 main{padding:0.923rem 1.231rem;margin:0 auto}
 .grid2{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:0.923rem}
@@ -155,9 +160,14 @@ body.showcase main{padding:0}
 .sc-item{padding:1.3rem 1.3rem 1.2rem;border-radius:1.1rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025)}
 .sc-item svg{width:2.7rem;height:2.7rem;stroke:#58c4ff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-bottom:.7rem}
 .sc-item b{display:block;font-size:1.12rem;font-weight:500;color:#fff;margin-bottom:.25rem}.sc-item span{color:#aab6ca;font-size:.97rem;line-height:1.45}
+.sc-duo{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(18rem,1fr);gap:1.3rem;margin-top:1.3rem;align-items:stretch}.sc-duo .sc-chart{margin-top:0}
+.sc-polar canvas{display:block;margin:.2rem auto 0;max-width:100%;border:none}.sc-pcap{margin-top:.7rem;color:#c4cfe2;font-size:.97rem;line-height:1.5}.sc-pcap b{color:#fff;font-weight:500}
+.sc-leg svg{vertical-align:middle;margin-right:.45rem;overflow:visible}
+.sc-item span.t2{display:block;margin-top:.45rem;font:.8rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#8294b0;letter-spacing:0}
+.sc-item b{font-size:1.2rem}
 .sc-sec{margin:2.6rem 0 .2rem;font-size:.82rem;letter-spacing:.3em;text-transform:uppercase;color:var(--mute);font-weight:600}
 .sc-foot{margin-top:2.4rem;color:#6f7c92;font-size:.85rem;line-height:1.5;max-width:90rem}
-@media(max-width:80rem){.sc-stage{grid-template-columns:1fr}.sc-hero h2{font-size:2.8rem}}
+@media(max-width:80rem){.sc-stage,.sc-duo{grid-template-columns:1fr}.sc-hero h2{font-size:2.8rem}}
 .tfig{margin:1rem 0;padding:.6rem;border:1px solid var(--line);border-radius:.6rem;background:var(--bg)}
 .tfig .tfimg{cursor:zoom-in}.tfig svg,.tfig img{width:100%;height:auto;max-height:26rem;display:block}.tfig h4{margin:.4rem 0 .2rem}
 #lightbox{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:2rem;cursor:zoom-out}
@@ -308,6 +318,7 @@ function prepare(d) {
   d.color = {}; let k = 0;
   d.pnames.forEach(n => { d.color[n] = FIXED[n] || PAL[k++ % PAL.length]; });
   d.label = {}; d.policies.forEach(p => { d.label[p.name] = p.label || p.name; });
+  d.pnames.sort((a, b) => ROLE_ORDER.indexOf(roleOf(a, d.meta)) - ROLE_ORDER.indexOf(roleOf(b, d.meta)));   // bound, frontier, intermediate, reference (colours already assigned)
   for (const s of d.seeds) {
     const w = s.wind;
     w.U = new Int8Array(b64bytes(w.u.b64).buffer); w.V = new Int8Array(b64bytes(w.v.b64).buffer);
@@ -454,8 +465,8 @@ function barsSvg(W, H, cats, series, o = {}) { // series: [{name,color,v:[per ca
   const L = 44 * K, R = 8 * K, T = 10 * K, B = (o.labelH || 22) * K, pw = W - L - R, ph = H - T - B;
   let lo = 0, hi = -Infinity, mn = 0;
   for (const s of series) for (const v of s.v) if (isFinite(v)) { hi = Math.max(hi, v); mn = Math.min(mn, v); }
-  lo = mn; if (!isFinite(hi)) hi = 1; if (hi === lo) hi = lo + 1;
-  const Y = v => T + (1 - (v - lo) / (hi - lo)) * ph;
+  lo = mn; if (!isFinite(hi)) hi = 1; if (o.cap) hi = o.cap; if (hi === lo) hi = lo + 1;
+  const Y = v => T + (1 - (Math.min(v, hi) - lo) / (hi - lo)) * ph;
   let g = "";
   for (const t of niceTicks(lo, hi, 4)) g += `<line class="gl" x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${L - 4}" y="${Y(t) + 3}" text-anchor="end">${+t.toFixed(3)}</text>`;
   const gw = pw / cats.length, bw = Math.min(26, gw * 0.8 / series.length);
@@ -463,8 +474,9 @@ function barsSvg(W, H, cats, series, o = {}) { // series: [{name,color,v:[per ca
     const x0 = L + ci * gw + gw / 2 - bw * series.length / 2;
     series.forEach((s, si) => {
       const v = s.v[ci]; if (!isFinite(v)) return;
-      const y1 = Y(Math.max(v, 0)), y2 = Y(Math.min(v, 0));
+      const y1 = Y(Math.max(v, 0)), y2 = Y(Math.min(v, 0)), clipd = o.cap && v > o.cap;
       g += `<rect x="${x0 + si * bw}" y="${y1}" width="${bw - 1}" height="${Math.max(0.5, y2 - y1)}" fill="${s.colors ? s.colors[ci] : s.color}" ${s.opacity ? 'fill-opacity="' + s.opacity + '"' : ""}><title>${esc(s.name)} ${esc(c)}: ${v.toFixed(2)}</title></rect>`;
+      if (clipd) g += `<path d="M${x0 + si * bw - 1},${y1 + 7 * K} l${bw + 2},${-4 * K} l0,${3.5 * K} l${-(bw + 2)},${4 * K} Z" fill="var(--card)"/>`;
       if (s.err && isFinite(s.err[ci])) g += `<line x1="${x0 + si * bw + bw / 2}" x2="${x0 + si * bw + bw / 2}" y1="${Y(v - s.err[ci])}" y2="${Y(v + s.err[ci])}" stroke="var(--ink)"/>`;
       if (s.pts) for (const p of s.pts[ci]) if (isFinite(p)) g += `<circle cx="${x0 + si * bw + bw / 2}" cy="${Y(p)}" r="2.4" fill="var(--card)" stroke="var(--ink)"/>`;
     });
@@ -493,9 +505,42 @@ function histSvg(W, H, centres, series, band, xlab, pct = true) {
 }
 
 // ------------------------------------------------------------------ top-level UI
+
+// ------------------------------------------------------------------ router roles, feature ladder, period line
+const ROLE_ORDER = ["bound", "frontier", "intermediate", "reference"];
+const RT = {bound: {fr: "Borne", en: "Bound"}, frontier: {fr: "Frontière", en: "Frontier"}, intermediate: {fr: "Intermédiaire", en: "Intermediate"}, reference: {fr: "Référence", en: "Reference"}};
+const RTIP = {bound: {fr: "non causal : borne de prescience parfaite", en: "non-causal: perfect-foresight bound"}, frontier: {fr: "notre routeur de pointe", en: "our frontier router"}, intermediate: {fr: "fonctionnalités progressives vers la frontière", en: "progressive features towards the frontier"}, reference: {fr: "référence de comparaison", en: "comparison reference"}};
+function roleOf(n, meta = D.meta) { // role by name pattern, overridable in meta.roles
+  const o = meta && meta.roles && meta.roles[n]; if (ROLE_ORDER.includes(o)) return o;
+  if (/^oracle/i.test(n)) return "bound";
+  if (/^ENS.*_REF/.test(n)) return "frontier";
+  if (/^B0/.test(n) || /^B1_\d+d(_REF)?$/.test(n)) return "reference";
+  return "intermediate";
+}
+const roleBadge = n => { const r = roleOf(n); return `<span class="rb rb-${r}" title="${esc(T_(RTIP[r]))}">${esc(T_(RT[r]))}</span>`; };
+function featOf(n) { // feature flags of a router, from its name/label (overridable in meta.features)
+  const o = D.meta.features && D.meta.features[n]; if (o) return o;
+  const lab = D.label[n] || "", ens = /^ENS/.test(n) || /ensemble/i.test(lab), hm = (n.match(/(\d+)\s?d(?![a-z])/i) || lab.match(/(\d+)\s?d(?![a-z])/i));
+  return {fc: !/^B0/.test(n), ens, risk: ens, term: /terminal/i.test(lab) || /^B1c/.test(n), ref: /_REF/.test(n) || /refiner/i.test(lab), hor: hm ? hm[1] + " d" : "-"};
+}
+const FEAT_COLS = [["fc", {fr: "Prévisions utilisées", en: "Forecasts used"}], ["ens", {fr: "Ensemble", en: "Ensemble"}], ["risk", {fr: "Mesure de risque", en: "Risk measure"}], ["term", {fr: "Valeur terminale", en: "Terminal value"}], ["ref", {fr: "Raffineur continu", en: "Continuous refiner"}], ["hor", {fr: "Horizon", en: "Horizon"}]];
+function featLadder() {
+  const nf_ = n => { const f = featOf(n); return ["fc", "ens", "risk", "term", "ref"].filter(k => f[k]).length; };
+  const ord = [...D.pnames].sort((a, b) => { const ra = roleOf(a), rb = roleOf(b), ia = ra === "bound" ? 9 : ROLE_ORDER.length - ROLE_ORDER.indexOf(ra), ib = rb === "bound" ? 9 : ROLE_ORDER.length - ROLE_ORDER.indexOf(rb); return ia - ib || nf_(a) - nf_(b); });
+  const rows = ord.map(n => { const f = featOf(n); return `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b>${roleBadge(n)}</td>${FEAT_COLS.map(([k]) => k === "hor" ? `<td>${esc(f.hor)}</td>` : `<td class="${f[k] ? "yes" : "no"}">${f[k] ? "&#10003;" : "&ndash;"}</td>`).join("")}</tr>`; }).join("");
+  return `<table class="ladder"><tr><th>${S.lang === "fr" ? "Routeur" : "Router"}</th>${FEAT_COLS.map(([, l]) => `<th>${esc(T_(l))}</th>`).join("")}</tr>${rows}</table>`;
+}
+function periodLine() { // duration and period of the exported missions, from meta/epochs
+  const fr = S.lang === "fr", ss = D.seeds, dd = Math.round(D.meta.duration_s / 86400), loc = fr ? "fr-FR" : "en-GB";
+  const st = ss.map(q => Date.parse(q.epoch || D.meta.epoch)), a = Math.min(...st), b = Math.max(...st) + D.meta.duration_s * 1000 - 1;
+  const f = (t, o) => new Date(t).toLocaleDateString(loc, {timeZone: "UTC", ...o}), ya = new Date(a).getUTCFullYear(), yb = new Date(b).getUTCFullYear(), yr = ya === yb ? String(ya) : ya + "–" + yb;
+  if (ss.length === 1) return dd >= 300 ? `${fr ? "Année" : "Year"} ${yr} · ${f(a, {day: "numeric", month: "short"})} – ${f(b, {day: "numeric", month: "short"})} · ${dd} ${fr ? "j" : "d"} · ${fr ? "1 mission persistante" : "1 persistent mission"}`
+    : `${fr ? "1 mission" : "1 mission"} × ${dd} ${fr ? "j" : "d"} · ${f(a, {day: "numeric", month: "short"})} – ${f(b, {day: "numeric", month: "short"})} ${yb}`;
+  return `${ss.length} missions × ${dd} ${fr ? "j" : "d"} · ${f(a, {month: "short"})}–${f(b, {month: "short"})} ${yr}`;
+}
 function selNames(s) { return D.pnames.filter(n => S.sel.has(n) && (!s || s.runs[n])); }
 function renderBar() {
-  const chips = D.pnames.map(n => `<span class="chip ${S.sel.has(n) ? "" : "off"}" data-p="${esc(n)}" title="${esc(D.label[n])}"><span class="dot" style="background:${D.color[n]}"></span>${esc(n)}<span class="q" data-guide="${routerKey(n)}" title="?">?</span></span>`).join("");
+  const chips = D.pnames.map(n => `<span class="chip ${S.sel.has(n) ? "" : "off"}" data-p="${esc(n)}" title="${esc(D.label[n])}"><span class="dot" style="background:${D.color[n]}"></span>${esc(n)}${roleBadge(n)}<span class="q" data-guide="${routerKey(n)}" title="?">?</span></span>`).join("");
   $("#bar").innerHTML = `<b>${ui("policies")}</b>${chips}<span style="margin-left:auto">${ui("reference")}${info("c_ref")} <select id="refsel">${D.pnames.map(n => `<option ${n === S.ref ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></span>`;
   $("#bar").querySelectorAll(".chip").forEach(c => c.onclick = e => {
     if (e.target.dataset.guide) { openGuide(e.target.dataset.guide); return; }
@@ -526,7 +571,7 @@ function renderOverview() {
     const ms = names.filter(n => n !== S.ref).map(n => stats[n][k].m).filter(isFinite);
     if (ms.length) best[k] = METRICS[k].hi ? Math.max(...ms) : Math.min(...ms);
   }
-  for (const n of names) t1 += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b> <span class="meta" title="${esc(fname(n) ? T_(SCT.fixed.tip) : "")}">${esc(fname(n) || (D.label[n] === n ? "" : D.label[n]))}</span></td>${sumKeys.map(k => {
+  for (const n of names) t1 += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b>${roleBadge(n)} <span class="meta" title="${esc(fname(n) ? T_(SCT.fixed.tip) : "")}">${esc(fname(n) || (D.label[n] === n ? "" : D.label[n]))}</span></td>${sumKeys.map(k => {
     const x = stats[n][k], cls = n !== S.ref && best[k] !== undefined && Math.abs(x.m - best[k]) < 1e-9 ? "best" : "";
     return `<td class="${cls}">${fmt(x.m, METRICS[k].d)} &plusmn; ${fmt(x.s, METRICS[k].d)}${x.n < ns ? ` <span class="meta">(n=${x.n})</span>` : ""}</td>`;
   }).join("")}</tr>`;
@@ -552,11 +597,13 @@ function renderOverview() {
   t3 += `<tr><td><b>mean &plusmn; std</b></td><td></td><td></td><td><b>${fmt(dl.length ? mean(dl) : NaN, 1)}</b> &plusmn; ${fmt(std(dl), 1)}</td><td>${fmt(dp.length ? mean(dp) : NaN, 1)} &plusmn; ${fmt(std(dp), 1)}</td><td class="meta">${fmt(dj.length ? mean(dj) : NaN, 1)}</td><td><b>${esc(A)} ${wa} - ${wb} ${esc(B)}</b>${ties ? ` (${ties} ties)` : ""}</td></tr>`;
   const opt = v => D.pnames.map(n => `<option ${n === v ? "selected" : ""}>${esc(n)}</option>`).join("");
   $("#app").innerHTML = `
-  <div id="ovgrid"><div class="card ov-wide"><h2>Summary <small>mean &plusmn; std over ${ns} seeds; gap in CF points vs <b>${esc(S.ref)}</b></small></h2>${cap("summary")}<div class="tw"><table>${t1}</table></div></div>
+  <div id="ovgrid"><div class="card ov-wide"><h2>Summary <small>mean &plusmn; std over ${ns} seeds; gap in CF points vs <b>${esc(S.ref)}</b></small></h2><div class="ovperiod">${esc(periodLine())}</div>${cap("summary")}<div class="tw"><table>${t1}</table></div>
+    <h2 style="margin-top:1rem">${S.lang === "fr" ? "Échelle de fonctionnalités : des références à la frontière" : "Feature ladder: from the references to the frontier"}</h2><div class="tw">${featLadder()}</div>
+    <div class="hint">${S.lang === "fr" ? "Frontière = notre routeur de pointe ; Intermédiaire = fonctionnalités ajoutées progressivement ; Référence = comparaison ; Borne = non causal (prescience parfaite). Rôles déduits du nom, modifiables dans meta.roles." : "Frontier = our leading router; Intermediate = features added step by step; Reference = comparison; Bound = non-causal (perfect foresight). Roles inferred from the name, overridable in meta.roles."}</div></div>
    <div class="card"><h2>Per-seed table
      <select id="msel">${Object.entries(METRICS).map(([k, m]) => `<option value="${k}" ${k === mk ? "selected" : ""}>${m.label}</option>`).join("")}</select>
      </h2>${cap("perseed")}<div class="tw"><table>${t2}</table></div></div>
-   <div class="card"><h2>${esc(METRICS[mk].label)}${info("m_" + mk)}</h2>${cap("chart")}<div id="ovchart"></div></div>
+   <div class="card"><h2>${esc(METRICS[mk].label)}${info("m_" + mk)}</h2><div class="hint">${esc(periodLine())}</div>${cap("chart")}<div id="ovchart"></div></div>
   <div class="card ov-wide"><h2>Paired comparison
     A <select id="asel">${opt(A)}</select> vs B <select id="bsel">${opt(B)}</select>
     ${info("c_pair")}</h2>${cap("paired")}
@@ -1100,12 +1147,19 @@ const SCT = {
   ahead: {fr: "d'avance sur le poste fixe optimal, à cette date", en: "ahead of the optimal fixed station, to date"},
   chart: {fr: "Facteur de charge, mois par mois", en: "Capacity factor, month by month"},
   chartn: {fr: "Part de la puissance nominale réellement tenue, en pourcentage.", en: "Share of rated power actually delivered, in percent."},
+  lg: {router: {fr: "piloté en temps réel", en: "steered in real time"}, oracle: {fr: "connaît le vent à l'avance", en: "knows the wind in advance"}, fixed: {fr: "reste au meilleur point", en: "stays at the best point"}},
+  polar: {fr: "Là où le navire travaille", en: "Where the ship works"},
+  polarn: {fr: "Énergie produite sur l'année, selon l'angle au vent et la vitesse. Les contours clairs montrent les lobes productifs de la polaire au vent médian.", en: "Energy produced over the year, by wind angle and speed. The light contours show the productive lobes of the polar at the median wind."},
+  pcap: {fr: (pos, tw, a, b, sh, tws) => `HORIZON garde le navire dans sa zone idéale : <b>${pos}</b> (TWA ≈ ${tw}°), <b>${a}–${b} m/s</b>. ${sh} % de l'énergie est produite dans ce secteur, au vent médian de ${tws} nd.`, en: (pos, tw, a, b, sh, tws) => `HORIZON keeps the ship in its sweet spot: <b>${pos}</b> (TWA ≈ ${tw}°), <b>${a}–${b} m/s</b>. ${sh} % of the energy is made in this sector, at the median wind of ${tws} kn.`},
+  sail: [[50, {fr: "près du vent", en: "close-hauled"}], [70, {fr: "petit largue", en: "close reach"}], [110, {fr: "travers", en: "beam reach"}], [150, {fr: "grand largue", en: "broad reach"}], [181, {fr: "vent arrière", en: "running"}]],
+  mean: {fr: "moyenne annuelle", en: "annual mean"},
   how: {fr: "Comment ça marche", en: "How it works"},
   hows: [
-    {t: {fr: "Prévisions d'ensemble", en: "Ensemble forecasts"}, d: {fr: "Plusieurs scénarios météo plausibles plutôt qu'une seule prévision.", en: "Many plausible weather scenarios instead of a single forecast."}},
-    {t: {fr: "Anticipation des systèmes météo", en: "Anticipating weather systems"}, d: {fr: "Le navire se place avant l'arrivée des tempêtes et des calmes.", en: "The ship positions itself ahead of storms and calms."}},
-    {t: {fr: "Optimisation continue", en: "Continuous optimisation"}, d: {fr: h => h ? `Sa route est recalculée en continu, toutes les ${h} h.` : "Sa route est recalculée en continu.", en: h => h ? `Its route is recomputed continuously, every ${h} h.` : "Its route is recomputed continuously."}},
-    {t: {fr: "Marges de sécurité", en: "Safety margins"}, d: {fr: "La distance de sécurité à la côte est contrôlée à chaque pas.", en: "The safety distance to the coast is checked at every step."}}],
+    {t: {fr: "Il voit la météo en 20 futurs possibles", en: "It sees the weather as 20 possible futures"}, d: {fr: "Ensemble NWP à 20 membres, réduction EOF + k-medoids (PAM), agrégation espérance–CVaRα", en: "20-member NWP ensemble, EOF reduction + k-medoids (PAM), expectation–CVaRα aggregation"}},
+    {t: {fr: h => h ? `Il pense à ${h} jours` : "Il pense à plusieurs jours", en: h => h ? `It thinks ${h} days ahead` : "It thinks days ahead"}, d: {fr: "Programmation dynamique stochastique rétrograde sur graphe spatio-temporel LAEA 40 km × 3 h, 49 macro-arcs, non-anticipativité 48 h", en: "Backward stochastic dynamic programming on a 40 km × 3 h LAEA space-time graph, 49 macro-arcs, 48 h non-anticipativity"}},
+    {t: {fr: "Il pilote à la minute", en: "It steers minute by minute"}, d: {fr: "Contrôle optimal continu (CasADi/IPOPT, multiple shooting, dérivées exactes), enveloppe concave de puissance", en: "Continuous optimal control (CasADi/IPOPT, multiple shooting, exact derivatives), concave power envelope"}},
+    {t: {fr: "Il ne prend pas de risques", en: "It takes no risks"}, d: {fr: "Contrainte SDF ≥ 20 km exacte sur cordes bilinéaires + garde-fou d'exécution", en: "Exact SDF ≥ 20 km constraint on bilinear chords + runtime guard"}},
+    {t: {fr: "Il apprend de son expérience", en: "It learns from experience"}, d: {fr: "Valeur terminale climatologique + Vθ LightGBM politique-consistante", en: "Climatological terminal value + policy-consistent LightGBM Vθ"}}],
   team: {fr: "Validé de bout en bout", en: "Validated end to end"},
   teams: [
     {t: {fr: "Revue indépendante à chaque sprint", en: "Independent review at every sprint"}, d: {fr: "Chaque sprint est relu par un agent de revue indépendant.", en: "Each sprint is checked by an independent review agent."}},
@@ -1119,7 +1173,8 @@ const SCICON = {
   how: ['<path d="M6 36 C16 34 24 24 42 12"/><path d="M6 36 C18 36 28 32 42 26"/><path d="M6 36 C16 38 28 42 42 40"/><circle cx="6" cy="36" r="2.5"/>',
     '<path d="M6 16 H30 a5 5 0 1 0 -5 -5"/><path d="M6 26 H38 a5 5 0 1 1 -5 5"/><path d="M6 36 H24"/>',
     '<path d="M6 34 C14 10 22 40 30 20 S40 14 42 12"/><circle cx="6" cy="34" r="2.5"/><circle cx="30" cy="20" r="2.5"/><circle cx="42" cy="12" r="2.5"/>',
-    '<path d="M24 5 L40 11 V24 C40 33 33 40 24 43 C15 40 8 33 8 24 V11 Z"/><path d="M17 24 l5 5 9-10"/>'],
+    '<path d="M24 5 L40 11 V24 C40 33 33 40 24 43 C15 40 8 33 8 24 V11 Z"/><path d="M17 24 l5 5 9-10"/>',
+    '<path d="M8 30 C8 16 24 10 36 16"/><path d="M32 10 L37 16 L30 19"/><path d="M40 18 C40 32 24 38 12 32"/><path d="M16 38 L11 32 L18 29"/>'],
   team: ['<circle cx="18" cy="17" r="6"/><circle cx="33" cy="19" r="5"/><path d="M6 40 C6 30 30 30 30 40"/><path d="M28 37 C30 30 44 30 44 38"/>',
     '<path d="M8 36 A17 17 0 1 1 40 36"/><path d="M24 36 L33 21"/><circle cx="24" cy="36" r="2.5"/>',
     '<circle cx="24" cy="24" r="17"/><circle cx="24" cy="24" r="9"/><circle cx="24" cy="24" r="2.5"/>']
@@ -1127,7 +1182,8 @@ const SCICON = {
 const T_ = (o, ...a) => { const v = o[S.lang] !== undefined ? o[S.lang] : o.en; return typeof v === "function" ? v(...a) : v; };
 const nf = (v, d = 0) => v.toLocaleString(S.lang === "fr" ? "fr-FR" : "en-US", {minimumFractionDigits: d, maximumFractionDigits: d});
 const SC_SPEEDS = [[24, "1 j/s", "1 d/s"], [72, "3 j/s", "3 d/s"], [168, "1 sem/s", "1 wk/s"], [336, "2 sem/s", "2 wk/s"], [720, "1 mois/s", "1 mo/s"]];
-function scSpeed0() { try { const v = +localStorage.getItem("hz-scspeed"); if (SC_SPEEDS.some(q => q[0] === v)) return v; } catch (e) { /* ignore */ } return 168; }
+const SC_SPKEY = "hz-scspeed-4.7";   // new key: speeds stored by older versions are ignored
+function scSpeed0() { try { const v = +localStorage.getItem(SC_SPKEY); if (SC_SPEEDS.some(q => q[0] === v)) return v; } catch (e) { /* ignore */ } return 72; }
 function scTicks(s) { // month ticks and initials (J F M ...) along the replay timeline
   const t0 = Date.parse(s.epoch || D.meta.epoch), span = (s.n - 1) * dtS() * 1000, ini = S.lang === "fr" ? "JFMAMJJASOND" : "JFMAMJJASOND";
   const d0 = new Date(t0), out = []; let y = d0.getUTCFullYear(), mo = d0.getUTCMonth();
@@ -1169,7 +1225,7 @@ function renderShowcase() {
   kp.push({v: M.opt, d: 0, suf: "%", lab: SCT.k3, pre: "", subv: T_(SCT.k3.subg, nf(M.gap, 1))}, {v: M.gwh, d: 1, suf: " GWh", lab: SCT.k4, pre: ""});
   kp[kp.length - 1].lab = {fr: SCT.k4.fr, en: SCT.k4.en, sub: SCT.k4.sub};
   const kpiH = kp.map((k, i) => `<div class="sc-kpi"><div class="sc-num" data-v="${k.v}" data-d="${k.d}" data-pre="${k.pre}">${k.pre}${nf(0, k.d)}<small>${k.suf.trim() === "GWh" ? "GWh" : k.suf}</small></div><div class="sc-lab">${esc(i === kp.length - 1 ? T_({fr: "livrés par an", en: "delivered per year"}) : T_(k.lab))}</div><div class="sc-lab2">${esc(k.subv || T_(k.lab.sub))}</div></div>`).join("");
-  const rh = M.replans > 0 ? Math.round(D.meta.duration_s / 3600 / M.replans) : 0, fixedN = SCI.fixed ? T_(SCT.fixed.short) : "";
+  const hm = ((D.label[S.sc.router] || "").match(/(\d+)\s?d(?![a-z])/i) || S.sc.router.match(/(\d+)\s?d(?![a-z])/i)), horD = hm ? +hm[1] : 0, fixedN = SCI.fixed ? T_(SCT.fixed.short) : "";
   const names = [[S.sc.router, T_(SCT.n.router), "#58c4ff"], [SCI.ref, T_(SCT.n.oracle), "#e6ecf7"]]; if (SCI.fixed) names.push([SCI.fixed, fixedN, "#7d8aa3"]);
   const bars = names.map(([n, lab, col]) => `<div class="sc-bar"><div class="l"><span>${esc(lab)}</span><b id="scv-${esc(n)}">0</b></div><div class="t"><i id="scb-${esc(n)}" style="background:${col}"></i></div></div>`).join("");
   $("#app").innerHTML = `<div class="sc">
@@ -1190,27 +1246,28 @@ function renderShowcase() {
       <div class="sc-note" style="margin-top:1.1rem">${esc(T_(SCT.cum))}</div>${bars}
       ${SCI.fixed ? `<div class="sc-delta"><b id="scd">-</b> ${esc(T_(SCT.ahead))}</div>` : ""}
       <div class="sc-key"><div><b>${esc(T_(SCT.n.router))}</b> : ${esc(T_(SCT.key.router))}</div><div><b>${esc(T_(SCT.n.oracle))}</b> : ${esc(T_(SCT.key.oracle))}</div>${SCI.fixed ? `<div title="${esc(T_(SCT.fixed.tip))}"><b>${esc(T_(SCT.fixed.short))}</b> : ${esc(T_(SCT.fixed.line))}</div>` : ""}</div></aside></section>
-   <section class="sc-card sc-chart"><h3>${esc(T_(SCT.chart))}</h3><div class="sc-note">${esc(T_(SCT.chartn))}</div>
-     <div class="sc-leg">${names.map(([n, lab, col]) => `<span ${n === SCI.fixed ? `title="${esc(T_(SCT.fixed.tip))}"` : ""}><i style="background:${col}"></i>${esc(lab)}</span>`).join("")}</div><div class="sc-chartwrap" id="scchart"></div></section>
-   <section><div class="sc-sec">${esc(T_(SCT.how))}</div><div class="sc-row4">${SCT.hows.map((h, i) => `<div class="sc-item"><svg viewBox="0 0 48 48">${SCICON.how[i]}</svg><b>${esc(T_(h.t))}</b><span>${esc(i === 2 ? T_(h.d, rh) : T_(h.d))}</span></div>`).join("")}</div>
+   <div class="sc-duo"><section class="sc-card sc-chart"><h3>${esc(T_(SCT.chart))}</h3><div class="sc-note">${esc(T_(SCT.chartn))}</div>
+     <div class="sc-leg">${scChartDefs().map((d, q) => `<span ${d[0] === SCI.fixed ? `title="${esc(T_(SCT.fixed.tip))}"` : ""}>${scSwatch(d, q === 0)}${esc(names[q][1])}</span>`).join("")}</div><div class="sc-chartwrap" id="scchart"></div></section>
+    <section class="sc-card sc-polar"><h3>${esc(T_(SCT.polar))}</h3><div class="sc-note">${esc(T_(SCT.polarn))}</div><canvas id="scpolar"></canvas><div class="sc-pcap" id="scpcap"></div></section></div>
+   <section><div class="sc-sec">${esc(T_(SCT.how))}</div><div class="sc-row4">${SCT.hows.map((h, i) => `<div class="sc-item"><svg viewBox="0 0 48 48">${SCICON.how[i]}</svg><b>${esc(T_(h.t, i === 1 ? horD : 0))}</b><span class="t2">${esc(T_(h.d))}</span></div>`).join("")}</div>
      <div class="sc-sec">${esc(T_(SCT.team))}</div><div class="sc-row4">${SCT.teams.map((h, i) => `<div class="sc-item"><svg viewBox="0 0 48 48">${SCICON.team[i]}</svg><b>${esc(T_(h.t))}</b><span>${esc(T_(h.d))}</span></div>`).join("")}</div>
      <p class="sc-foot">${esc(scFoot(yr, ERAk))}</p></section></div>`;
   $("#scgear").onclick = () => $("#scmenu").classList.toggle("open");
   $("#sceng").onclick = () => setTab("ov");
   $("#scr").onchange = e => { S.sc.router = e.target.value; renderShowcase(); };
   if ($("#scs")) $("#scs").onchange = e => { S.sc.si = +e.target.value; S.sc.tf = 0; renderShowcase(); };
-  $("#scseg").onclick = e => { const b = e.target.closest("[data-sp]"); if (!b) return; S.sc.speed = +b.dataset.sp; try { localStorage.setItem("hz-scspeed", String(S.sc.speed)); } catch (er) { /* ignore */ } $("#scseg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#scseg").onclick = e => { const b = e.target.closest("[data-sp]"); if (!b) return; S.sc.speed = +b.dataset.sp; try { localStorage.setItem(SC_SPKEY, String(S.sc.speed)); } catch (er) { /* ignore */ } $("#scseg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
   $("#scfxc").onchange = e => { S.sc.fx = e.target.checked; S.sc.dirty = true; fxKick(); };
   $("#scplay").onclick = () => { if (S.sc.tf >= M.s.n - 1.5) S.sc.tf = 0; S.sc.play = !S.sc.play; S.sc.last = 0; scPlayIcon(); };
   $("#scsl").oninput = e => { S.sc.tf = +e.target.value; S.sc.dirty = true; scLive(); };
-  scPlayIcon(); scChart(M); scCount(); S.sc.dirty = true; S.sc.last = 0;
+  scPlayIcon(); scChart(M); scPolar(M); scCount(); S.sc.dirty = true; S.sc.last = 0;
   if (!S.sc.raf) S.sc.raf = requestAnimationFrame(scLoop);
 }
 function scFoot(yr, era) {
   const p = D.meta.params || {}, fr = S.lang === "fr", bits = [];
   if (p.forecasts) bits.push((fr ? "Prévisions fournies au routeur : " : "Forecasts given to the router: ") + p.forecasts);
   if (p.polar) bits.push((fr ? "Polaire du navire : " : "Ship polar: ") + p.polar);
-  return (fr ? `Résultats de simulation sur ${era ? "météo réelle ERA5" : "météo synthétique"} ${yr}. ` : `Simulation results on ${era ? "real ERA5 weather" : "synthetic weather"} ${yr}. `) + bits.join(". ") + (bits.length ? "." : "") + "  ·  v" + (D.meta.inspector_version || "4.6");
+  return (fr ? `Résultats de simulation sur ${era ? "météo réelle ERA5" : "météo synthétique"} ${yr}. ` : `Simulation results on ${era ? "real ERA5 weather" : "synthetic weather"} ${yr}. `) + bits.join(". ") + (bits.length ? "." : "") + "  ·  v" + (D.meta.inspector_version || "4.7");
 }
 function scPlayIcon() { const nt = $("#scnote"); if (nt) nt.textContent = T_(S.sc.play ? SCT.mapnp : SCT.mapn); const b = $("#scplay"); if (b) b.innerHTML = S.sc.play ? '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 4 L20 12 L7 20 Z"/></svg>'; }
 function scCount() {
@@ -1270,24 +1327,41 @@ function scDraw(M) {
     cx.strokeStyle = `rgba(88,196,255,${(0.3 * al).toFixed(3)})`; cx.lineWidth = 9; seg(a, b, 1);
     cx.strokeStyle = `rgba(255,255,255,${al.toFixed(3)})`; cx.lineWidth = 2.2; seg(a, b, 1);
   }
-  const halo = (r, col, lab, dy) => { // markers of the two baselines
+  const halo = (r, col) => { // markers of the two baselines (identified by the fixed legend, no moving labels)
     const [x, y] = P(r, i); cx.strokeStyle = col; cx.fillStyle = "rgba(8,12,22,.6)"; cx.lineWidth = 1.6; cx.beginPath(); cx.arc(x, y, 5, 0, 7); cx.fill(); cx.stroke();
-    cx.font = "11px system-ui"; cx.lineWidth = 3; cx.strokeStyle = "rgba(8,12,22,.85)"; cx.strokeText(lab, x + 9, y + dy); cx.fillStyle = "#e8edf5"; cx.fillText(lab, x + 9, y + dy);
   };
-  if (M.F) halo(M.F, "#9aa8c2", G.W < 420 ? "" : T_(SCT.fixed.short), 18); halo(M.O, "#ffffff", G.W < 420 ? "" : T_(SCT.n.oracle), -8);
+  if (M.F) halo(M.F, "#9aa8c2"); halo(M.O, "#ffffff");
   const [px, py] = P(R, i), j0 = Math.max(0, i - 4), j1 = Math.min(R.X.length - 1, i + 4), ang = Math.atan2(G.PY(R.Y[j1]) - G.PY(R.Y[j0]), G.PX(R.X[j1]) - G.PX(R.X[j0]));
   const gr = cx.createRadialGradient(px, py, 0, px, py, 26); gr.addColorStop(0, "rgba(88,196,255,.55)"); gr.addColorStop(1, "rgba(88,196,255,0)"); cx.fillStyle = gr; cx.beginPath(); cx.arc(px, py, 26, 0, 7); cx.fill();
   cx.save(); cx.translate(px, py); cx.rotate(ang); cx.fillStyle = "#fff"; cx.strokeStyle = "#58c4ff"; cx.lineWidth = 1.6;
   cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(-8, 6); cx.lineTo(-4, 0); cx.lineTo(-8, -6); cx.closePath(); cx.fill(); cx.stroke(); cx.restore();
-  cx.font = "600 12px system-ui"; cx.lineWidth = 3.5; cx.strokeStyle = "rgba(8,12,22,.9)"; cx.strokeText(T_(SCT.n.router), px + 14, py - 12); cx.fillStyle = "#fff"; cx.fillText(T_(SCT.n.router), px + 14, py - 12);
-  drawLegend(cx, G, false);
+  drawLegend(cx, G, false); drawScKey(cx, G);
+}
+function drawScKey(cx, G) { // fixed legend (glass panel, bottom-right): same symbols as on the map
+  const rows = [["r", T_(SCT.n.router), T_(SCT.lg.router)], ["o", T_(SCT.n.oracle), T_(SCT.lg.oracle)]]; if (SCI.fixed) rows.push(["f", T_(SCT.fixed.short), T_(SCT.lg.fixed)]);
+  const small = G.W < 520, rh = small ? 18 : 31, pw0 = small ? 6 : 14, f1 = small ? "600 10px system-ui" : "600 11.5px system-ui", f2 = "10.5px system-ui"; let tw = 0;
+  for (const r of rows) { cx.font = f1; tw = Math.max(tw, cx.measureText(r[1]).width); if (!small) { cx.font = f2; tw = Math.max(tw, cx.measureText(r[2]).width); } }
+  const w = pw0 + (small ? 20 : 24) + tw + (small ? 8 : 12), h = rows.length * rh + 12, x0 = G.W - w - (small ? 8 : 12), y0 = G.H - h - (small ? 8 : 12);
+  cx.fillStyle = "rgba(8,12,22,.66)"; cx.strokeStyle = "rgba(255,255,255,.12)"; cx.lineWidth = 1; cx.beginPath(); cx.roundRect(x0, y0, w, h, 8); cx.fill(); cx.stroke();
+  rows.forEach(([k, a, b], q) => {
+    const y = y0 + 6 + q * rh + rh / 2, x = x0 + pw0 + 4;
+    if (k === "r") { cx.save(); cx.translate(x, y); cx.fillStyle = "#fff"; cx.strokeStyle = "#58c4ff"; cx.lineWidth = 1.6; cx.beginPath(); cx.moveTo(8, 0); cx.lineTo(-6, 4.5); cx.lineTo(-3, 0); cx.lineTo(-6, -4.5); cx.closePath(); cx.fill(); cx.stroke(); cx.restore(); }
+    else { cx.strokeStyle = k === "o" ? "#ffffff" : "#9aa8c2"; cx.fillStyle = "rgba(8,12,22,.6)"; cx.lineWidth = 1.6; cx.beginPath(); cx.arc(x, y, 5, 0, 7); cx.fill(); cx.stroke(); }
+    cx.textBaseline = "middle"; cx.fillStyle = "#fff"; cx.font = f1; cx.fillText(a, x + (small ? 13 : 16), small ? y : y - 6);
+    if (!small) { cx.fillStyle = "#9fb0c8"; cx.font = f2; cx.fillText(b, x + 16, y + 7); }
+    cx.textBaseline = "alphabetic";
+  });
+}
+function scChartDefs() { const d = [[S.sc.router, "#58c4ff", 2.6, ""], [SCI.ref, "#e6ecf7", 1.6, "2 5"]]; if (SCI.fixed) d.push([SCI.fixed, "#7d8aa3", 1.8, ""]); return d; }
+function scSwatch(d, marker) { // legend swatch identical to the plotted series (colour, width, dash, markers)
+  const w = 44 * K, h = 14 * K; return `<svg width="${w}" height="${h}"><line x1="${4 * K}" x2="${w - 4 * K}" y1="${h / 2}" y2="${h / 2}" stroke="${d[1]}" stroke-width="${d[2] * K}" ${d[3] ? `stroke-dasharray="${d[3]}"` : ""} stroke-linecap="round"/>${marker ? `<circle cx="${w / 2}" cy="${h / 2}" r="${3.6 * K}" fill="#05080f" stroke="${d[1]}" stroke-width="${2 * K}"/>` : ""}</svg>`;
 }
 function scChart(M) {
   const el = $("#scchart"); if (!el) return;
-  const id = S.sc.si, defs = [[S.sc.router, "#58c4ff", 2.6, ""], [SCI.ref, "#e6ecf7", 1.6, "2 5"]]; if (SCI.fixed) defs.push([SCI.fixed, "#7d8aa3", 1.8, ""]);
+  const id = S.sc.si, defs = scChartDefs();
   const mo = defs.map(d => monthly(d[0], id)), used = mo[0].map((a, i) => a.h > 0 ? i : -1).filter(i => i >= 0);
   const vals = mo.map(m => used.map(i => 100 * m[i].cf)), all = vals.flat().filter(isFinite);
-  const W = chartW(el), H = Math.round(270 * K), L = 52 * K, R = 22 * K, T = 16 * K, B = 34 * K, pw = W - L - R, ph = H - T - B;
+  const W = chartW(el), H = Math.round(450 * K), L = 52 * K, R = 92 * K, T = 16 * K, B = 34 * K, pw = W - L - R, ph = H - T - B;
   const lo = Math.max(0, Math.floor((Math.min(...all) - 8) / 10) * 10), hi = Math.min(100, Math.ceil((Math.max(...all) + 4) / 10) * 10);
   const X = k => L + (k + 0.5) / used.length * pw, Yv = v => T + (1 - (v - lo) / (hi - lo)) * ph;
   const sm = pts => { let d = `M${pts[0][0]},${pts[0][1]}`; for (let k = 0; k < pts.length - 1; k++) { const p0 = pts[Math.max(0, k - 1)], p1 = pts[k], p2 = pts[k + 1], p3 = pts[Math.min(pts.length - 1, k + 2)]; d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]},${p2[1]}`; } return d; };
@@ -1297,6 +1371,13 @@ function scChart(M) {
   const rp = vals[0].map((v, k) => [X(k), Yv(v)]);
   g += `<path d="${sm(rp)} L${rp[rp.length - 1][0]},${T + ph} L${rp[0][0]},${T + ph} Z" fill="url(#scg)"/>`;
   defs.forEach((d, q) => { const pts = vals[q].map((v, k) => [X(k), Yv(v)]); g += `<path d="${sm(pts)}" fill="none" stroke="${d[1]}" stroke-width="${d[2] * K}" ${d[3] ? `stroke-dasharray="${d[3]}"` : ""} stroke-linecap="round"/>`; if (q === 0) pts.forEach(p => { g += `<circle cx="${p[0]}" cy="${p[1]}" r="${3.6 * K}" fill="#05080f" stroke="${d[1]}" stroke-width="${2 * K}"/>`; }); });
+  const means = defs.map(d => 100 * M.s.runs[d[0]].metrics.capacity_factor); // annual means as thin dotted reference lines
+  means.forEach((mv, q) => {
+    if (!(mv >= lo && mv <= hi)) return; const y = Yv(mv), main = q === 0;
+    g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="${defs[q][1]}" stroke-width="${(main ? 1.2 : 1) * K}" stroke-dasharray="${1.5 * K} ${4 * K}" stroke-linecap="round" opacity="${main ? 0.85 : 0.4}"/>`;
+    g += `<text x="${W - R + 6 * K}" y="${y + 4 * K}" fill="${defs[q][1]}" opacity="${main ? 1 : 0.55}" ${main ? 'font-weight="600"' : ""}>${nf(mv, 1)} %</text>`;
+    if (main) g += `<text x="${W - R + 6 * K}" y="${y - 10 * K}" fill="#58c4ff" font-size="${10.5 * K}">${esc(T_(SCT.mean))}</text>`;
+  });
   g += `<line id="scrule" x1="0" x2="0" y1="${T}" y2="${T + ph}" stroke="rgba(255,255,255,.3)" style="display:none"/>`;
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}">${g}</svg><div class="sc-tip" id="sctip"></div>`;
   const svg = el.querySelector("svg"), tip = $("#sctip"), rule = $("#scrule"), nm = [T_(SCT.n.router), T_(SCT.n.oracle), SCI.fixed ? T_(SCT.fixed.short) : ""];
@@ -1307,6 +1388,69 @@ function scChart(M) {
     tip.innerHTML = `<b>${MONTHS[S.lang][used[kk]]}</b><br>` + defs.map((d, q) => `<span style="color:${d[1]}">&#9679;</span> ${esc(nm[q])} : <b>${fmt(vals[q][kk], 1)} %</b>`).join("<br>");
   };
   svg.onmouseleave = () => { tip.style.display = "none"; rule.style.display = "none"; };
+}
+
+/* contour segments of a gridded field g (nx x ny) at level lv, in grid coordinates (marching squares) */
+function msSegs(g, nx, ny, lv) {
+  const out = [], L = (a, b) => (lv - a) / (b - a);
+  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const a = g[j * nx + i], b = g[j * nx + i + 1], c = g[(j + 1) * nx + i + 1], d = g[(j + 1) * nx + i], k = (a > lv ? 1 : 0) | (b > lv ? 2 : 0) | (c > lv ? 4 : 0) | (d > lv ? 8 : 0);
+    if (k === 0 || k === 15) continue;
+    const T = [i + L(a, b), j], Rr = [i + 1, j + L(b, c)], B = [i + L(d, c), j + 1], Lf = [i, j + L(a, d)];
+    const tab = {1: [[Lf, T]], 2: [[T, Rr]], 3: [[Lf, Rr]], 4: [[Rr, B]], 5: [[Lf, T], [Rr, B]], 6: [[T, B]], 7: [[Lf, B]], 8: [[Lf, B]], 9: [[T, B]], 10: [[T, Rr], [Lf, B]], 11: [[Rr, B]], 12: [[Lf, Rr]], 13: [[T, Rr]], 14: [[Lf, T]]};
+    for (const sg of tab[k]) out.push(sg);
+  }
+  return out;
+}
+function scPolar(M) { // energy-weighted occupancy of the showcased router in (TWA, speed), over the ship polar's productive lobes at the median TWS
+  const cv = $("#scpolar"); if (!cv) return;
+  const R0 = M.R, dpr = window.devicePixelRatio || 1, S0 = Math.round(clamp(cv.parentElement.clientWidth - 8, 240, 470 * K)), m = 30 * K, Rr = S0 / 2 - m, UM = OUMAX;
+  cv.width = Math.round(S0 * dpr); cv.height = Math.round(S0 * dpr); cv.style.width = S0 + "px"; cv.style.height = S0 + "px";
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const b = occBins(R0, "all", true, 0, 1e9), g = Float64Array.from(b.g);
+  for (let pass = 0; pass < 2; pass++) { // light smoothing of the 10 deg x 0.5 m/s bins
+    const t = new Float64Array(g.length);
+    for (let a = 0; a < OA; a++) for (let u = 0; u < OU; u++) { let sm = 0, wsum = 0; for (let da = -1; da <= 1; da++) for (let du = -1; du <= 1; du++) { const aa = clamp(a + da, 0, OA - 1), uu = u + du; if (uu < 0 || uu >= OU) continue; const w = (da ? 1 : 2) * (du ? 1 : 2); sm += w * g[aa * OU + uu]; wsum += w; } t[a * OU + u] = sm / wsum; }
+    g.set(t);
+  }
+  let mx = 0; for (const v of g) mx = Math.max(mx, v);
+  const cxm = S0 / 2, PT = (twa, u, side) => { const a = twa * Math.PI / 180, r = u / UM * Rr; return [cxm + side * r * Math.sin(a), cxm - r * Math.cos(a)]; };
+  // occupancy raster (bilinear in the smoothed bins, mirrored for the two tacks)
+  const rn = Math.min(Math.round(S0 * dpr), 640), oc = document.createElement("canvas"); oc.width = rn; oc.height = rn;
+  const ox = oc.getContext("2d"), im = ox.createImageData(rn, rn), c0 = rn / 2, Rn = Rr / S0 * rn, samp = (fa, fu) => { fa = clamp(fa, 0, OA - 1.001); fu = clamp(fu, 0, OU - 1.001); const a = Math.floor(fa), u = Math.floor(fu), p = fa - a, q = fu - u; return (1 - p) * (1 - q) * g[a * OU + u] + p * (1 - q) * g[(a + 1) * OU + u] + (1 - p) * q * g[a * OU + u + 1] + p * q * g[(a + 1) * OU + u + 1]; };
+  for (let y = 0; y < rn; y++) for (let x = 0; x < rn; x++) {
+    const dx = x + 0.5 - c0, dy = y + 0.5 - c0, r = Math.hypot(dx, dy); if (r > Rn) continue;
+    const twa = Math.atan2(Math.abs(dx), -dy) * 180 / Math.PI, u = r / Rn * UM, v = mx > 0 ? Math.sqrt(samp(twa / 10 - 0.5, u / (UM / OU) - 0.5) / mx) : 0, o = (y * rn + x) * 4;
+    const t = clamp(v, 0, 1); im.data[o] = 88 + 167 * t * t; im.data[o + 1] = 196 + 59 * t * t; im.data[o + 2] = 255; im.data[o + 3] = Math.round(255 * Math.min(1, t * 1.15) * (0.25 + 0.75 * t));
+  }
+  ox.putImageData(im, 0, 0);
+  ctx.save(); ctx.beginPath(); ctx.arc(cxm, cxm, Rr, 0, 7); ctx.fillStyle = "rgba(255,255,255,.03)"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,.22)"; ctx.lineWidth = 1; ctx.stroke(); ctx.clip();
+  // productive lobes of the ship polar at the median TWS experienced (subtle contours)
+  const tws = [...R0.TWS].filter(isFinite).sort((p, q) => p - q), tmed = tws.length ? tws[tws.length >> 1] / KN : 15;
+  if (D.polar) {
+    const NA = 91, NU = 61, uu = Math.min(UM, D.polar.umax), pg = new Float64Array(NA * NU); let pm = 0;
+    for (let j = 0; j < NU; j++) for (let i = 0; i < NA; i++) { const p = polarP(tmed, i * 2, j * uu / (NU - 1)); pg[j * NA + i] = isNaN(p) ? -1e9 : p; if (p > pm) pm = p; }
+    if (pm > 0) [[0.04, 0.16], [0.35, 0.2], [0.65, 0.26], [0.9, 0.34]].forEach(([fl, al]) => {
+      ctx.strokeStyle = `rgba(255,255,255,${al})`; ctx.lineWidth = 1 * K; ctx.lineJoin = "round"; ctx.beginPath();
+      for (const [p0, p1] of msSegs(pg, NA, NU, fl * pm)) for (const side of [1, -1]) { const A = PT(p0[0] * 2, p0[1] * uu / (NU - 1), side), B = PT(p1[0] * 2, p1[1] * uu / (NU - 1), side); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); }
+      ctx.stroke();
+    });
+  }
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(oc, cxm - Rr, cxm - Rr, 2 * Rr, 2 * Rr); ctx.restore();
+  // axes
+  ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.fillStyle = "#8fa0ba"; ctx.lineWidth = 0.8; ctx.font = `${Math.round(10.5 * K)}px system-ui`; ctx.textAlign = "center";
+  for (let u = 2; u <= UM; u += 2) { ctx.beginPath(); ctx.arc(cxm, cxm, u / UM * Rr, 0, 7); ctx.stroke(); if (u < UM) ctx.fillText(u + " m/s", cxm + u / UM * Rr * 0.7071 + 2, cxm - u / UM * Rr * 0.7071 - 2); }
+  for (let a = 30; a < 180; a += 30) { const [x1, y1] = PT(a, UM, 1), [x2, y2] = PT(a, UM, -1); ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(cxm, cxm); ctx.lineTo(x1, y1); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(cxm, cxm - Rr); ctx.lineTo(cxm, cxm + Rr); ctx.stroke();
+  const fr = S.lang === "fr"; ctx.fillText(fr ? "face au vent" : "head to wind", cxm, cxm - Rr - 8 * K); ctx.fillText(fr ? "vent arrière" : "downwind", cxm, cxm + Rr + 16 * K);
+  ctx.fillText("90°", cxm + Rr + 15 * K, cxm + 3 * K); ctx.fillText("90°", cxm - Rr - 15 * K, cxm + 3 * K);
+  // caption from the data
+  const cell = (a, u) => b.g[a * OU + u]; let pk = 0, pa = 0; for (let a = 0; a < OA; a++) { let t = 0; for (let u = 0; u < OU; u++) t += g[a * OU + u]; if (t > pk) { pk = t; pa = a; } }
+  const peak = pa * 10 + 5, sp = []; let tot = 0, sec = 0;
+  for (let a = 0; a < OA; a++) for (let u = 0; u < OU; u++) { const v = cell(a, u); if (v <= 0) continue; tot += v; sp.push([(u + 0.5) * UM / OU, v]); if (Math.abs(a * 10 + 5 - peak) <= 30) sec += v; }
+  sp.sort((p, q) => p[0] - q[0]); const qt = f => { let c = 0; for (const [u, v] of sp) { c += v; if (c >= f * tot) return u; } return 0; };
+  const pos = T_(SCT.sail.find(q => peak < q[0])[1]), pcap = $("#scpcap");
+  if (pcap) pcap.innerHTML = tot > 0 ? T_(SCT.pcap, pos, Math.round(peak), nf(qt(0.25), 1), nf(qt(0.75), 1), nf(100 * sec / tot, 0), nf(tmed, 0)) : "";
 }
 
 // ------------------------------------------------------------------ seasons (calendar months, computed in the browser)
@@ -1331,11 +1475,18 @@ function renderSeasons() {
   const lbl = used.map(i => W < 560 ? cats[i][0].toUpperCase() : cats[i]);
   const tws = {name: "TWS", color: "#8a8f98", v: used.map(i => any[i].tws)};
   let tbl = `<tr><th>Policy</th>${used.map(i => `<th>${cats[i]}</th>`).join("")}</tr>`;
-  for (const n of names) tbl += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b></td>${used.map(i => { const v = mo[n][i].cf, b = ref && n !== ref ? v - mo[ref][i].cf : NaN; return `<td>${fmt(100 * v, 1)}${isFinite(b) ? ` <span class="meta ${b >= 0 ? "pos" : "neg"}">${b >= 0 ? "+" : ""}${fmt(100 * b, 1)}</span>` : ""}</td>`; }).join("")}</tr>`;
+  const hmean = n => mean(used.map(i => mo[n][i].hold).filter(isFinite)), heavy = names.filter(n => hmean(n) > 60), rest = names.filter(n => !heavy.includes(n));
+  let holdOpt = {}, holdNote = "";   // routers that hold > 60 % of the time are clipped so that the others stay readable
+  if (heavy.length && rest.length) {
+    const mx = Math.max(1, ...rest.flatMap(n => used.map(i => mo[n][i].hold)).filter(isFinite)), cap = mx < 10 ? Math.ceil(mx * 1.2) : Math.ceil(mx * 1.15 / 5) * 5;
+    holdOpt = {cap};
+    holdNote = `<div class="hint">${heavy.map(n => `<span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b> : ${fmt(hmean(n), 0)} % (${S.lang === "fr" ? "hors échelle" : "off scale"})`).join(" &nbsp; ")}</div>`;
+  }
+  for (const n of names) tbl += `<tr><td><span class="dot" style="background:${D.color[n]}"></span> <b>${esc(n)}</b>${roleBadge(n)}</td>${used.map(i => { const v = mo[n][i].cf, b = ref && n !== ref ? v - mo[ref][i].cf : NaN; return `<td>${fmt(100 * v, 1)}${isFinite(b) ? ` <span class="meta ${b >= 0 ? "pos" : "neg"}">${b >= 0 ? "+" : ""}${fmt(100 * b, 1)}</span>` : ""}</td>`; }).join("")}</tr>`;
   $("#app").innerHTML = `<div class="grid2">
    <div class="card"><h2>${ui("tab-seasons")}: CF [%] ${info("c_seasons")}</h2>${cap("seasons")}<div id="s-cf">${barsSvg(W, H, lbl, series("cf"))}</div><div class="legend">${names.map(n => `<span><span class="dot" style="background:${D.color[n]}"></span>${esc(n)}</span>`).join("")}</div></div>
    <div class="card"><h2>${S.lang === "fr" ? "Mean experienced wind TWS [kn], first router" : "Mean experienced TWS [kn], first router"}</h2><div id="s-tws">${barsSvg(W, H * 0.62, lbl, [tws])}</div>
-     <h2 style="margin-top:.8rem">${S.lang === "fr" ? "Part du temps en attente [%]" : "Hold share [% of time]"}</h2><div id="s-hold">${barsSvg(W, H * 0.62, lbl, series("hold"))}</div></div>
+     <h2 style="margin-top:.8rem">${S.lang === "fr" ? "Part du temps en attente [%]" : "Hold share [% of time]"}</h2><div id="s-hold">${barsSvg(W, H * 0.62, lbl, series("hold"), holdOpt)}</div>${holdNote}</div>
    <div class="card" style="grid-column:1/-1"><h2>CF [%] ${S.lang === "fr" ? "par mois (petits chiffres : écart à la référence en points, pts)" : "by month (small figures: gap to the reference in points, pts)"}</h2><div class="tw"><table class="ro">${tbl}</table></div></div></div>`;
 }
 
@@ -1665,7 +1816,7 @@ async function boot() {
     layers: {wind: true, band: false, iso: false, particles: true, arrows: false, storms: true, plans: true, full: D.meta.duration_s / DAY <= 45}};
   SCI = scEligible();
   if (SCI) { S.sc.router = SCI.best; S.tab = "showcase"; document.body.classList.add("showcase"); $("#tab-showcase").style.display = ""; $("#tab-showcase").classList.add("on"); $("#tab-ov").classList.remove("on"); }
-  $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.6");
+  $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.7");
   const m = D.meta;
   $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
   $("#tab-showcase").onclick = () => setTab("showcase"); $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); $("#tab-seasons").onclick = () => setTab("seasons"); if (D.meta.duration_s / DAY >= 45) $("#tab-seasons").style.display = ""; if (D.polar) $("#tab-polar").style.display = "";

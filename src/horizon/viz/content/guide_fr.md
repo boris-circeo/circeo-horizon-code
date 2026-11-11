@@ -12,11 +12,12 @@ Le routeur choisit où aller toutes les {{replan_h}} h en ne connaissant que des
 
 ## Les modèles testés {#models}
 Première visite ? Lisez cette section d'abord ; elle ne suppose pas de connaître la note de conception. Les figures ci-dessous ne sont pas des schémas : chacune est calculée à la construction avec le vrai code sur les vraies données (polaire BETA du client, vent ERA5 de 2015, simulations annuelles 2015), avec axes et unités. Chacune est accompagnée d'un texte qui dit ce qu'elle montre, comment la lire, ce qu'il faut retenir, pourquoi c'est important pour le routage et quelles sont ses limites. Cliquez sur une figure pour l'agrandir. La chaîne de modèles se lit dans cet ordre :
-- **1-2 Le navire** : la polaire de puissance et l'enveloppe dans l'espace des vitesses disent quelle puissance rapporte chaque manœuvre.
-- **3 Le planificateur** : la programmation dynamique sur un graphe espace-temps (grille de 40 km, pas de 3 h, stencil de 49 déplacements) trouve la meilleure route pour un vent donné.
-- **4-6 La boucle** : le plan est recalculé toutes les 6 h sur une nouvelle prévision (MPC) ; les ensembles décrivent l'incertitude ; un raffineur continu lisse les 48 premières heures.
-- **7 La fin d'horizon** : la valeur terminale dit à la DP ce que vaut le navire quand la fenêtre se termine.
-- **8-9 Le verdict** : facteur de charge par routeur (FC, base 100 % = 3 MW toute l'année ; écarts en points) et marge de sécurité côtière.
+- **Fig. 1 Vue d'ensemble** : les trois couches du routeur (exploration, raffinement, exécution) et ce qui les alimente.
+- **Fig. 2-4 Les entrées** : la polaire de puissance du navire, la météo telle que le routeur la voit (prévisions et leurs erreurs), la côte et les contraintes de sécurité.
+- **Fig. 5 De la polaire à la récompense** : l'enveloppe de puissance, qui explique pourquoi louvoyer rapporte.
+- **Fig. 6-8 Exploration** : programmation dynamique sur le graphe espace-temps (40 km, 3 h, 49 mouvements), ensembles réduits à 6 scénarios avec un objectif de risque de queue, et valeur terminale qui ferme l'horizon.
+- **Fig. 9-10 Raffinement et exécution** : le raffineur continu lisse les 48 premières heures ; le plan est recalculé toutes les 6 h sur une nouvelle prévision (MPC).
+- **Fig. 11 Le verdict** : facteur de charge par routeur (FC, base 100 % = 3 MW toute l'année ; écarts en points).
 Si les figures sont absentes (export construit sans les données client), les anciens schémas s'affichent à la place.
 
 !fig ship
@@ -159,3 +160,4 @@ Tous les nombres ci-dessous sont des hypothèses à remplacer par des données r
 - **S3** - données réelles : vérité ERA5 2015, modèle d'erreur de prévision échangeable, polaire BETA du client avec réparations et masques VPP, stencil à macro-arcs, valeur terminale climatologique ; l'inspecteur gagne l'onglet Polar et le support ERA5.
 - **Inspecteur v4.5** - champ de vent de style Windy avec particules animées, onglet Vitrine pour les présentations, facteur de charge en % et écarts à la référence en points (pts), polaires d'occupation, onglet Saisons, figures techniques dans le Guide.
 - **Inspecteur v4.6** - mises en page adaptées au téléphone et à la tablette (tactile, barre d'onglets défilante, Guide plein écran, définitions au toucher), commandes de lecture de la Vitrine (vitesse, frise mensuelle, barre d'espace), particules de vent masquées pendant la lecture, respect de « réduire les animations ».
+- **Inspecteur v4.7** - Vitrine : légende fixe de la carte, polaire d'occupation du routeur présenté sur les lobes productifs de la polaire du navire, légende du graphique identique aux séries et lignes de moyenne annuelle, sous-titres techniques de « Comment ça marche », vitesse de lecture par défaut 3 j/s. Aperçu : durée et période des missions, rôles des routeurs (frontière / intermédiaire / référence / borne) avec badges et échelle de fonctionnalités. Saisons : les routeurs en attente plus de 60 % du temps sont écrêtés pour garder les autres lisibles.

@@ -374,7 +374,7 @@ def fig_envelope(ctx: Ctx):
     ext = [vq_full[0] - env.dv / 2, vq_full[-1] + env.dv / 2, vp[0] - env.dv / 2, vp[-1] + env.dv / 2]
     axs = [fig.add_subplot(gs[0, k]) for k in range(3)]
     reach_only = np.isfinite(e) & ~np.isfinite(d)
-    panels = [(d, "(a)", "Single heading: P_direct"),
+    panels = [(d, "(a)", "One heading"),
               (r, "(b)", "Envelope (mixing)"),
               (np.where(np.isfinite(r), r - np.where(np.isfinite(d), d, np.nan), np.nan), "(c)",
                "Gain of mixing [kW]")]
@@ -384,11 +384,11 @@ def fig_envelope(ctx: Ctx):
             im2 = ax.imshow(np.ma.masked_invalid(g), origin="lower", extent=ext, aspect="equal",
                             cmap="magma_r", vmin=0, vmax=np.nanpercentile(a, 99), rasterized=True)
             cb = fig.colorbar(im2, ax=ax, fraction=0.046, pad=0.03)
-            cb.set_label("gain [kW]", fontsize=7.4)
+            cb.ax.set_title("kW", fontsize=7.4, pad=4)
         else:
             im = ax.imshow(np.ma.masked_invalid(mirror(a)), origin="lower", extent=ext, aspect="equal",
                            cmap="RdBu_r", norm=norm, rasterized=True)
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03).set_label("P [kW]", fontsize=7.4)
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03).ax.set_title("kW", fontsize=7.4, pad=4)
         ax.set_xlabel("v_perp  [m/s]  (across the wind)")
         ax.set_xlim(-8.5, 8.5)
         ax.set_ylim(-8.5, 8.5)
@@ -400,7 +400,8 @@ def fig_envelope(ctx: Ctx):
     axs[0].set_ylabel("v_par  [m/s]  (towards the wind source)")
     axs[0].annotate("wind", xy=(-7.6, 7.8), xytext=(-7.6, 5.3), ha="center", fontsize=7,
                     arrowprops={"arrowstyle": "->"})
-    axs[0].text(-8.2, -7.9, "star = v 0 (hold)\nNaN/white = unreachable", fontsize=6.6, color=MUTE)
+    fig.text(0.07, 0.505, "star = v 0 (station keeping)  |  white = velocity not reachable  |  wind blows from the top of each panel",
+             fontsize=6.8, color=MUTE)
 
     # (d) cut along v_perp = 0
     ax = fig.add_subplot(gs[1, :2])
@@ -817,7 +818,6 @@ def fig_forecast(ctx: Ctx):
     ax.imshow(np.ma.masked_where(~land, np.ones(land.shape)), origin="lower", cmap="Greys", vmin=0, vmax=2.4,
               extent=[X[0] - 20, X[-1] + 20, Y[0] - 20, Y[-1] + 20], zorder=0)
     lev = 14.0
-    cols = [BLUE, ORANGE, GREEN, PURPLE, RED, TEAL]
     spread = sp.std(0, ddof=1)
     imm = ax.imshow(np.ma.masked_where(land, spread), origin="lower", cmap="YlOrRd", vmin=0, vmax=6,
                     extent=[X[0] - 20, X[-1] + 20, Y[0] - 20, Y[-1] + 20], zorder=1, rasterized=True)
@@ -838,27 +838,114 @@ def fig_forecast(ctx: Ctx):
     ax.set_ylabel("y  [km]  (north)")
     ax.set_aspect("equal")
     _panel(ax, "(c)", f"Wind at lead {ENS_LEAD_D} d, issue {ENS_ISSUE_ISO[:10]} 00 UTC")
-    # (d) weights
+    # (d) calibration: spread / error of the ensemble mean
     ax = fig.add_subplot(gs[1, 4:])
-    order = np.argsort(-red.weights)
+    for season, col in (("winter", BLUE), ("summer", ORANGE)):
+        d = sk[f"{season}_lead_days"][1:]
+        ax.plot(d, sk[f"{season}_spread"][1:] / sk[f"{season}_mean_rmse"][1:], "o-", ms=3.5, color=col, label=season)
+    ax.axhline(1.0, color=INK, lw=0.9, ls="--")
+    ax.set_ylim(0.6, 1.5)
+    ax.set_xlim(0.5, 10)
+    ax.set_xlabel("lead time  [days]")
+    ax.set_ylabel("spread / RMSE of the mean  [-]")
+    ax.legend(loc="upper left", fontsize=7)
+    _note(ax, 0.97, 0.05, "1 = calibrated\n> 1 over-dispersive\n< 1 over-confident", transform=ax.transAxes,
+          ha="right", fontsize=6.8)
+    _panel(ax, "(d)", "Is the spread honest?")
+    ratio = sk["winter_spread"][1:8] / sk["winter_mean_rmse"][1:8]
+    ratio_s = sk["summer_spread"][1:8] / sk["summer_mean_rmse"][1:8]
+    stats.update({"issue": ENS_ISSUE_ISO[:10], "contour": lev, "ratio_w": float(ratio.mean()),
+                  "ratio_s": float(ratio_s.mean()), "sp_max": float(spread.max()), "sp_med": float(np.median(spread[~land]))})
+    return fig, stats
+
+
+# ================================================================= figure: ensembles and risk
+def fig_ensemble(ctx: Ctx):
+    from horizon.dp.stochastic import weighted_cvar
+
+    ens, red, sp, sp_true = _ens_case(ctx)
+    g = ctx.get_grid()
+    x0, y0 = _start_xy(ctx, g)
+    i0, j0 = (int(v) for v in g.index_of(x0, y0))
+    hold = ctx.get_hold()
+    wx = ctx.get_weather()
+    t_d = (ens.times_s - ens.times_s[0]) / 86400.0
+    w_mem = np.hypot(ens.uv[:, :, j0, i0, 0], ens.uv[:, :, j0, i0, 1])  # (M, T) [m/s]
+    tr = wx._truth_at(ens.times_s)[:, j0, i0]
+    w_true = np.hypot(tr[:, 0], tr[:, 1])
+    ph = np.nan_to_num(hold.p_hold.astype(float))
+    cols = [BLUE, ORANGE, GREEN, PURPLE, RED, TEAL]
+    meds = [int(m) for m in red.members]
+    win = (t_d >= 2.0) & (t_d <= 5.0)
+    e_mem = np.interp(w_mem[:, win], hold.tws, ph).mean(1)  # mean hold power over days 2-5 [kW]
+    wts = np.full(e_mem.size, 1.0 / e_mem.size)
+    alpha = 0.2
+    cv_all = float(weighted_cvar(e_mem[:, None], wts, alpha)[0])
+    e_med = e_mem[meds]
+    cv_med = float(weighted_cvar(e_med[:, None], red.weights, alpha)[0])
+    mean_all, mean_med = float(e_mem.mean()), float((red.weights * e_med).sum())
+    fig = plt.figure(figsize=(9.6, 7.6))
+    gs = fig.add_gridspec(2, 2, hspace=0.38, wspace=0.28, left=0.075, right=0.93, top=0.95, bottom=0.075)
+    ax = fig.add_subplot(gs[0, 0])
+    for m in range(w_mem.shape[0]):
+        if m not in meds:
+            ax.plot(t_d, w_mem[m], color="#c5ccd8", lw=0.8)
+    for n, m in enumerate(meds):
+        ax.plot(t_d, w_mem[m], color=cols[n % 6], lw=1.5, label=f"#{m}  ({100 * red.weights[n]:.0f} %)")
+    ax.plot(t_d, w_true, color=INK, lw=2.2, label="truth")
+    ax.axvspan(0, 2, color=ORANGE, alpha=0.12, lw=0)
+    ax.text(1.0, ax.get_ylim()[1] * 0.97, "48 h trunk\n(one plan for all)", ha="center", va="top", fontsize=6.8, color="#8a5a00")
+    ax.set_xlabel("lead time since the issue  [days]")
+    ax.set_ylabel("wind speed at the ship  [m/s]")
+    ax.set_xlim(0, t_d[-1])
+    ax.legend(loc="upper right", fontsize=6.4, ncol=2, title="medoid # (weight)", title_fontsize=6.6)
+    _panel(ax, "(a)", f"20 members, 6 medoids, issue {ENS_ISSUE_ISO[:10]} 00 UTC")
+    ax = fig.add_subplot(gs[0, 1])
+    pcs = red.eof.pcs
+    for n, m in enumerate(meds):
+        sel = red.labels == n
+        ax.scatter(pcs[sel, 0], pcs[sel, 1], s=22, color=cols[n % 6], alpha=0.8, edgecolor="white", lw=0.4)
+        ax.scatter(pcs[m, 0], pcs[m, 1], s=130 + 800 * red.weights[n], marker="*", color=cols[n % 6], edgecolor=INK, lw=0.7, zorder=5)
+    ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1] + 160)
+    ax.set_xlabel("PC 1 score  [m/s, weighted]")
+    ax.set_ylabel("PC 2 score  [m/s, weighted]")
+    cum = red.eof.cumulative
+    _note(ax, 0.03, 0.97, f"PC 1 + PC 2 carry {100 * cum[min(1, cum.size - 1)]:.0f} % of the variance\n"
+          f"{red.eof.n_modes} modes kept ({100 * cum[-1]:.0f} %)\nstar = medoid, size = weight", transform=ax.transAxes, va="top", fontsize=6.8)
+    _panel(ax, "(b)", "Members in EOF space, clustered by PAM")
+    ax = fig.add_subplot(gs[1, 0])
+    order = np.argsort(e_mem)
+    ax.bar(np.arange(e_mem.size), e_mem[order], color=["#c5ccd8" if int(o) not in meds else cols[meds.index(int(o)) % 6]
+                                                         for o in order], edgecolor="white", lw=0.4)
+    ax.axhline(mean_all, color=INK, lw=1.2, label=f"mean {mean_all:.0f} kW")
+    ax.axhline(cv_all, color=RED, lw=1.2, ls="--", label=f"CVaR 20 % {cv_all:.0f} kW")
+    ax.set_xticks([])
+    ax.set_xlabel("the 20 members, sorted")
+    ax.set_ylabel("mean hold power, days 2-5  [kW]")
+    ax.legend(loc="upper left", fontsize=7)
+    _panel(ax, "(c)", "What CVaR looks at: the worst 20 % of outcomes")
+    ax = fig.add_subplot(gs[1, 1])
     xs = np.arange(red.k)
-    ax.bar(xs, 100 * red.weights[order], color=[cols[int(o) % 6] for o in order])
+    ax.bar(xs - 0.2, 100 * red.weights, 0.4, color=[cols[n % 6] for n in range(red.k)], label="weight [%]")
     ax.set_xticks(xs)
-    ax.set_xticklabels([f"#{int(red.members[o])}" for o in order])
-    for x_, o in zip(xs, order, strict=True):
-        n_in = int((red.labels == o).sum())
-        ax.text(x_, 100 * red.weights[o] + 0.8, f"{n_in} m.", ha="center", fontsize=6.8)
-    ax.set_xlabel("medoid member #  (m. = members it represents)")
+    ax.set_xticklabels([f"#{m}" for m in meds])
     ax.set_ylabel("scenario weight  [%]")
-    ax.set_ylim(0, max(100 * red.weights) * 1.2)
-    _note(ax, 0.97, 0.95, f"20 members -> {red.k} scenarios\ndistortion explained {100 * red.distortion_explained:.0f} %\n"
-          f"PCs kept {red.eof.n_modes}", transform=ax.transAxes, ha="right", va="top", fontsize=6.8)
-    _panel(ax, "(d)", "Medoid weights")
-    ctr = float(np.mean(np.abs(sp - sp_true).mean((1, 2))))
-    stats.update({"w_max": float(100 * red.weights.max()), "w_min": float(100 * red.weights.min()),
-                  "k": int(red.k), "dist_expl": float(100 * red.distortion_explained),
-                  "n_modes": int(red.eof.n_modes), "issue": ENS_ISSUE_ISO[:10],
-                  "ens_mae_d5": ctr, "contour": lev})
+    ax.set_xlabel("medoid member")
+    ax2 = ax.twinx()
+    ax2.plot(xs, e_med, "ko", ms=4)
+    ax2.set_ylim(min(e_med) - 150, max(e_med) + 450)
+    ax2.set_ylabel("scenario hold power, days 2-5  [kW]")
+    ax2.grid(False)
+    _note(ax, 0.97, 0.97, f"from 6 scenarios:\nmean {mean_med:.0f} kW, CVaR {cv_med:.0f} kW\n(all 20: {mean_all:.0f} / {cv_all:.0f})",
+          transform=ax.transAxes, ha="right", va="top", fontsize=6.8)
+    ax.set_ylim(0, 52)
+    _panel(ax, "(d)", "6 scenarios keep the mean and the tail")
+    stats = {"k": int(red.k), "w_min": float(100 * red.weights.min()), "w_max": float(100 * red.weights.max()),
+             "n_modes": int(red.eof.n_modes), "cum_modes": float(100 * cum[-1]), "cum2": float(100 * cum[min(1, cum.size - 1)]),
+             "dist_expl": float(100 * red.distortion_explained), "mean_all": mean_all, "cvar_all": cv_all,
+             "mean_med": mean_med, "cvar_med": cv_med, "e_min": float(e_mem.min()), "e_max": float(e_mem.max()),
+             "issue": ENS_ISSUE_ISO[:10], "w_true5": float(w_true[np.argmin(np.abs(t_d - 5))]),
+             "w_rng5": float(np.ptp(w_mem[:, np.argmin(np.abs(t_d - 5))]))}
     return fig, stats
 
 
@@ -1361,8 +1448,110 @@ def fig_safety(ctx: Ctx):
     return fig, stats
 
 
+# =================================================================== figure 0: architecture
+def _stencil_k() -> int:
+    try:
+        from horizon.dp.stencil import macro_arcs
+
+        return int(macro_arcs(40e3, 10800.0, max_span=2)[0].size)
+    except Exception:  # noqa: BLE001
+        return 49
+
+
+def fig_architecture(ctx: Ctx):
+    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+
+    K = _stencil_k()
+    fig = plt.figure(figsize=(9.6, 8.6))
+    ax = fig.add_axes([0.0, 0.0, 1.0, 1.0])
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.axis("off")
+    ax.grid(False)
+
+    def box(x, y, w, h, title, lines, fc, ec, fs=6.9, tfs=7.8):
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.25,rounding_size=0.9", fc=fc, ec=ec, lw=1.1))
+        ax.text(x + 0.9, y + h - 1.1, title, fontsize=tfs, fontweight="bold", color=INK, va="top")
+        ax.text(x + 0.9, y + h - 3.7, "\n".join(lines), fontsize=fs, color=INK, va="top", linespacing=1.28)
+
+    def layer(y, h, name, ec, fc):
+        ax.add_patch(FancyBboxPatch((1, y), 77, h, boxstyle="round,pad=0.3,rounding_size=1.2", fc=fc, ec=ec, lw=1.8, alpha=0.55))
+        ax.text(2, y + h - 0.8, name, fontsize=8.6, fontweight="bold", color=ec, va="top")
+
+    def arrow(x0, y0, x1, y1, label="", dx=0.6, dy=0.0, color=MUTE, ha="left"):
+        ax.add_patch(FancyArrowPatch((x0, y0), (x1, y1), arrowstyle="-|>", mutation_scale=11, color=color, lw=1.3))
+        if label:
+            ax.text((x0 + x1) / 2 + dx, (y0 + y1) / 2 + dy, label, fontsize=6.5, color=color, va="center", ha=ha,
+                    bbox={"fc": "white", "ec": "none", "pad": 0.4, "alpha": 0.85})
+
+    # ---- inputs
+    ax.text(1, 98.6, "INPUTS", fontsize=8.6, fontweight="bold", color=MUTE)
+    box(1, 85, 25, 12.2, "Weather", ["backtest: ERA5 truth, 2015, 1 h", "NWP ensemble: control + 20 members",
+                                     "cycles every 6 h, latency 4-6 h", "lead 0-15 d; wind u, v [m/s]"], "#eef3fd", BLUE)
+    box(27, 85, 25, 12.2, "Ship", ["BETA polar P(TWS, TWA, U) [kW]", "-> power envelope E(v_par, v_perp)",
+                                   "-> hold power P_hold(TWS) [kW]", "rated 3 MW; 8 m/s max speed"], "#eef3fd", BLUE)
+    box(53, 85, 25, 12.2, "Coast", ["signed distance SDF [km]", "limit 20 km from land", "Lorient corridor: 1 -> 20 km",
+                                    "over 40 km from the port"], "#eef3fd", BLUE)
+    # ---- exploration
+    layer(52, 29, "1  STRATEGIC EXPLORATION  (what is the best route under uncertainty?)", BLUE, "#e3ecfb")
+    box(3, 60.5, 22, 17.5, "Ensemble reduction", ["20 members -> EOF (principal", "components) -> PAM k-medoids", "-> k = 6 scenarios, weights",
+                                                  "sum to 1 (real members)"], "white", BLUE)
+    box(27.5, 60.5, 25, 17.5, "Stochastic DP", ["graph: 40 km grid x 3 h steps", f"K = {K} macro-arcs (hold + 16 of",
+                                                "3 h + 32 of 6 h), speed 0.5-8 m/s", "horizon 10-15 d, backward", "induction, one DP per scenario"],
+        "white", BLUE)
+    box(54.5, 60.5, 22.5, 17.5, "Risk and trunk", ["mean + CVaR (worst 20 %)", "of the scenario values", "common 48 h trunk (no",
+                                                   "anticipation), then one", "branch per scenario"], "white", BLUE)
+    box(3, 53.5, 74, 5.4, "Terminal value at the end of the window  [MWh]", [], "white", BLUE, tfs=7.2)
+    ax.text(37, 54.2, "climatological: P_clim(x) x 120 h   |   learned V_theta (LightGBM, 5 d)", fontsize=6.9, ha="center", va="bottom")
+    arrow(25.5, 69, 27.2, 69)
+    arrow(52.7, 69, 54.2, 69)
+    # ---- refinement
+    layer(30.5, 18.5, "2  TACTICAL REFINEMENT  (make the first 48 h flyable)", GREEN, "#e2f4ea")
+    box(3, 32, 74, 12.2, "Continuous optimal control (CasADi + IPOPT, multiple shooting)",
+        ["window 0-48 h, 96 stages of 30 min, warm start = DP path; objective = energy + V_DP(48 h) - small penalties",
+         "constraints: ground speed <= 8 m/s, SDF >= 20 km checked exactly on the chords, velocity inside the envelope hull",
+         "fallback: if the solver fails or does not improve, the DP plan is kept"], "white", GREEN)
+    # ---- execution
+    layer(14.5, 13.5, "3  EXECUTION  (act, observe, replan)", ORANGE, "#fcf0dc")
+    box(3, 15.5, 35, 8.6, "MPC replanning every 6 h", ["execute only the first 6 h, then", "re-run layers 1-2 on the newest forecast"], "white", ORANGE)
+    box(41, 15.5, 36, 8.6, "Simulator + guard", ["15 min step on the TRUE wind; power from the", "envelope; coast guard (never < 20 km)"], "white", ORANGE)
+    arrow(38.4, 19.8, 40.7, 19.8)
+    # ---- outputs
+    layer(1, 11.5, "4  OUTPUTS", INK, "#eceef2")
+    ax.text(3, 4.4, "energy [MWh]  |  capacity factor CF [%] = E / (3 MW x hours)  |  gap to the oracle [percentage points of CF]\n"
+            "hold share [%]  |  minimum coast margin [km]  |  plan optimism [MWh]", fontsize=7.1, va="center", linespacing=1.5)
+    # ---- flows
+    arrow(13.5, 84.6, 13.5, 81.6, "", color=BLUE)
+    ax.text(15.5, 83.0, "forecast winds, 3 h", fontsize=6.4, color=BLUE, va="center")
+    arrow(39.5, 84.6, 39.5, 81.6, "", color=BLUE)
+    ax.text(41.5, 83.0, "rewards [kW] per arc", fontsize=6.4, color=BLUE, va="center")
+    arrow(58, 84.6, 58, 81.6, "", color=BLUE)
+    ax.text(60.5, 83.0, "feasible nodes, SDF [km]", fontsize=6.4, color=BLUE, va="center")
+    arrow(40, 52.0, 40, 49.3, "", color=GREEN)
+    ax.text(42, 50.6, "coarse plan: a node every 3 h [km] + value field V [MWh]", fontsize=6.4, color=GREEN, va="center")
+    arrow(40, 30.4, 40, 28.2, "", color=ORANGE)
+    ax.text(42, 29.3, "48 h trajectory every 30 min [km]; first 6 h executed", fontsize=6.4, color=ORANGE, va="center")
+    arrow(40, 14.4, 40, 12.7, "", color=INK)
+    ax.text(42, 13.6, "track, power [kW], energy [kWh]", fontsize=6.4, color=INK, va="center")
+    # feedback loop (new forecast, position)
+    ax.add_patch(FancyArrowPatch((78.5, 19.5), (78.5, 91), connectionstyle="arc3,rad=-0.0", arrowstyle="-|>", mutation_scale=11,
+                                 color=ORANGE, lw=1.3, ls="--"))
+    ax.text(79.3, 56, "every 6 h:\nnew forecast,\nship position", fontsize=6.6, color=ORANGE, va="center")
+    # ---- time-scale ruler
+    ax.text(88, 98.6, "TIME SCALES", fontsize=8.0, fontweight="bold", color=MUTE, ha="center")
+    ruler = [(91.2, "1 y mission\n(365 d)", MUTE), (66, "10-15 d horizon\nstep 3 h, 40 km", BLUE),
+             (38, "0-48 h\nstep 30 min", GREEN), (21, "6 h replan\n15 min sim", ORANGE), (6.5, "metrics:\nmonthly, yearly", INK)]
+    for y, t, c in ruler:
+        ax.text(89.5, y, t, fontsize=6.9, color=c, ha="center", va="center", linespacing=1.3,
+                bbox={"boxstyle": "round,pad=0.3", "fc": "white", "ec": c, "lw": 0.8})
+    ax.plot([89.5, 89.5], [8.5, 88.5], color=GRID, lw=1.5, zorder=0)
+    stats = {"K": K, "n_one": 16, "n_two": 32, "members": 20, "k": 6, "dx": 40, "dt": 3, "replan": 6,
+             "trunk": 48, "stage_min": 30, "stages": 96}
+    return fig, stats
+
+
 # ============================================================================== registry
-FIGURES: dict[str, Callable] = {"polar": fig_polar, "envelope": fig_envelope, "dp": fig_dp, "mpc": fig_mpc, "forecast": fig_forecast, "refiner": fig_refiner, "terminal": fig_terminal, "results": fig_results, "safety": fig_safety}
+FIGURES: dict[str, Callable] = {"architecture": fig_architecture, "polar": fig_polar, "forecast": fig_forecast, "safety": fig_safety, "envelope": fig_envelope, "dp": fig_dp, "ensemble": fig_ensemble, "terminal": fig_terminal, "refiner": fig_refiner, "mpc": fig_mpc, "results": fig_results}
 FIGURE_IDS = tuple(FIGURES)
 
 

@@ -12,11 +12,12 @@ A router chooses where to go every {{replan_h}} h knowing only forecasts, whose 
 
 ## Models explained {#models}
 New here? Read this section first; it needs no knowledge of the design note. The figures below are not schematics: each one is computed at build time with the real code on the real data (client BETA polar, ERA5 wind of 2015, the 2015 year runs), with axes and units. Each comes with a text that says what it shows, how to read it, what to notice, why it matters for routing and what its limits are. Click a figure to enlarge it. The chain of models is read in this order:
-- **1-2 The ship**: the power polar and the velocity-space envelope tell how much power each manoeuvre earns.
-- **3 The planner**: dynamic programming over a space-time graph (grid of 40 km, steps of 3 h, 49-move stencil) finds the best route for a given wind.
-- **4-6 The loop**: the plan is recomputed every 6 h on a new forecast (MPC); ensembles describe the uncertainty; a continuous refiner smooths the first 48 h.
-- **7 The horizon end**: the terminal value tells the DP what the ship is worth when the window ends.
-- **8-9 The verdict**: capacity factor per router (CF, base 100 % = 3 MW all year; gaps in percentage points) and the coast-safety margin.
+- **Fig. 1 The big picture**: the three layers of the router (exploration, refinement, execution) and what feeds them.
+- **Figs. 2-4 The inputs**: the ship's power polar, the weather as the router sees it (forecasts and their errors), the coast and safety constraints.
+- **Fig. 5 From polar to reward**: the power envelope, which explains why zig-zagging pays.
+- **Figs. 6-8 Exploration**: dynamic programming on the space-time graph (40 km, 3 h, 49 moves), ensembles reduced to 6 scenarios with a tail-risk objective, and the terminal value that closes the horizon.
+- **Figs. 9-10 Refinement and execution**: the continuous refiner smooths the first 48 h; the plan is recomputed every 6 h on a new forecast (MPC).
+- **Fig. 11 The verdict**: capacity factor per router (CF, base 100 % = 3 MW all year; gaps in percentage points).
 If the figures are absent (export built without the client data), the older schematics are shown instead.
 
 !fig ship
@@ -159,3 +160,4 @@ Every number below is a hypothesis to be replaced with real data; conclusions ar
 - **S3** - real data: ERA5 2015 truth, exchangeable forecast-error model, client BETA polar with VPP repairs and masks, macro-arc stencil, climatological terminal value; inspector gains the Polar tab and ERA5 support.
 - **Inspector v4.5** - Windy-style wind field with animated particles, Showcase tab for presentations, capacity factor shown in % and gaps to the reference in percentage points (pts), occupancy polars, Seasons tab, technical figures in the Guide.
 - **Inspector v4.6** - responsive layouts for phone and tablet (touch, scrollable tab bar, full-screen Guide, tap definitions), Showcase replay controls (speed selector, month timeline, space bar), wind particles hidden while a replay plays, reduced-motion support.
+- **Inspector v4.7** - Showcase: fixed map legend, polar occupancy of the showcased router over the ship polar's productive lobes, chart legend matching the series and annual-mean reference lines, technical "how it works" subtitles, default replay speed 3 d/s. Overview: duration and period of the missions, router roles (frontier / intermediate / reference / bound) with badges and a feature ladder. Seasons: routers that hold more than 60 % of the time are clipped so the others stay readable.
