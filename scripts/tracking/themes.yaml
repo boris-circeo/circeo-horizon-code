@@ -43,3 +43,6 @@ themes:
     campaign: scripts/s5/campaign_v2.yaml
     with_baseline: true
     experiments: [refiner_det_B1c, lwo_B1c, oracle_v2, v2, v2_ablations]
+  - name: S5_year-validation
+    campaign: scripts/s5/campaign_year.yaml
+    experiments: [year_v2, year_v1, year_oracle]

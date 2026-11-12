@@ -11,9 +11,9 @@ Le document poursuit quatre buts :
 3. **Passer en revue chacune des hypothèses de la v1**, méthodiquement, avec le test qui peut la confirmer ou la réfuter, et dire où nous en sommes (chapitre 4) ;
 4. **Documenter les sensibilités**, l'algorithme affiné HORIZON v2 et ses résultats typiques (chapitres 5 à 7), puis **dire franchement ce qui reste à prouver** (chapitre 8) et quelles données acquérir (chapitre 9).
 
-::: {.cal .todo}
+::: {.cal .note}
 [ÉTAT DE LA RÉDACTION]{.lab}
-Cette révision A est une **ébauche structurée**. Les chapitres 2, 3, 4 (méthode et acquis), 8, 9 et les annexes sont rédigés sur la base des sprints S0 à S4 et des travaux S5 déjà terminés (registre d'hypothèses, analyse de la météo océanique). Les chapitres 5, 6 et 7 dépendent de la **campagne de sensibilité** en cours ; ils portent le marqueur <span class="todo">[À COMPLÉTER S5-campagne]</span> partout où un résultat est attendu. Aucun chiffre de la campagne n'est cité tant qu'il n'est pas validé.
+Cette révision A intègre l'ensemble des résultats du sprint S5 : registre d'hypothèses et verdicts, analyse de la météo océanique, campagne de sensibilité (398 cas), validation de HORIZON v2 sur six fenêtres (72 cas) et sur l'année (5 cas). Tous les cas sont tracés (MLflow : versions du code et des données, paramètres, résultats). Les points qui exigent des données non disponibles en S5 (prévisions réelles archivées, ERA5 pluriannuel) sont signalés comme *reportés*.
 :::
 
 ## 1.2 Comment lire ce document
@@ -28,20 +28,26 @@ Cette révision A est une **ébauche structurée**. Les chapitres 2, 3, 4 (méth
 
 ## 1.3 Synthèse
 
-::: {.cal .todo}
-[SYNTHÈSE À COMPLÉTER]{.lab}
-<span class="todo">[À COMPLÉTER S5-campagne]</span> La synthèse exécutive (dix lignes) sera rédigée à la clôture de la campagne : verdict sur la valeur du routage, sur la valeur des prévisions d'ensemble et de la fonction de valeur apprise, sensibilité à la qualité des prévisions, défauts par défaut retenus pour HORIZON v2, facteur de charge sur le scénario cible et réserves.
+::: {.cal .key}
+[SYNTHÈSE S5]{.lab}
+
+- **Le routage vaut largement son coût, et le résultat est robuste.** Sur l'année 2015 (350 jours, navire persistant, pertes de manœuvre facturées), HORIZON v2 atteint un facteur de charge de **78,7 à 79,7 %** contre **56,8 %** pour le poste fixe optimal : +21,8 points (+38 % d'énergie), 35 segments de 10 jours sur 35.
+- **HORIZON v2 = v1 en résultat, en deux fois moins de calcul et sans fragilité.** DP déterministe à 3 jours, valeur terminale climatologique hors fenêtre, raffineur continu sur 24 h sans limite de temps CPU : même CF que v1 (+0,2 point sur l'année, ±0,2 sur les fenêtres), 2,2 à 3,9 fois plus rapide, résultats déterministes, raffineur convergé à 100 %.
+- **La prévision est le goulot, pas l'algorithme.** Prévision parfaite : 1,1 point de l'oracle ; chaque « erreur nominale » coûte 7 à 8 points. À variance égale, une erreur d'*intensité* coûte 12 points de plus qu'une erreur de *position / calage*.
+- **L'ensemble ne paie pas au niveau d'erreur nominal** (+0,3 point, 5× le calcul) ; la fonction de valeur apprise non plus (+0,6 point, S4). Les deux restent des options si les vraies prévisions s'avèrent dominées par les erreurs d'intensité.
+- **La polaire est un risque de production, pas de routage** : ±10 % sur la puissance donnent ±8 points de CF sans changer les décisions.
+- **Peu de réglages comptent** : valeur terminale (−2,7 points sans), raffineur (−2,9 sans), replanification à 6 h (24 h : −1,4). Horizon, grille, portée des arcs, manœuvres, marge côtière, tempêtes : dans le bruit.
+- **Réserves.** Une seule année et des prévisions synthétiques : les CF absolus sont conditionnels au modèle d'erreur. Priorité S5.x : étalonner l'erreur sur des prévisions réelles archivées et étendre ERA5 (années, domaine vers l'ouest).
 :::
 
-En attendant, voici ce qui est **déjà établi** et qui ne dépend pas de la campagne.
-
 ::: {.cal .key}
-[ACQUIS À CE JOUR]{.lab}
+[ACQUIS AVANT LA CAMPAGNE (S0-S4 ET ANALYSE MÉTÉO S5)]{.lab}
+
 - **Le routage vaut largement son coût.** Sur l'année 2015 réelle (ERA5, polaire BETA), un navire médian routé atteint un facteur de charge annuel de 0,775 à 0,807 contre 0,571 pour le meilleur point fixe, soit +36 à +41 % d'énergie, avec 12 mois sur 12 en faveur du routage (S4). L'écart au meilleur point fixe est de l'ordre de 40 % et non de 4 %.
 - **Environ 70 à 80 % de l'avantage de l'oracle sur le point fixe tient à « être au bon endroit au bon moment »** : une programmation dynamique à prévision parfaite sur la seule puissance de tenue de position suffit à en expliquer 71 % (navire à 4 m/s) à 80 % (8 m/s). La vitesse maximale du navire compte peu (+0,03 de facteur de charge de 4 à 8 m/s) ; savoir *où* aller compte beaucoup.
 - **La météo n'offre pas de « système à suivre ».** Les motifs de vent productif se déplacent à 13 nœuds (été) à 23 nœuds (hiver) en médiane, mais un navire qui suivrait parfaitement un système fait *moins bien* que le navire immobile au-delà d'environ 18 h ; l'intérêt de la mobilité vient du gradient spatial à l'échelle de 450 à 650 km, pas de la poursuite d'une dépression.
 - **Les horizons utiles de l'information sont de 1 à 5 jours.** Les épisodes productifs durent 11 h en médiane et le champ de vent se renouvelle en 17 à 22 h ; au-delà de 5 jours le modèle de prévision de notre environnement n'apporte guère plus que la climatologie.
-- **Plusieurs hypothèses de la v1 sont contredites par nos mesures** (23 sur 119 au statut « contredit ») : l'enveloppe étroite de la polaire, la valeur d'information parfaite de 15 à 40 %, le caractère « conservateur » de l'approximation en deux étages, l'erreur numérique « de quelques dixièmes de pour cent », le nombre de « soixante hivers indépendants ». Douze sont confirmées. 69 restent ouvertes (chapitre 4).
+- **Plusieurs hypothèses de la v1 sont contredites par nos mesures** (23 sur 119 au statut « contredit ») : l'enveloppe étroite de la polaire, la valeur d'information parfaite de 15 à 40 %, le caractère « conservateur » de l'approximation en deux étages, l'erreur numérique « de quelques dixièmes de pour cent », le nombre de « soixante hivers indépendants ». Douze sont confirmées. Les 69 restantes ont été tranchées par la campagne S5 (chapitre 4).
 - **Le PoC repose sur des prévisions simulées, sur une seule année, avec un oracle approché.** Les effets de 1 à 3 % (ensemble, fonction de valeur apprise, terminal climatologique) sont **sous le seuil de détectabilité** de nos données (chapitre 8).
 :::
 
@@ -782,11 +788,40 @@ HORIZON v2 égale v1 à 0,2 point près, en 2,4 à 3,9 fois moins de calcul, ave
 
 ## 7.3 HORIZON v2 sur l'année persistante
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Validation finale sur l'année complète 2015 : CF mensuel et annuel, comparaison appariée à la référence S4 du tableau ci-dessus, exposition aux vents forts (heures au-dessus de 35, 40 et 45 kn), départs de Lorient.
+Navire persistant du 1er janvier 2015 au 16 décembre (350 jours, pour que l'anticipation de 15 jours de l'oracle reste dans l'archive ERA5 2015), environnement S5. Sur une fenêtre d'un an, la climatologie terminale ne peut pas exclure ses propres mois : elle est donc « dans l'échantillon » pour tous les routeurs ; la fuite correspondante est de ±0,1 point (section 7.2).
+
+| Routeur | Tirage | CF [%] | Énergie [MWh] | h > 35 kn | h > 45 kn | Manœuvres / jour | Raffineur non convergé | Calcul [min] |
+|---|---|---|---|---|---|---|---|---|
+| B0 poste fixe optimal | — | 56,8 | 14 324 | 472 | 14,0 | 0 | — | 0 |
+| v1 (B1c_5d_REF) | 1 | 78,5 | 19 785 | 387 | 13,0 | 2,46 | 196 / 1400 | 60 |
+| **HORIZON v2** | 1 | **78,7** | 19 827 | 268 | 13,5 | 2,72 | 1 / 1400 | **27** |
+| **HORIZON v2** | 2 | **79,7** | 20 080 | 334 | 5,2 | 2,53 | 0 / 1400 | **27** |
+| Oracle (a posteriori) | — | 87,4 | 22 027 | 394 | 9,8 | 2,21 | — | 61 |
+
+: Validation sur l'année persistante 2015.
+
+| Comparaison (35 segments de 10 jours) | Moyenne [points] | Erreur-type | Segments gagnés |
+|---|---|---|---|
+| v2 − v1 (tirage 1) | +0,17 | 0,93 | 19 / 35 |
+| v2 tirage 2 − tirage 1 | +1,00 | 1,02 | 18 / 35 |
+| v2 − B0 | **+21,84** | 2,06 | **35 / 35** |
+| Oracle − v2 | +8,73 | 1,05 | 35 / 35 |
+
+: Comparaisons appariées sur l'année.
+
+![Facteur de charge par segment de 10 jours sur 2015 : oracle, HORIZON v2, v1 et poste fixe optimal.](fig/s5_year_segments.png)
+
+**Lecture.** HORIZON v2 reproduit v1 sur l'année (+0,2 point, dans le bruit de tirage de 1 point) en 27 minutes de calcul au lieu de 60. L'avantage sur le poste fixe est stable d'un segment à l'autre (35 sur 35) ; l'écart à l'oracle (8,7 points) est plus grand que sur les fenêtres de 30 jours (5 à 6 points) parce que l'oracle bénéficie sur l'année de la continuité de sa connaissance parfaite, et que la saison de vent faible (juin–septembre) pèse davantage. L'exposition aux vents de plus de 45 kn reste de 5 à 14 heures par an pour tous les routeurs, poste fixe compris : la polaire, qui s'effondre en vent très fort, suffit à tenir le navire à l'écart du cœur des tempêtes. La comparaison au tableau S4 (section 7.1 : 79,7 / 79,9 % pour B1c) n'est pas directe : S5 facture les manœuvres, couvre 350 jours au lieu de 365, et utilise le raffineur déterministe.
 
 ## 7.4 Lecture du comportement
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Trajectoires typiques (hiver, été), comportement dans un calme étendu, dans un coup de vent, à l'approche des limites de la boîte, et décisions de la replanification.
+Les traces détaillées se lisent dans l'inspecteur (onglets Explorateur et Saisons, données S4 ; onglet Sensibilité, données S5). Les indicateurs agrégés de S5 décrivent le comportement de v2 :
+
+- **Le navire ne s'arrête jamais.** La part du temps en tenue stationnaire est nulle ; il parcourt environ 3 000 à 3 500 km par période de 10 jours (environ 7 nœuds en moyenne), en tirant des bords dans la zone de vent la plus productive plutôt qu'en tenant un point : l'enveloppe à cap mixte rend la marche aussi productive que la tenue et permet de se repositionner sans perte.
+- **Peu de manœuvres** : 2,5 à 2,7 par jour (virements, empannages et grands changements de cap), qui coûtent ensemble 0,3 point de CF.
+- **Calmes prolongés.** En été (juillet, CF de l'oracle 77 %), tous les routeurs perdent 10 à 25 points ; le routage limite la perte en se plaçant à l'avant des systèmes suivants plutôt qu'en les poursuivant (les motifs de vent se déplacent 2,4 fois plus vite que le navire).
+- **Limites de la boîte.** Le meilleur point climatologique est au bord ouest du domaine ERA5 (32°O), et un départ au milieu de l'Atlantique gagne 1,9 point : le domaine tronque la zone utile ; son extension vers 45-50°O est une priorité de données.
+- **Replanification.** Les plans changent peu d'une émission à l'autre (cohérence de la prévision sans effet mesurable) ; replanifier à 6 h suffit, 24 h coûte 1,4 point.
 
 # 8. Limites, biais, et ce qui reste à prouver
 
@@ -950,6 +985,8 @@ Toutes les commandes se lancent depuis la racine du dépôt (`horizon/`), sauf i
 | Inspecteur | `python3 scripts/export_s4_inspector.py` puis `python3 scripts/build_inspector.py --results ...` |
 | Météo océanique (chapitre 3) | `python3 scripts/s5_weather/w0_prepare.py` puis `w1_climatology.py`, `w2_persistence.py`, `w3a_acf.py`, `w3b_advection.py`, `w3c_adv_stats.py`, `w3d_lagrangian.py`, `w4a_reach.py`, `w4b_dp.py`, `w4c_dp_radius.py`, `w5_predictability.py`, `w6_sampling.py` ; figures : `plot_a1.py`, `plot_rest.py` (sorties dans `outputs/s5/weather/`, figures dans `docs/s5/fig/`) |
 | Campagne de sensibilité | `bash scripts/s5/supervise.sh [--tiers A,B]` (relance idempotente de la file) ; état : `python3 scripts/s5/status.py` ; agrégation : `python3 scripts/s5/aggregate.py` |
+| Validation v2 et année | `bash scripts/s5/supervise.sh --campaign scripts/s5/campaign_v2.yaml` puis `--campaign scripts/s5/campaign_year.yaml` ; rapports : `python3 scripts/s5/sensitivity.py`, `python3 scripts/s5/year_report.py` |
+| Suivi d'expériences | automatique (MLflow, `outputs/tracking/mlflow.db`) ; export par thème : `python3 scripts/tracking/export_themes.py` ; interface : `mlflow ui --backend-store-uri sqlite:///<fichier>.db` |
 | Document (cette note) | depuis `docdev/` : `make figures && make && make check` |
 
 : Commandes pour tout rejouer.
