@@ -14,9 +14,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sensitivity import compute_rows  # noqa: E402
-
 import s5lib as L  # noqa: E402
+from sensitivity import compute_rows  # noqa: E402
 
 FIG = L.ROOT / "docs" / "s5" / "fig"
 
@@ -67,7 +66,8 @@ def error_curve():
                            ("ENS_REF", "ENS (ensemble, 2 étapes)", "#d4a017")):
         p = sorted(pts.get(name, []))
         ax.plot([a for a, _ in p], [c for _, c in p], "o-", color=col, label=lab)
-    ax.axhline(oracle, color="#7b3fa0", ls="--", lw=1, label=f"Oracle (a posteriori) {oracle:.1f} %")
+    ax.axhline(oracle, color="#7b3fa0", ls="--", lw=1,
+               label=f"Oracle (a posteriori) {oracle:.1f} %")
     ax.axhline(b0, color="#666", ls=":", lw=1, label=f"B0 poste fixe optimal {b0:.1f} %")
     ax.set_xlabel("Échelle de l'erreur de prévision (1 = nominale)")
     ax.set_ylabel("Facteur de charge [%]")

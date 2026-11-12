@@ -31,6 +31,10 @@ def load():
     return out
 
 
+def conv(ps):
+    return f"{ps['n_not_converged']} / {ps['n_refined']}" if ps else "n/a"
+
+
 def seg(r):
     return np.array([100 * s["cf"] for s in r["segments"]])
 
@@ -55,7 +59,7 @@ def main():
         lines.append(f"| {LABEL.get(name, name)} | {seed} | {r['cf_pct']:.1f} "
                      f"| {r['energy_mwh']:.0f} | {r['storm35_h']:.0f} | {r['storm45_h']:.1f} "
                      f"| {r['manoeuvres']['per_day']:.2f} "
-                     f"| {(str(ps['n_not_converged']) + ' / ' + str(ps['n_refined'])) if ps else 'n/a'} "
+                     f"| {conv(ps)} "
                      f"| {r['wall_s'] / 60:.0f} |")
     lines += ["", "Paired differences over the 35 ten-day segments [CF points]:", "",
               "| Comparison | Mean | SE | Segments won |", "|---|---|---|---|"]

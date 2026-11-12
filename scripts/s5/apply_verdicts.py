@@ -32,8 +32,10 @@ def main():
         h["s5_verdict"], h["s5_evidence"] = v["verdict"], " ".join(v["evidence"].split())
         h["status"] = v["verdict"]
         counts[v["verdict"]] = counts.get(v["verdict"], 0) + 1
-    header += ("# S5 WP5: statuses (confirmed, refuted, nuanced, deferred, untestable-here) of tested entries come from docs/s5/verdicts.yaml "
-               "(scripts/s5/apply_verdicts.py).\n")
+    line = ("# S5 WP5: statuses (confirmed, refuted, nuanced, deferred, untestable-here) of "
+            "tested entries come from docs/s5/verdicts.yaml (scripts/s5/apply_verdicts.py).\n")
+    if line not in header:
+        header += line
     hp.write_text(header + yaml.safe_dump(hyps, sort_keys=False, allow_unicode=True, width=100))
     print(counts, "| still unresolved:", sum(1 for h in hyps if h["status"] == "open"))
 
