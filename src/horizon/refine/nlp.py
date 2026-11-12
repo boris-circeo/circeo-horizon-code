@@ -186,7 +186,7 @@ def warm_start_from_path(path, grid, dp_dt_s, t0_s, x0, y0, n_stages, dt_s):
 def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, envelope:
                 EnvelopeTable, coast: CoastModel, warm_start, horizon_s: float = 48 * 3600.0,
                 dt_s: float = 1800.0, d_min: float = 20e3, rho=(100.0, 100.0), u_max: float = 8.0,
-                margin_m: float = 120e3, max_iter: int = 200, max_cpu_s: float = 20.0,
+                margin_m: float = 120e3, max_iter: int = 200, max_cpu_s: float | None = 20.0,
                 safety_m: float = 2e3, verify_m: float = 100.0, max_coast_rounds: int = 4,
                 ipopt_options: dict | None = None) -> RefineResult:
     """Refine a route by multiple-shooting NLP (module docstring), with warm-start fallback.
@@ -207,7 +207,9 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
     d_min : float [m]. rho : (rho_1, rho_2) [kWh/(m/s)^2]  Velocity-increment and curvature
         penalties. u_max : float [m/s]  Ground-speed bound.
     margin_m : float [m]  Bounding-box margin around the warm start (positions are confined to
-        it). max_iter, max_cpu_s : IPOPT limits. ipopt_options : dict  Extra ``ipopt.*`` options.
+        it). max_iter, max_cpu_s : IPOPT limits (``max_cpu_s`` None or <= 0: no CPU-time limit,
+        the result then depends only on the inputs, not on machine load).
+    ipopt_options : dict  Extra ``ipopt.*`` options.
 
     Notes
     -----
@@ -319,7 +321,8 @@ def refine_plan(wind: WindField, x0: float, y0: float, t0_s: float, terminal, en
         return ca.nlpsol("refine", "ipopt", prob, {
             "print_time": False, "ipopt.print_level": 0, "ipopt.sb": "yes",
             "ipopt.linear_solver": "mumps", "ipopt.max_iter": int(max_iter),
-            "ipopt.max_cpu_time": float(max_cpu_s), "ipopt.tol": 1e-5,
+            **({"ipopt.max_cpu_time": float(max_cpu_s)} if max_cpu_s and max_cpu_s > 0 else {}),
+            "ipopt.tol": 1e-5,
             "ipopt.acceptable_tol": 1e-3, "ipopt.acceptable_iter": 5,
             "ipopt.mu_strategy": "monotone", "ipopt.mu_init": 1e-3,
             **extra, **(ipopt_options or {})})

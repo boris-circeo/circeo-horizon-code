@@ -30,21 +30,34 @@ RUNS, LOGS, LOCKS, CKPT, ERRS, CACHE = (OUT / d for d in
 LORIENT = (-3.4, 47.7)
 MID_ATLANTIC = (-20.0, 46.0)
 
+# refiner limits and climatology of the v1 campaign (kept as defaults so S5 case ids stay valid):
+# 20 s IPOPT CPU limit (load-dependent results) and a terminal climatology over the whole year,
+# test window included (clim_window="all"). "lwo" = leave-window-out: months overlapping the
+# simulated window (+ DP horizon) are excluded from the terminal climatology.
+_V1_REF = dict(refiner_max_iter=200, refiner_cpu_s=20.0, clim_window="all")
+
 ROUTER_DEFAULTS = {
     "B1c_5d_REF": dict(horizon_days=5.0, replan_h=6.0, refiner_h=48.0, terminal="clim",
-                       terminal_days=5.0, max_span=2, router_polar="nominal", storm_kn=0.0),
+                       terminal_days=5.0, max_span=2, router_polar="nominal", storm_kn=0.0,
+                       **_V1_REF),
     # B1c on the ENSEMBLE MEAN of `members` (blend_h > 0: control up to that lead, mean beyond)
     "B1m_5d_REF": dict(horizon_days=5.0, replan_h=6.0, refiner_h=48.0, terminal="clim",
                        terminal_days=5.0, max_span=2, router_polar="nominal", storm_kn=0.0,
-                       members=10, blend_h=0.0),
+                       members=10, blend_h=0.0, **_V1_REF),
     # greedy baselines (no DP): best reachable cell by forecast hold power / by wind speed
     "GREEDY_HOLD24": dict(replan_h=6.0, reach_h=24.0, window_h=24.0, speed=6.0),
     "GREEDY_MAXWIND": dict(replan_h=6.0, reach_h=24.0, window_h=24.0, speed=6.0, tws_cap=14.0),
     "ENS_REF": dict(members=20, k=6, gamma=0.0, alpha=0.2, horizon_days=10.0, replan_h=6.0,
                     refiner_h=48.0, terminal="clim", terminal_days=5.0, max_span=2,
-                    router_polar="nominal", storm_kn=0.0),
+                    router_polar="nominal", storm_kn=0.0,
+                       **_V1_REF),
     "Oracle_REF_H": dict(horizon_days=15.0, replan_h=6.0, refiner_h=48.0, terminal="clim",
-                         terminal_days=5.0, max_span=2, router_polar="nominal", storm_kn=0.0),
+                         terminal_days=5.0, max_span=2, router_polar="nominal", storm_kn=0.0,
+                       **_V1_REF),
+    # HORIZON v2 (S5 WP6): simplified, deterministic, no climatology leak
+    "HORIZON_V2": dict(horizon_days=3.0, replan_h=6.0, refiner_h=24.0, terminal="clim",
+                       terminal_days=5.0, max_span=2, router_polar="nominal", storm_kn=0.0,
+                       refiner_max_iter=500, refiner_cpu_s=0.0, clim_window="lwo"),
     "B0": dict(),
 }
 ENV_DEFAULTS = dict(
@@ -439,8 +452,18 @@ def build_router(ctx, spec: dict, wx, coast, start_xy):
     if r["storm_kn"] > 0:  # survival constraint as a steep penalty in the router's model
         from horizon.sim.policies_simple import storm_penalty_polar
         pol, hold = storm_penalty_polar(pol, hold, r["storm_kn"])
-    return make_policy(router_config(name, r, e), pol, hold, coast,
-                       ctx.clim_hold_kw(set()) if r["terminal"] == "clim" else None, weather=wx)
+    clim = None
+    if r["terminal"] == "clim":
+        clim = ctx.clim_hold_kw(window_months(spec, r) if r["clim_window"] == "lwo" else set())
+    return make_policy(router_config(name, r, e), pol, hold, coast, clim, weather=wx)
+
+
+def window_months(spec: dict, r: dict) -> set[int]:
+    """Calendar months overlapping [start, start + days + DP horizon] (leave-window-out)."""
+    t0 = np.datetime64(spec["start"], "h")
+    t1 = t0 + np.timedelta64(int(round((spec["days"] + r["horizon_days"]) * 24)), "h")
+    months = np.arange(t0.astype("datetime64[M]"), t1.astype("datetime64[M]") + 1)
+    return {int(str(m)[5:7]) for m in months}
 
 
 def router_config(name: str, r: dict, e: dict):
@@ -449,7 +472,8 @@ def router_config(name: str, r: dict, e: dict):
     kw = dict(horizon_days=r["horizon_days"], replan_h=r["replan_h"], refiner_h=r["refiner_h"],
               terminal=r["terminal"], terminal_days=r["terminal_days"],
               max_span=int(r["max_span"]), d_min_km=e["d_min_km"],
-              router_polar=r["router_polar"], storm_kn=r["storm_kn"])
+              router_polar=r["router_polar"], storm_kn=r["storm_kn"],
+              refiner_max_iter=int(r["refiner_max_iter"]), refiner_cpu_s=float(r["refiner_cpu_s"]))
     if name == "Oracle_REF_H":
         return HorizonConfig(kind="ORACLE_H", **kw)
     if name == "ENS_REF":

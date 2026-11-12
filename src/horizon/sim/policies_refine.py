@@ -42,7 +42,7 @@ class RefinedMPCPolicy(CounterStateMixin):
 
     def __init__(self, base_policy, horizon_h: float = 48.0, dt_s: float = 1800.0,
                  wind_dt_s: float = 3600.0, rho=(100.0, 100.0), max_iter: int = 200,
-                 max_cpu_s: float = 20.0, margin_m: float = 120e3):
+                 max_cpu_s: float | None = 20.0, margin_m: float = 120e3):
         self.base = base_policy
         self.horizon_s = horizon_h * 3600.0
         self.dt_s = dt_s

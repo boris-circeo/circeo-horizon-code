@@ -39,6 +39,9 @@ class HorizonConfig:
         that many members (B1m; ``blend_h > 0``: control up to that lead).
     router_polar : {"nominal", "truth"}  Polar believed by the router.
     storm_kn : float [kn]  > 0 adds a steep penalty above this wind speed in the router polar.
+    refiner_max_iter : int  IPOPT iteration budget per refiner solve (200).
+    refiner_cpu_s : float [s]  IPOPT CPU-time limit per solve (20 = v1); 0 = none, which makes
+        results independent of machine load (v2).
     """
 
     kind: str = "B1"
@@ -57,6 +60,8 @@ class HorizonConfig:
     blend_h: float = 0.0
     router_polar: str = "nominal"
     storm_kn: float = 0.0
+    refiner_max_iter: int = 200
+    refiner_cpu_s: float = 20.0
 
     def __post_init__(self):
         def bad(msg):
@@ -132,6 +137,10 @@ def make_policy(cfg: HorizonConfig, polar, hold, coast, clim_kw=None, weather=No
     clim = clim_kw if cfg.terminal == "clim" else None
     dmin = cfg.d_min_km * 1e3
     refkw = {} if cfg.refiner_h == 48.0 else {"horizon_h": cfg.refiner_h}
+    if cfg.refiner_max_iter != 200:
+        refkw["max_iter"] = int(cfg.refiner_max_iter)
+    if cfg.refiner_cpu_s != 20.0:
+        refkw["max_cpu_s"] = float(cfg.refiner_cpu_s) if cfg.refiner_cpu_s > 0 else None
     if cfg.kind == "ORACLE_H":
         if weather is None:
             raise ValueError("ORACLE_H needs weather")

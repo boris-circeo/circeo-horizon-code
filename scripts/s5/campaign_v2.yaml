@@ -1,0 +1,41 @@
+# Sprint-5 WP6: HORIZON v2 validation campaign (bench-6 windows of 2015, 30 days each).
+# Same format as campaign.yaml; run with
+#   bash scripts/s5/supervise.sh --campaign scripts/s5/campaign_v2.yaml
+# Results share outputs/s5/runs with the sensitivity campaign (case ids are content hashes).
+#
+# Questions:
+#   1. refiner: does removing the 20 s IPOPT CPU limit (load-dependent results) and raising the
+#      iteration budget change the CF?  (B1c v1 otherwise unchanged)
+#   2. climatology leak: how much of the terminal-value gain came from the test window itself?
+#      (clim_window = lwo: months overlapping window + DP horizon excluded)
+#   3. HORIZON_V2 (3 d DP, 24 h refiner, no CPU limit, 500 iterations, leave-window-out) vs v1
+#      B1c, with 2 forecast seeds; ablations around it (5 d, 48 h refiner, no terminal value).
+#   4. oracle bound with the same leak-free terminal value and deterministic refiner.
+
+duration_days: 30
+tiers: [D]
+windows:
+  bench6: ["2015-01-01", "2015-03-01", "2015-05-01", "2015-07-01", "2015-09-01", "2015-11-01"]
+
+experiments:
+  - id: refiner_det_B1c
+    tier: D
+    router: B1c_5d_REF
+    variants:
+      - {name: cpu0_it200, router: {refiner_cpu_s: 0.0}}
+      - {name: cpu0_it500, router: {refiner_cpu_s: 0.0, refiner_max_iter: 500}}
+      - {name: cpu0_it1000, router: {refiner_cpu_s: 0.0, refiner_max_iter: 1000}}
+  - {id: lwo_B1c, tier: D, router: B1c_5d_REF, seeds: [1, 2], vary: {router.clim_window: [lwo]}}
+  - id: oracle_v2
+    tier: D
+    router: Oracle_REF_H
+    variants:
+      - {name: lwo_det, router: {clim_window: lwo, refiner_cpu_s: 0.0, refiner_max_iter: 500}}
+  - {id: v2, tier: D, router: HORIZON_V2, seeds: [1, 2], b0: true}
+  - id: v2_ablations
+    tier: D
+    router: HORIZON_V2
+    variants:
+      - {name: h5, router: {horizon_days: 5.0}}
+      - {name: r48, router: {refiner_h: 48.0}}
+      - {name: zero_terminal, router: {terminal: zero}}
