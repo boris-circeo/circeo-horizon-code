@@ -15,4 +15,4 @@ are recorded here as commit ids on `main`. To create the tags locally:
 | s5-review | a4a97ae | External review merged (HorizonConfig, speed-ups, fixes) |
 | s5-tracking | 3f14346 | MLflow experiment tracking (code/data versions, params, metrics) |
 | horizon-v2 | 2254722 | HORIZON_V2 router (3 d DP, leak-free terminal, 24 h deterministic refiner) |
-| s5 | (this commit's successor: see `git log`) | S5 deliverables: sensitivity, verdicts, v2 + year validation, doc v2, inspector v4.8 |
+| s5 | d7ffe9e | S5 deliverables: sensitivity, verdicts, v2 + year validation, doc v2, inspector v4.8 |
