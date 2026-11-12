@@ -528,10 +528,7 @@ La revue ne s'est pas limitée à la v1. Les entrées `H-X-*` (14 au total) rece
 
 # 5. Sensibilités
 
-::: {.cal .todo}
-[CHAPITRE EN ATTENTE DE LA CAMPAGNE]{.lab}
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Ce chapitre présente le protocole et le plan d'expériences, déjà arrêtés, puis les résultats de la campagne de sensibilité, qui est en cours d'exécution. Les résultats seront insérés par facteur, avec les intervalles de confiance et le verdict sur chaque hypothèse concernée.
-:::
+La campagne de sensibilité (398 cas, 11-12 novembre 2026, code 54aadcb, données 23ccd01) est terminée. Chaque cas est enregistré dans le suivi d'expériences MLflow avec les versions du code et des données (empreintes SHA-256 des fichiers ERA5 et de la polaire), tous ses paramètres et ses résultats. Le tableau exhaustif est `docs/s5/sensitivity_table.md` ; ce chapitre en donne la lecture.
 
 ## 5.1 Protocole commun
 
@@ -582,35 +579,65 @@ La campagne WP4 est pilotée par un fichier de description (`scripts/s5/campaign
 
 ## 5.4 Résultats par facteur
 
-Chaque sous-section recevra : le tableau apparié (points de CF, kWh, IC à 95 %), la figure de sensibilité, la lecture en termes de décision et le verdict sur les entrées du registre concernées.
+**Lecture.** Chaque variante change *un seul* réglage du routeur R1 (B1c) ou de l'environnement simulé. L'effet est la différence **appariée** de facteur de charge (mêmes fenêtres, même tirage de prévision), donnée en points avec son erreur-type ; $z$ = effet / erreur-type. Nous lisons $|z| \ge 2$ comme un effet réel et $|z| < 1$ comme du bruit. Plancher de bruit : deux tirages de prévision du même routeur donnent 79,9 % et 80,7 % ; d'une fenêtre à l'autre le CF varie de 70 à 92 %. Références : Oracle_REF_H **86,2 %**, R1 **79,9 %**, R2 (ENS) 80,2 %, moyenne d'ensemble 79,7 %, B0 **58,8 %**.
+
+![Effet apparié de chaque réglage sur le CF de R1, en points (6 fenêtres de 30 jours de 2015 ; barre : intervalle de confiance à 95 % ; couleur : effet significatif, gris : dans le bruit).](fig/s5_tornado.png)
 
 ### 5.4.1 Qualité des prévisions (échelle d'erreur, structure, dispersion)
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-01, E-02 : CF(R1), CF(R2), écart R2 − R1 et EVPI en fonction de l'échelle d'erreur ; effet de la rétention de structure aux échéances ≥ 5 jours.
+![Facteur de charge de R1 et R2 selon l'échelle de l'erreur de prévision (1 = nominale), avec l'oracle et le poste fixe optimal.](fig/s5_error_curve.png)
+
+| Erreur de prévision | CF R1 [%] | Effet [pts] | $z$ | Écart à l'oracle [pts] |
+|---|---|---|---|---|
+| ×0 (prévision parfaite) | 85,0 | +5,2 | 5,0 | 1,1 |
+| ×0,5 | 83,7 | +3,8 | 4,3 | 2,5 |
+| ×1 (nominale) | 79,9 | — | — | 6,3 |
+| ×1,5 | 76,0 | −3,9 | −4,0 | 10,2 |
+| ×2 | 72,2 | −7,7 | −4,1 | 14,0 |
+| déplacement / calage seul (même variance) | 81,3 | +1,7 | 1,5 | — |
+| intensité + bruit seuls (même variance) | 69,2 | −10,4 | −2,9 | — |
+| erreurs « analogues » (écarts ERA5 réels réutilisés) | 79,4 | −0,2 | −0,2 | — |
+
+: Sensibilité de R1 à l'erreur de prévision.
+
+**La prévision est le goulot, pas l'optimiseur.** Avec une prévision parfaite, R1 arrive à 1,1 point de l'oracle ; chaque « erreur nominale » supplémentaire coûte 7 à 8 points. **La nature de l'erreur compte autant que sa taille** : à variance égale, une erreur qui décale ou retarde les systèmes coûte peu (le navire peut attendre ou se repositionner), une erreur sur l'*intensité* du vent coûte 12 points de plus (le navire planifie sur un vent qui n'existe pas). R2 suit R1 point par point (83,9 / 80,2 / 76,4 % à ×0,5 / ×1 / ×1,5) ; il ne gagne que dans le régime d'erreurs d'intensité (+1,9 point). La cohérence d'une émission à l'autre ($-0,3$ point) et la modulation saisonnière de l'erreur ($+0,5$ point) sont dans le bruit ; la dispersion de l'ensemble (×0,6 / ×1,4) aussi, sur 4 fenêtres.
+
+**Conséquence.** Les chiffres absolus de CF sont conditionnels au modèle d'erreur synthétique. L'étalonnage du partage *intensité / déplacement* sur de vraies prévisions archivées (reprévisions GEFS, ENS de l'ECMWF) est la première priorité de S5.x (E-20).
 
 ### 5.4.2 Latence et cycle de prévision
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-03 : perte de CF par heure de latence (hypothèse de travail : environ −0,3 point par heure ; S4 a mesuré −2 % à 6 h).
+Latence nulle : +1,3 point ($z$ = 2,2) ; latence de 12 h : −0,5 point (bruit). La perte est de l'ordre de 0,1 à 0,3 point par heure au voisinage du nominal (4-6 h) : la latence n'est pas un levier majeur.
 
 ### 5.4.3 Horizon, valeur terminale, raffineur
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-04, E-06 : horizon optimal par terminal, gain du raffineur selon la fenêtre, l'interface et la résolution.
+| Variante de R1 | Effet [pts] | $z$ |
+|---|---|---|
+| horizon 3 j / 7 j / 10 j (nominal 5 j) | 0,0 / +0,9 / +0,4 | 0,0 / 2,1 / 0,8 |
+| terminal nul, horizon 3 j / 5 j / 7 j / 10 j | −2,7 / −2,6 / −0,5 / +0,5 | −4,2 / −5,8 / −0,5 / 0,5 |
+| sans raffineur | −2,9 | −7,7 |
+| raffineur 24 h / 72 h (nominal 48 h) | +0,2 / +0,5 | 0,8 / 0,7 |
+| replanification 3 h / 12 h / 24 h (nominal 6 h) | +0,3 / −0,7 / −1,4 | 0,7 / −1,7 / −2,1 |
+| portée d'arc 1 / 3 (nominal 2) | +0,5 / +0,1 | 0,7 / 0,2 |
+
+: Architecture du routeur.
+
+Au-delà de 3 jours, la prévision déterministe n'apporte plus rien ; la **valeur terminale climatologique et l'horizon sont substituables** : avec 10 jours d'horizon, la valeur terminale est inutile, avec 3 à 5 jours elle vaut 2,6 points. Le **raffineur continu** vaut 2,9 points et une fenêtre de 24 h suffit. Replanifier toutes les 6 h est le bon compromis.
 
 ### 5.4.4 Manœuvres, polaire et vent
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-09, E-10, E-24 : perte de CF de chaque routeur selon le coût de manœuvre ; robustesse de l'avantage du routage sur B0 ; erreurs de polaire et de calibration du vent.
+Facturer les manœuvres coûte **0,3 point** à R1 (2,5 manœuvres par jour) ; des manœuvres 2,5 fois plus longues, 0,4 point. B0 n'en fait aucune : l'avantage du routage n'en est pas affecté. Une erreur d'**échelle de la polaire réelle** de ±10 % déplace le CF de R1 de ±8,1 points ($|z|$ ≈ 20) mais laisse l'écart à l'oracle inchangé (5,7 à 6,9 points) : c'est un risque sur la *production*, pas sur le *routage*. Un décalage de ±10° de l'angle au vent coûte 2,2 à 3,5 points, à l'oracle aussi (−3,7 points).
 
 ### 5.4.5 Ensemble : membres, scénarios, risque
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-11 : moyenne d'ensemble contre scénarios ; effet de $k$, $\gamma$, du tronc ; optimisme plan-réalisé.
+Sur 4 fenêtres : 10 membres +0,8 point ($z$ = 3,1), 40 membres +0,6 ; 3 ou 10 scénarios +0,9 / +0,5 ; aversion au risque $\gamma$ = 0,3 : +1,7 point ($z$ = 1,3). Aucun réglage ne change la conclusion : **au niveau d'erreur nominal, l'ensemble à deux étapes n'apporte rien de mesurable par rapport à la prévision de contrôle** et coûte 5 fois plus de calcul. Il reste l'outil adapté si les vraies prévisions s'avèrent dominées par les erreurs d'intensité.
 
 ### 5.4.6 Routeurs simples et alternatives
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-12 : écart des heuristiques voraces et de la DP à une couche à R1 (la règle de la v1 : l'alternative est écartée si elle fait au moins 1 point de moins ou est 10 fois plus lente ; si le vorace est à moins de 2 points de R1, la valeur de la pile sophistiquée devra être redémontrée).
+Les règles voraces sur la prévision (aller vers la meilleure cellule de puissance de tenue à 24 h ; chasser le vent maximal) donnent **33 à 34 %**, très en dessous du poste fixe (58,8 %). Le routage sur la moyenne d'ensemble (79,7 %) égale le contrôle. La DP à 10 jours sans raffineur fait 76,8 % (−3,1 points). La pile « DP + valeur terminale + raffineur » est donc justifiée, mais rien de plus sophistiqué ne l'est à ce stade.
 
 ### 5.4.7 Départ, discrétisation, sécurité, résolution
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> E-15, E-07, E-17, E-19.
+Grille de 20 km : +0,9 point (bruit) pour 3 fois plus de calcul. Marge côtière de 10 / 40 km : −0,3 / +0,7 point (bruit) ; aucune violation côtière dans l'ensemble des cas. Exposition au-dessus de 45 kn : 1 à 2 heures par fenêtre de 30 jours ; une pénalité au-delà de 45 kn ne change rien (+0,3). Départ de Lorient : −2,0 points sur 30 jours (transit) ; départ au milieu de l'Atlantique : +1,9 point, ce qui confirme que la boîte ERA5 (limite 32°O) tronque la zone utile.
 
 ## 5.5 Ce que nous attendons *avant* les résultats
 
@@ -621,6 +648,14 @@ Pour que les résultats puissent nous contredire, nous consignons ici les attent
 3. Le terminal climatologique (+2,8 % mesuré) devrait rester utile ; sa valeur pourrait être gonflée par la fuite d'année.
 4. La facturation des manœuvres devrait pénaliser davantage B0 (97 % du temps en tenue) que R1 : l'avantage du routage devrait **augmenter** légèrement.
 5. Une erreur de polaire de ±10 % sur la puissance devrait déplacer les niveaux de CF mais peu le classement des routeurs.
+
+## 5.6 Confrontation aux attentes
+
+1. *Sensibilité aux échéances courtes plutôt qu'à D5-10* : **confirmée indirectement** (horizon au-delà de 3 jours inutile ; ensemble sans effet) ; l'échéance de l'erreur n'a pas été scannée séparément.
+2. *Le vorace sur prévision serait proche de R1* : **réfutée** (33-34 % contre 80 %).
+3. *Le terminal climatologique reste utile, peut-être gonflé par la fuite* : **confirmée** (+2,6 points) ; la part de la fuite est mesurée au chapitre 6.
+4. *La facturation des manœuvres augmenterait l'avantage du routage* : **réfutée** (effet de 0,3 point ; la tenue de B0 n'entraîne pas de manœuvres facturées dans notre modèle).
+5. *Une erreur de polaire déplace les niveaux, pas le classement* : **confirmée**.
 
 # 6. HORIZON v2 : algorithme affiné
 

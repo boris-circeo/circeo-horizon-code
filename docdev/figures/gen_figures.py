@@ -26,6 +26,7 @@ FIG = DOCDEV / 'fig'
 
 COPIES = {  # destination name in fig/ -> source relative to the repository
     **{p.name: Path('docs/s5/fig') / p.name for p in sorted((REPO / 'docs/s5/fig').glob('w_*.png'))},
+    **{p.name: Path('docs/s5/fig') / p.name for p in sorted((REPO / 'docs/s5/fig').glob('s5_*.png'))},
     's4_monthly_cf.png': Path('outputs/S4_monthly_cf.png'),
     's4_annual.png': Path('outputs/S4_annual.png'),
     's4_paired.png': Path('outputs/S4_paired.png'),
