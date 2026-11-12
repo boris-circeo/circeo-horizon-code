@@ -61,20 +61,33 @@ class Plan:
         return float(self.x[k]), float(self.y[k]), self.t0_s + (k + 1) * self.dt_s
 
 
+class CounterStateMixin:
+    """``get_state`` / ``set_state`` of the diagnostic counters named in ``COUNTERS`` (JSON-able),
+    so that checkpoint/resume (:mod:`horizon.sim.longrun`) does not lose them (S5 review)."""
+
+    COUNTERS: tuple = ()
+
+    def get_state(self) -> dict:
+        st = {n: int(getattr(self, n)) for n in self.COUNTERS}
+        inner = getattr(self, "base", None)
+        if inner is not None and hasattr(inner, "get_state"):
+            st["base"] = inner.get_state()
+        return st
+
+    def set_state(self, st: dict) -> None:
+        for n in self.COUNTERS:
+            setattr(self, n, int(st.get(n, 0)))
+        inner = getattr(self, "base", None)
+        if inner is not None and st.get("base") is not None and hasattr(inner, "set_state"):
+            inner.set_state(st["base"])
+
+
 class Policy(Protocol):
     """Routing policy protocol."""
 
     def plan(self, t_s: float, x: float, y: float, provider: ForecastProvider) -> Plan:
         """Plan from position ``(x, y)`` [m] at time ``t_s`` [s] using only causal information."""
         ...
-
-
-def _nearest_cell(grid: Grid, mask: np.ndarray, x: float, y: float) -> tuple[int, int]:
-    """Indices ``(j, i)`` of the cell with ``mask`` True nearest to ``(x, y)`` [m]."""
-    X, Y = grid.xy_mesh()
-    d2 = np.where(mask, (X - x) ** 2 + (Y - y) ** 2, np.inf)
-    j, i = np.unravel_index(int(np.argmin(d2)), d2.shape)
-    return int(j), int(i)
 
 
 def _safe_start(coast: CoastModel, d_min: float, finite: np.ndarray, path_fn, x: float, y: float,
@@ -201,7 +214,7 @@ def best_climatological_point(truths: list[WindField], power_model: PowerModel, 
     raise ValueError("no admissible hold point")
 
 
-class DeterministicMPCPolicy:
+class DeterministicMPCPolicy(CounterStateMixin):
     """B1: receding-horizon DP on the control forecast only (DES-860 §8.3).
 
     At each replan: forecast control member (``n_members = 1``), DP over
@@ -221,6 +234,8 @@ class DeterministicMPCPolicy:
     max_span : int  DP macro-arc span (stencil, default 2).
     """
 
+    COUNTERS = ("n_hold_fallback",)
+
     def __init__(self, polar: PolarTable, hold_curve: HoldCurve, coast: CoastModel,
                  horizon_days: float = 5.0, dt_s: float = DT_PLAN_S, d_min_m: float = 20e3,
                  reward_model: str = "envelope", terminal_clim_kw: np.ndarray | None = None,
@@ -235,6 +250,7 @@ class DeterministicMPCPolicy:
         self.max_span = max_span
         self._stencil = build_stencil(coast.grid, dt_s, max_span=max_span)
         self.last_result = None  # DPResult of the latest plan (read by the S2 refiner wrapper)
+        self.n_hold_fallback = 0  # replans that returned a hold plan (no feasible start)
 
     def plan(self, t_s, x, y, provider):
         n = max(int(np.ceil(min(self.horizon_s, provider.mission_end_s - t_s) / self.dt_s)), 1)
@@ -251,6 +267,7 @@ class DeterministicMPCPolicy:
         st = _safe_start(self.coast, self.d_min, np.isfinite(res.V[0]),
                          lambda j, i: res.path(j, i, 0), x, y)
         if st is None:
+            self.n_hold_fallback += 1
             return _hold_plan(t_s, self.dt_s, x, y)
         j0, i0, path = st
         return _plan_from_path(self.coast.grid, path, t_s, self.dt_s, float(res.V[0, j0, i0]))

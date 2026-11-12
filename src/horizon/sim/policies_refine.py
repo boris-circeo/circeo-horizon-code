@@ -15,12 +15,12 @@ import numpy as np
 from horizon.dp.solver import _envelope_for
 from horizon.geo.coast import SDF_TOL_M
 from horizon.refine import refine_plan
-from horizon.sim.policies import Plan
+from horizon.sim.policies import CounterStateMixin, Plan
 
 __all__ = ["OracleHorizonRefinedPolicy", "OracleRefinedPolicy", "RefinedMPCPolicy"]
 
 
-class RefinedMPCPolicy:
+class RefinedMPCPolicy(CounterStateMixin):
     """Wrap a DP-based policy and refine the first hours of its plan.
 
     Parameters
@@ -38,6 +38,8 @@ class RefinedMPCPolicy:
     results : list of RefineResult  All refinements of the mission (diagnostics).
     """
 
+    COUNTERS = ("n_dp_fallback", "n_refined", "n_warm_start", "n_not_converged")
+
     def __init__(self, base_policy, horizon_h: float = 48.0, dt_s: float = 1800.0,
                  wind_dt_s: float = 3600.0, rho=(100.0, 100.0), max_iter: int = 200,
                  max_cpu_s: float = 20.0, margin_m: float = 120e3):
@@ -51,6 +53,9 @@ class RefinedMPCPolicy:
         self.last_refine = None
         self.results: list = []
         self.n_dp_fallback = 0  # plans replaced by the (coast-checked) DP plan, see plan()
+        self.n_refined = 0       # refinements attempted
+        self.n_warm_start = 0    # ... that returned the warm start (IPOPT failed / no gain)
+        self.n_not_converged = 0  # ... accepted although IPOPT did not converge (iteration limit)
 
     def plan(self, t_s, x, y, provider) -> Plan:
         base_plan = self.base.plan(t_s, x, y, provider)
@@ -75,6 +80,9 @@ class RefinedMPCPolicy:
                         margin_m=self.margin_m)
         self.last_refine = r
         self.results.append(r)
+        self.n_refined += 1
+        self.n_warm_start += int(r.used_warm_start)
+        self.n_not_converged += int(not r.used_warm_start and not r.success)
         if not r.min_sdf_m >= self.base.d_min - SDF_TOL_M:
             # neither the refined plan nor its warm start keeps the exact bilinear SDF >= d_min
             # along its chords (e.g. first chord from an off-grid position): use the DP plan
@@ -188,6 +196,12 @@ class OracleHorizonRefinedPolicy:
     @property
     def n_dp_fallback(self):
         return self.refined.n_dp_fallback
+
+    def get_state(self) -> dict:
+        return self.refined.get_state()
+
+    def set_state(self, st: dict) -> None:
+        self.refined.set_state(st)
 
     def plan(self, t_s, x, y, provider) -> Plan:
         return self.refined.plan(t_s, x, y, _WeatherTruthProvider(self.weather,

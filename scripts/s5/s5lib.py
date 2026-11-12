@@ -406,7 +406,7 @@ def build_environment(ctx, env: dict, seed: int, start_iso: str, days: float):
                          analog_scale=env["analog_scale"])
     epoch = np.datetime64(f"{start_iso}T00:00:00", "s")
     wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, days * 86400.0, params=params,
-                             seed=seed)
+                             seed=seed, fast_filter=os.environ.get("HORIZON_FAST_FILTER") == "1")
     if env["truth_polar_scale"] == 1.0 and env["truth_polar_twa_shift"] == 0.0:
         pm = ctx.pm
     else:
@@ -417,10 +417,9 @@ def build_environment(ctx, env: dict, seed: int, start_iso: str, days: float):
 
 
 def build_router(ctx, spec: dict, wx, coast, start_xy):
+    from horizon.config import make_policy
     from horizon.polar import hold_power_curve
-    from horizon.sim import DeterministicMPCPolicy, HoldAtPointPolicy
-    from horizon.sim.policies_ens import EnsembleMPCPolicy
-    from horizon.sim.policies_refine import OracleHorizonRefinedPolicy, RefinedMPCPolicy
+    from horizon.sim import HoldAtPointPolicy
     from horizon.sim.truth_models import perturb_polar
 
     name = spec["router"]["name"]
@@ -440,28 +439,25 @@ def build_router(ctx, spec: dict, wx, coast, start_xy):
     if r["storm_kn"] > 0:  # survival constraint as a steep penalty in the router's model
         from horizon.sim.policies_simple import storm_penalty_polar
         pol, hold = storm_penalty_polar(pol, hold, r["storm_kn"])
-    clim = ctx.clim_hold_kw(set()) if r["terminal"] == "clim" else None
-    dmin = e["d_min_km"] * 1e3
-    refkw = {} if r["refiner_h"] == 48.0 else {"horizon_h": r["refiner_h"]}
+    return make_policy(router_config(name, r, e), pol, hold, coast,
+                       ctx.clim_hold_kw(set()) if r["terminal"] == "clim" else None, weather=wx)
+
+
+def router_config(name: str, r: dict, e: dict):
+    """:class:`horizon.config.HorizonConfig` of a campaign router (full router / env dicts)."""
+    from horizon.config import HorizonConfig
+    kw = dict(horizon_days=r["horizon_days"], replan_h=r["replan_h"], refiner_h=r["refiner_h"],
+              terminal=r["terminal"], terminal_days=r["terminal_days"],
+              max_span=int(r["max_span"]), d_min_km=e["d_min_km"],
+              router_polar=r["router_polar"], storm_kn=r["storm_kn"])
     if name == "Oracle_REF_H":
-        return OracleHorizonRefinedPolicy(wx, pol, hold, coast, horizon_days=r["horizon_days"],
-                                          terminal_clim_kw=clim, terminal_days=r["terminal_days"],
-                                          d_min_m=dmin, **refkw)
-    if name in ("B1c_5d_REF", "B1m_5d_REF"):
-        base = DeterministicMPCPolicy(pol, hold, coast, horizon_days=r["horizon_days"],
-                                      d_min_m=dmin, terminal_clim_kw=clim,
-                                      terminal_days=r["terminal_days"], max_span=int(r["max_span"]))
-    else:
-        base = EnsembleMPCPolicy(pol, hold, coast, horizon_days=r["horizon_days"],
-                                 n_members=int(r["members"]), k=int(r["k"]), gamma=r["gamma"],
-                                 alpha=r["alpha"], d_min_m=dmin, terminal_clim_kw=clim,
-                                 terminal_days=r["terminal_days"], max_span=int(r["max_span"]))
-    pl = base if r["refiner_h"] <= 0 else RefinedMPCPolicy(base, **refkw)
+        return HorizonConfig(kind="ORACLE_H", **kw)
+    if name == "ENS_REF":
+        return HorizonConfig(kind="ENS", members=int(r["members"]), k=int(r["k"]),
+                             gamma=r["gamma"], alpha=r["alpha"], **kw)
     if name == "B1m_5d_REF":
-        from horizon.sim.policies_simple import ForecastTransformPolicy
-        pl = ForecastTransformPolicy(pl, int(r["members"]),
-                                     r["blend_h"] if r["blend_h"] > 0 else None)
-    return pl
+        return HorizonConfig(mean_members=int(r["members"]), blend_h=r["blend_h"], **kw)
+    return HorizonConfig(**kw)
 
 
 # ------------------------------------------------------------------------------------ run
@@ -505,7 +501,11 @@ def run_case(spec: dict, log=print, segment_s: float = 10 * 86400.0) -> dict:
         "guard_interventions": int(mr.guard_interventions),
         "coast_violations": int(mr.coast_violations), "n_replans": int(mr.n_replans),
         "n_dp_fallback": getattr(pol, "n_dp_fallback", None),
-        "n_clamped": int(getattr(pm, "n_clamped", 0)), "resumed_from": res.resumed_from,
+        "n_clamped": int(sum(m.n_clamped for m in res.segments)),  # also pre-resume segments
+        "policy_stats": {k: int(getattr(pol, k)) for k in
+                         ("n_refined", "n_warm_start", "n_not_converged", "n_hold_fallback")
+                         if hasattr(pol, k)} or None,
+        "resumed_from": res.resumed_from,
         "wall_s": setup_s + float(sum(m.wall_s for m in res.segments)),
         "cpu_s": time.process_time() - cpu0 + setup_s,
         "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,

@@ -61,6 +61,7 @@ components (no rotation of vectors by the warp Jacobian).
 from __future__ import annotations
 
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
@@ -238,10 +239,25 @@ class _SmoothNoise:
         full = np.exp(-c * (kxf**2 + ky**2))
         self.shape = grid.shape
         self.norm = 1.0 / float(np.sqrt(np.mean(full**2)))
+        # separable dense circulant equivalent of the FFT filter (``filter_dense``)
+        k1 = lambda n: np.exp(-c * np.fft.fftfreq(n, grid.dx) ** 2)  # noqa: E731
+        self._ky, self._kx = (self._circ(k1(n)) for n in (ny, nx))
 
     def draw(self, rng: np.random.Generator, lead_shape: tuple) -> np.ndarray:
         w = rng.standard_normal(lead_shape + self.shape)
         return self.filter(w)
+
+    @staticmethod
+    def _circ(filt_1d: np.ndarray) -> np.ndarray:
+        """Real symmetric circulant matrix whose product equals the 1-D spectral filter."""
+        n = filt_1d.size
+        k = np.fft.ifft(filt_1d).real
+        return k[(np.arange(n)[None, :] - np.arange(n)[:, None]) % n].astype(np.float32)
+
+    def filter_dense(self, w: np.ndarray) -> np.ndarray:
+        """Same result as :meth:`filter` (float32 round-off, ~1e-6) by two small matrix products;
+        ~20x faster than the FFT on the 79 x 82 planning grid (prime axis length -> slow FFT)."""
+        return np.matmul(np.matmul(self._ky, w), self._kx) * np.float32(self.norm)
 
     def filter(self, w: np.ndarray) -> np.ndarray:
         """Spatially correlate white fields ``(..., ny, nx)`` (unit variance kept)."""
@@ -285,7 +301,8 @@ class ERA5ForecastWeather:
     """
 
     def __init__(self, archive: ERA5Archive, grid: Grid | None, epoch, duration_s: float,
-                 params: ForecastErrorParams | None = None, seed: int = 0):
+                 params: ForecastErrorParams | None = None, seed: int = 0,
+                 fast_filter: bool = False):
         if grid is not None and grid != archive.grid:
             raise ValueError("grid must equal archive.grid")
         self.archive = archive
@@ -295,6 +312,9 @@ class ERA5ForecastWeather:
         self.params = params or ForecastErrorParams()
         self.seed = int(seed)
         self.n_wrapped_requests = 0
+        self.fast_filter = bool(fast_filter)
+        self._series_cache: OrderedDict = OrderedDict()
+        self._series_cache_bytes = 160_000_000  # LRU budget of the latent-series cache [bytes]
         p = self.params
         self._f_disp = _SmoothNoise(self.grid, p.disp_len_km)
         self._f_amp = _SmoothNoise(self.grid, p.amp_len_km)
@@ -360,7 +380,21 @@ class ERA5ForecastWeather:
                       n: int) -> np.ndarray:
         """AR(1)-in-valid-time white-in-space series ``(n, 5, ny, nx)`` float32 (unit variance)
         of one latent knot; channels: displacement (2), amplitude (1), noise (2). Prefix of the
-        series is independent of ``n``."""
+        series is independent of ``n`` (hence an LRU cache of the longest series is exact)."""
+        key = (stream, level, knot)
+        hit = self._series_cache.get(key)
+        if hit is not None and hit.shape[0] >= n:
+            self._series_cache.move_to_end(key)
+            return hit[:n]
+        x = self._white_series_raw(stream, level, knot, n)
+        if x.nbytes <= self._series_cache_bytes:
+            self._series_cache[key] = x
+            self._series_cache.move_to_end(key)
+            while sum(v.nbytes for v in self._series_cache.values()) > self._series_cache_bytes:
+                self._series_cache.popitem(last=False)
+        return x
+
+    def _white_series_raw(self, stream, level, knot, n):
         rng = np.random.default_rng(np.random.SeedSequence(
             [self.seed, 21, stream[0], stream[1], level, knot + _SHIFT]))
         x = rng.standard_normal((n, 5) + self.grid.shape, dtype=np.float32)
@@ -374,6 +408,9 @@ class ERA5ForecastWeather:
             for k in range(1, n):
                 y[k] = a * y[k - 1] + sg * y[k]
         return x
+
+    def _flt(self, noise: _SmoothNoise, w):
+        return noise.filter_dense(w) if self.fast_filter else noise.filter(w)
 
     def _unit_fields(self, stream: tuple, issue_s: float, valid_s: np.ndarray):
         """Unit spatially correlated fields ``(xi_d (T,2), xi_a (T,), xi_n (T,2))`` of one stream
@@ -389,8 +426,13 @@ class ERA5ForecastWeather:
 
         def add(series, start, frac_w):
             j = lo - start
-            seg = series[j] * (1 - fr) + series[np.minimum(j + 1, series.shape[0] - 1)] * fr
-            z[...] += seg * frac_w.astype(np.float32)[:, None, None, None]
+            seg = series[j]
+            seg *= (1 - fr)
+            nxt = series[np.minimum(j + 1, series.shape[0] - 1)]
+            nxt *= fr
+            seg += nxt
+            seg *= frac_w.astype(np.float32)[:, None, None, None]
+            z[...] += seg
 
         hi = int(np.ceil(q.max()))
         start = int(np.floor(q.min()))
@@ -403,9 +445,9 @@ class ERA5ForecastWeather:
                 st = min(st, start)
                 ser = self._white_series(stream, lev, k, st, hi - st + 1)
                 add(ser, st, np.sqrt(f) * wk)
-        xd = self._f_disp.filter(z[:, 0:2])
-        xa = self._f_amp.filter(z[:, 2])
-        xn = self._f_noise.filter(z[:, 3:5])
+        xd = self._flt(self._f_disp, z[:, 0:2])
+        xa = self._flt(self._f_amp, z[:, 2])
+        xn = self._flt(self._f_noise, z[:, 3:5])
         return xd, xa, xn
 
     # ------------------------------------------------------------------ perturbations
@@ -549,7 +591,10 @@ class ERA5ForecastWeather:
             raise ValueError("issue_s outside [0, duration_s]")
         a = self.analysis_time(issue_s, product)
         n = 1 if product == "control" else n_members
-        return self.forecast_cycle(a, horizon_s + (issue_s - a), n, dt_s, seed_offset)
+        # round UP so that the last valid time reaches ``issue_s + horizon_s`` also when the lead
+        # ``issue_s - a`` is not a multiple of ``dt_s`` (S5 review: was rounded, up to dt/2 short)
+        h_tot = np.ceil((horizon_s + (issue_s - a)) / dt_s - 1e-9) * dt_s
+        return self.forecast_cycle(a, float(h_tot), n, dt_s, seed_offset)
 
     def ensemble_nbytes(self, n_members: int, horizon_s: float, dt_s: float = 10800.0) -> int:
         """Size of the returned ``uv`` array [bytes]."""

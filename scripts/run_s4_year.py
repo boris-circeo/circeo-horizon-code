@@ -25,43 +25,35 @@ import run_s3_backtest as R  # noqa: E402
 
 from horizon.geo.coast import port_corridor  # noqa: E402
 from horizon.sim import (  # noqa: E402
-    DeterministicMPCPolicy,
     HoldAtPointPolicy,
     OraclePolicy,
     best_climatological_point,
 )
 from horizon.sim.longrun import run_persistent  # noqa: E402
-from horizon.sim.policies_ens import EnsembleMPCPolicy  # noqa: E402
-from horizon.sim.policies_refine import (  # noqa: E402
-    OracleHorizonRefinedPolicy,
-    OracleRefinedPolicy,
-    RefinedMPCPolicy,
-)
+from horizon.sim.policies_refine import OracleRefinedPolicy  # noqa: E402
 from horizon.weather.forecast_model import ERA5ForecastWeather, ForecastErrorParams  # noqa: E402
 
 LORIENT = (-3.4, 47.7)
 
 
 def build(policy, ctx, wx, clim, horizon_h_days=15.0, members=20, k=6):
+    from horizon.config import HorizonConfig, make_policy
+
     pol, hold, coast = ctx.polar, ctx.hold, ctx.coast
-
-    def b1(c=None):
-        return DeterministicMPCPolicy(pol, hold, coast, horizon_days=5.0, terminal_clim_kw=c,
-                                      terminal_days=R.TERM_DAYS)
-
+    td = R.TERM_DAYS
     if policy == "B1_5d":
-        return b1()
+        return make_policy(HorizonConfig(terminal="zero", refiner_h=0.0, terminal_days=td),
+                           pol, hold, coast)
     if policy == "B1_5d_REF":
-        return RefinedMPCPolicy(b1())
+        return make_policy(HorizonConfig(terminal="zero", terminal_days=td), pol, hold, coast)
     if policy == "B1c_5d_REF":
-        return RefinedMPCPolicy(b1(clim))
+        return make_policy(HorizonConfig(terminal_days=td), pol, hold, coast, clim)
     if policy == "ENS_REF":
-        return RefinedMPCPolicy(EnsembleMPCPolicy(
-            pol, hold, coast, horizon_days=10.0, n_members=members, k=k, gamma=0.0, alpha=0.2,
-            terminal_clim_kw=clim, terminal_days=R.TERM_DAYS))
+        return make_policy(HorizonConfig(kind="ENS", horizon_days=10.0, members=members, k=k,
+                                         terminal_days=td), pol, hold, coast, clim)
     if policy == "Oracle_REF_H":
-        return OracleHorizonRefinedPolicy(wx, pol, hold, coast, horizon_days=horizon_h_days,
-                                          terminal_clim_kw=clim, terminal_days=R.TERM_DAYS)
+        return make_policy(HorizonConfig(kind="ORACLE_H", horizon_days=horizon_h_days,
+                                         terminal_days=td), pol, hold, coast, clim, weather=wx)
     if policy == "Oracle_REF":  # full-mission hindsight DP + refiner (30 d tests only)
         return OracleRefinedPolicy(wx.truth(dt_s=3600.0), pol, hold, coast, wx.duration_s)
     if policy == "Oracle":

@@ -13,12 +13,18 @@ from horizon.ensemble import reduce_ensemble
 from horizon.geo.coast import CoastModel
 from horizon.polar.derived import HoldCurve
 from horizon.polar.table import PolarTable
-from horizon.sim.policies import DT_PLAN_S, _hold_plan, _plan_from_path, _safe_start
+from horizon.sim.policies import (
+    DT_PLAN_S,
+    CounterStateMixin,
+    _hold_plan,
+    _plan_from_path,
+    _safe_start,
+)
 
 __all__ = ["EnsembleMPCPolicy"]
 
 
-class EnsembleMPCPolicy:
+class EnsembleMPCPolicy(CounterStateMixin):
     """Receding-horizon policy on a reduced ensemble with a non-anticipative 48 h trunk.
 
     At each replan: forecast ``n_members`` members, reduce them to ``k`` medoid scenarios on the
@@ -49,6 +55,8 @@ class EnsembleMPCPolicy:
         ``v_t0_kwh``, ``v_mean_at_split_kwh``, ``v_cvar_at_split_kwh``, ``timing_s``.
     """
 
+    COUNTERS = ("n_hold_fallback",)
+
     def __init__(self, polar: PolarTable, hold_curve: HoldCurve, coast: CoastModel,
                  horizon_days: float = 15.0, n_members: int = 20, k: int | None = 7,
                  gamma: float = 0.3, alpha: float = 0.2, split_h: float = 48.0,
@@ -67,6 +75,7 @@ class EnsembleMPCPolicy:
         self.max_span = max_span
         self._stencil = build_stencil(coast.grid, dt_s, max_span=max_span)
         self.last_diagnostics: dict | None = None
+        self.n_hold_fallback = 0
         # DPResult of the trunk (``V[n_split]`` = aggregated value v_bar): read by RefinedMPCPolicy
         self.last_result = None
 
@@ -113,6 +122,7 @@ class EnsembleMPCPolicy:
         st = _safe_start(self.coast, self.d_min, np.isfinite(res.v_t0),
                          lambda j, i: res.path(j, i), x, y)
         if st is None:
+            self.n_hold_fallback += 1
             return _hold_plan(t_s, self.dt_s, x, y)
         j0, i0, path = st
         je, ie = int(path.j_end[-1]), int(path.i_end[-1])
