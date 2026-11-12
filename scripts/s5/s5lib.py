@@ -551,7 +551,7 @@ def versions() -> dict:
 
 
 def track_case(spec: dict, out: dict, experiment: str = "S5-sensitivity", log=print,
-               extra_tags: dict | None = None) -> str | None:
+               extra_tags: dict | None = None, uri: str | None = None) -> str | None:
     """Record a finished case in MLflow (best effort: a tracking failure never fails a run)."""
     from horizon import tracking
     if not tracking.enabled():
@@ -567,7 +567,7 @@ def track_case(spec: dict, out: dict, experiment: str = "S5-sensitivity", log=pr
                 "window": spec["start"], "router_ovr": json.dumps(
                     {k: v for k, v in spec["router"].items() if k != "name"}, sort_keys=True),
                 "env_ovr": json.dumps(spec["env"], sort_keys=True), **(extra_tags or {})}
-        return tracking.log_result(experiment, out, params, tags, run_name=out["id"])
+        return tracking.log_result(experiment, out, params, tags, uri=uri, run_name=out["id"])
     except Exception as exc:  # noqa: BLE001 - tracking must never break a simulation
         log(f"tracking skipped: {exc!r}")
         return None

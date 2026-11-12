@@ -1,0 +1,45 @@
+# Split of the tracked runs into per-theme MLflow stores for sharing (one SQLite file per theme,
+# each kept under 2.9 MB (connector upload limit ~3 MB), uncompressed). A case goes to every theme listing one of its campaign
+# experiments; `with_baseline: true` also copies the default B1c / Oracle / B0 cases of the same
+# windows so each file is self-contained for comparisons.
+# File name: horizon_mlflow_<sprint>_<theme>_<YYYYMMDD-HHMM>.db  (export time, Europe/Paris)
+
+themes:
+  - name: S5_baselines
+    campaign: scripts/s5/campaign.yaml
+    experiments: [base_B1c, base_ENS, simple_greedy_hold24, simple_greedy_maxwind,
+                  simple_dp10_norefiner, oracle_h30]
+  - name: S5_forecast-error-level
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [fc_error_scale_B1c, fc_error_scale_ENS, fc_latency_B1c]
+  - name: S5_forecast-error-structure
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [fc_structure_B1c, fc_structure_ENS, fc_consistency_off_B1c, fc_season0_B1c,
+                  fc_spread_ENS]
+  - name: S5_router-dp-horizon-terminal
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [horizon_B1c, terminal_zero_B1c, grid_horizon_terminal_zero, maxspan_B1c]
+  - name: S5_router-refiner-replan
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [refiner_B1c, replan_B1c, ensmean_B1m, storm_avoid45_B1c]
+  - name: S5_ensemble-tuning
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [ens_members_ENS, ens_k_ENS, ens_gamma_ENS]
+  - name: S5_polar-model-error
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [polar_scale_B1c, polar_twa_shift_B1c]
+  - name: S5_operations
+    campaign: scripts/s5/campaign.yaml
+    with_baseline: true
+    experiments: [manoeuvre_off_B1c, manoeuvre_tau2.5_B1c, dmin_B1c, start_point_B1c,
+                  grid20_B1c]
+  - name: S5_v2-validation
+    campaign: scripts/s5/campaign_v2.yaml
+    with_baseline: true
+    experiments: [refiner_det_B1c, lwo_B1c, oracle_v2, v2, v2_ablations]

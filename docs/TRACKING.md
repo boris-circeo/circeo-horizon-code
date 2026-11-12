@@ -40,12 +40,20 @@ df = mlflow.search_runs(experiment_names=["S5-sensitivity"], max_results=10000)
 df.groupby("params.env.error_scale")["metrics.cf_pct"].mean()
 ```
 
-## Sharing the store
+## Sharing the store (Google Drive, per theme)
 
-The SQLite file is a single portable file. Recommended: keep it next to the data, in the private
-data repository (or a dedicated private repo), committed after each campaign; artifact paths are
-absolute, so log artifacts only when needed. For a shared live server later, `mlflow server` with
-a PostgreSQL backend keeps the same client code (set `HORIZON_MLFLOW_URI`).
+The master store is never shared as is. For sharing, `scripts/tracking/export_themes.py` rebuilds
+one independent, **uncompressed** MLflow SQLite file per campaign theme
+(`scripts/tracking/themes.yaml`), named `horizon_mlflow_<sprint>_<theme>_<YYYYMMDD-HHMM>.db`
+(export time, Europe/Paris), each under 2.9 MB (upload limit of the Drive connector ~3 MB; a theme
+that grows past it is split further). Themes with comparisons also carry the default B1c / Oracle /
+B0 runs of the same windows, so each file is self-contained. Files are deposited in the client's
+Google Drive folder after each campaign (or theme update); a newer timestamp supersedes an older
+file of the same theme. Open one with:
+
+```bash
+mlflow ui --backend-store-uri sqlite:///horizon_mlflow_S5_forecast-error-level_20261112-1921.db
+```
 
 ## Why MLflow
 
