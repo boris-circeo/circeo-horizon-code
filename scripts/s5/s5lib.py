@@ -463,7 +463,10 @@ def window_months(spec: dict, r: dict) -> set[int]:
     t0 = np.datetime64(spec["start"], "h")
     t1 = t0 + np.timedelta64(int(round((spec["days"] + r["horizon_days"]) * 24)), "h")
     months = np.arange(t0.astype("datetime64[M]"), t1.astype("datetime64[M]") + 1)
-    return {int(str(m)[5:7]) for m in months}
+    out = {int(str(m)[5:7]) for m in months}
+    if len(out) >= 12:
+        raise ValueError("clim_window='lwo' impossible: the window covers every calendar month")
+    return out
 
 
 def router_config(name: str, r: dict, e: dict):

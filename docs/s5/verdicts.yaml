@@ -1,0 +1,332 @@
+# S5 WP5 verdicts on the hypothesis register (docs/s5/hypotheses.yaml), merged by
+# scripts/s5/apply_verdicts.py into fields `s5_verdict` / `s5_evidence` (status updated).
+# Verdicts: confirmed | refuted | nuanced | untestable-here | deferred (needs data or work
+# planned for S5.x / S6). Evidence cites docs/s5/sensitivity_table.md (bench-6, 30-day windows of
+# 2015, paired deltas vs default B1c, "z" = delta / standard error) and
+# docs/s5/weather_analysis.md (ERA5 2015 phenomenology).
+# Placeholders {V2:...} are filled from the v2 validation campaign.
+
+H-1-1:
+  verdict: nuanced
+  evidence: >-
+    10 m wind patterns move at 18.7 kn median (weather_analysis), ~2.4x the ship's mean
+    ground speed (7 kn), not 4-6x; cyclone-centre speeds overstate the footprint speed. The
+    'cannot chase' conclusion holds (chasing loses beyond ~12 h), with a weaker ratio.
+H-1-3:
+  verdict: refuted
+  evidence: >-
+    Not the v1 algorithm (7 scenarios + 10 km zone was not built), but the measured cost
+    of the implemented chain is 3-10 min CPU per 30-day window (1 core), i.e. 1.5-5 s per 6 h replan
+    for B1c and ~13 s for ENS; margins are large, but driven by the refiner (IPOPT), not the DP.
+H-2-1:
+  verdict: confirmed
+  evidence: >-
+    Rendezvous extension by chasing pays only for <12 h (weather_analysis); greedy
+    max-wind chasing gives CF 34 % vs 59 % for the fixed point (sensitivity_table).
+H-2-2:
+  verdict: confirmed
+  evidence: >-
+    Hold-oracle explains 71-80 % of the oracle advantage over B0 (weather_analysis): the
+    value of a position is the flux of systems over the next days; terminal value from the annual
+    climatology is worth +2.6 pt (z -5.8 when removed) with a 5 d horizon.
+H-2-8:
+  verdict: confirmed
+  evidence: >-
+    Polar sensitivity of the mission: +-10 % truth power -> +-8.1 pt CF (z 20); consistent
+    with a steep power-speed relation below the knee (S4 propagation).
+H-2-9:
+  verdict: nuanced
+  evidence: >-
+    Not measured directly. Indirect: intensity-type forecast errors (amplitude + noise)
+    cost 10.4 pt more than displacement errors of equal variance, consistent with a non-linear
+    (concave/convex) polar making E[P(W)] != P(E[W]); ENS gains +1.9 pt in that regime.
+H-2-10:
+  verdict: nuanced
+  evidence: >-
+    ENS (risk-neutral and CVaR gamma 0.3) does not beat B1c at nominal error (+0.0 pt,
+    n.s.; gamma 0.3 +1.7 pt, z 1.3 n.s.); with intensity-type errors ENS gains +1.9 pt. The
+    attraction exists but is second-order at our error level.
+H-2-12:
+  verdict: untestable-here
+  evidence: >-
+    No leeway / current model in the truth simulator (S6 item).
+H-2-18:
+  verdict: nuanced
+  evidence: >-
+    Hold CF DJF 58 % vs JJA 33 % (factor ~1.8, weather_analysis), below the 2-3 claimed;
+    routed CF ranges 70-92 % by window.
+H-2-19:
+  verdict: deferred
+  evidence: >-
+    Domain truncated at 32W (best cell on the box edge); mid-Atlantic start +1.9 pt.
+    Needs the extended ERA5 domain (S5.x).
+H-2-22:
+  verdict: deferred
+  evidence: >-
+    Our forecast errors are synthetic (calibrated on literature); verification needs real
+    archived forecasts (GEFS reforecast / ECMWF ENS) - S5.x data request.
+H-2-23:
+  verdict: confirmed
+  evidence: >-
+    Deterministic horizon 3, 5, 7, 10 d give 79.9-80.7 % (all within 0.9 pt, z <= 2.1):
+    beyond ~3-5 d the deterministic forecast adds nothing; the terminal value carries the rest.
+H-2-24:
+  verdict: refuted
+  evidence: >-
+    Displacement (timing/position) errors are the benign kind: 81.3 % vs 69.2 % for
+    intensity errors of equal variance. Robust-to-intensity matters more than robust-to-time.
+H-2-27:
+  verdict: deferred
+  evidence: >-
+    Removing the seasonal modulation of forecast skill changes CF by +0.5 pt (z 1.5, n.s.)
+    in our synthetic model; real seasonal skill needs archived forecasts (S5.x).
+H-2-29:
+  verdict: confirmed
+  evidence: >-
+    e-folding 17-22 h / 450-650 km and productive episodes of median 11 h (weather_analysis)
+    support a 3 h / 40 km planning grid; the 20 km grid gives +0.9 pt (z 1.0, n.s.) at 3x cost.
+H-2-31:
+  verdict: confirmed
+  evidence: >-
+    Exposure above 45 kn is 1-2 h per 30-day window for all routers; an explicit 45 kn
+    avoidance penalty changes CF by +0.3 pt (n.s.): the polar plateau already keeps the ship out.
+H-3-4:
+  verdict: confirmed
+  evidence: >-
+    Window-to-window spread of CF is 70-92 % for the same router; paired deltas have
+    standard errors of 0.3-1 pt vs CF standard deviations of ~6 pt: only regrets/paired deltas
+    are interpretable.
+H-3-5:
+  verdict: untestable-here
+  evidence: >-
+    The persistent core has no return constraint in our runs; recall field not built.
+H-3-7:
+  verdict: untestable-here
+  evidence: >-
+    Not tested (no isochrone planner built); argument is theoretical and accepted.
+H-4-1:
+  verdict: nuanced
+  evidence: >-
+    Two layers + refiner is confirmed as useful (refiner +2.9 pt, terminal +2.6 pt) but the
+    learned value function brought +0.6 pt n.s. (S4) and the ensemble DP +0.0 pt at nominal error;
+    v2 keeps deterministic DP + climatological terminal + refiner.
+H-4-2:
+  verdict: refuted
+  evidence: >-
+    B1 at 10 d is not worse than at 5 d (80.3 vs 79.9 %, n.s.) when the refiner and the
+    terminal value are present: an over-long horizon is harmless, merely useless.
+H-4-3:
+  verdict: confirmed
+  evidence: >-
+    3 d horizon without terminal value: -2.7 pt (z -4.2); with 10 d horizon the terminal
+    value is irrelevant (+0.1 pt): myopia comes from short horizon x zero terminal.
+H-4-9:
+  verdict: deferred
+  evidence: >-
+    Value-function iteration not repeated in S5 (S4: one pass, +0.6 pt n.s.).
+H-4-13:
+  verdict: refuted
+  evidence: >-
+    Routing on the ensemble mean (B1m) gives 79.7 %, same as control (79.9 %) and ENS
+    (80.2 %): smoothing does not hurt measurably at our error level.
+H-4-15:
+  verdict: untestable-here
+  evidence: >-
+    The 48 h non-anticipative trunk was not varied in S5.
+H-4-16:
+  verdict: nuanced
+  evidence: >-
+    k = 3, 6, 10 scenarios give 80.4-80.7 % (n.s.): the scenario count is irrelevant at our
+    error level.
+H-4-18:
+  verdict: nuanced
+  evidence: >-
+    10 / 20 / 40 members: +0.8 pt (z 3.1, n = 4) / ref / +0.6 pt (n.s.); wall time 20 / 26 / 41 min per window. DP on
+    members is affordable, but buys nothing here.
+H-4-19:
+  verdict: untestable-here
+  evidence: >-
+    Theoretical; accepted.
+H-4-22:
+  verdict: nuanced
+  evidence: >-
+    We use an equal-area LAEA projection with Jacobian heading correction (S1); distances
+    and angles are exact by construction of the local basis. The v1 Lambert choice is not needed.
+H-4-23:
+  verdict: refuted
+  evidence: >-
+    Uniform 40 km grid without a fine zone + continuous refiner reaches 93 % of the oracle
+    (80 vs 86 %); the 20 km grid adds +0.9 pt n.s.: the bi-resolution graph is unnecessary when a
+    continuous refiner exists.
+H-4-24:
+  verdict: confirmed
+  evidence: >-
+    40 km <= U_max x 3 h and 3 h <= L_coh/c hold for the measured e-folding scales; arcs
+    up to 2 cells (max_span 1 / 2 / 3: 80.3 / 79.9 / 80.0 %, n.s.).
+H-4-25:
+  verdict: deferred
+  evidence: >-
+    Gradient boosting value model kept at S4 level (R2 0.44, +0.6 pt n.s.); quantile /
+    monotone variants not tested.
+H-4-30:
+  verdict: refuted
+  evidence: >-
+    With 2-6 min manoeuvres at rho 0.3 the measured loss is 0.3 pt CF (manoeuvres off:
+    +0.3 pt; duration x2.5: -0.4 pt) for ~2.5 manoeuvres/day: far below 4-15 %, because the planner
+    does not do 15 min legs.
+H-4-31:
+  verdict: refuted
+  evidence: >-
+    No explicit tack state is needed: manoeuvre losses are 0.3 pt; simulator accounting
+    suffices.
+H-4-32:
+  verdict: confirmed
+  evidence: >-
+    TWA shift of +-10 deg in the truth polar costs 2.2-3.5 pt (oracle -3.7 pt): the optimum
+    is flat to a few degrees but not to 10-15 deg at mission level.
+H-4-33:
+  verdict: untestable-here
+  evidence: >-
+    Single-ship simulations only.
+H-4-37:
+  verdict: untestable-here
+  evidence: >-
+    No recall constraint in the persistent runs.
+H-4-39:
+  verdict: deferred
+  evidence: >-
+    Lorient departure costs 2.0 pt over 30 days (transit); phasing not tested.
+H-4-41:
+  verdict: confirmed
+  evidence: >-
+    The kWh terminal field (climatology) is the only exchange between DP and the future and
+    is worth 2.6 pt; no waypoint is imposed on the refiner, which only receives a value field.
+H-5-1:
+  verdict: deferred
+  evidence: >-
+    Needs GEFS reforecasts (S5.x data).
+H-5-3:
+  verdict: deferred
+  evidence: >-
+    Value-learning not revisited in S5.
+H-5-4:
+  verdict: deferred
+  evidence: >-
+    Value-learning not revisited in S5.
+H-5-6:
+  verdict: confirmed
+  evidence: >-
+    Deterministic routing (B1c) equals ensemble routing at nominal error; the ensemble only
+    helps (+1.9 pt) with intensity-type errors.
+H-5-8:
+  verdict: nuanced
+  evidence: >-
+    Replan every 3 / 6 / 12 / 24 h: 80.1 / 79.9 / 79.1 / 78.5 % (24 h: -1.4 pt, z -2.1).
+    6 h is right; no zig-zag observed (2.5 manoeuvres/day), hysteresis not needed.
+H-6-4:
+  verdict: untestable-here
+  evidence: >-
+    Theoretical; accepted.
+H-6-6:
+  verdict: untestable-here
+  evidence: >-
+    Multi-stage trees not built.
+H-6-10:
+  verdict: nuanced
+  evidence: >-
+    d_min 10 / 20 / 40 km: 79.6 / 79.9 / 80.6 % (n.s.); 0 coast violations in all S5 runs (406 at the time of writing; the simulator guard intervened 480 times, ~1 per window).
+    Clearance is free up to 40 km; v2 recommends 30-40 km operationally.
+H-7-1:
+  verdict: untestable-here
+  evidence: >-
+    Forecast fields are hourly in our environment.
+H-7-4:
+  verdict: nuanced
+  evidence: >-
+    v1 refiner had a 20 s CPU-time limit making decisions load-dependent (external review);
+    v2 removes it (iteration budget only): {V2:determinism}.
+H-8-1:
+  verdict: deferred
+  evidence: >-
+    One year of ERA5 only (2015); multi-year data requested for S5.x.
+H-8-3:
+  verdict: confirmed
+  evidence: >-
+    Greedy forecast-following rules (hold-24 h, max-wind) give 33-34 % CF, far below B0
+    (59 %) and B1c (80 %): they are rightly not considered as baselines, but are now measured.
+H-8-4:
+  verdict: nuanced
+  evidence: >-
+    E3 (replan frequency) and forecast error scans done (see H-5-8, H-2-23); E1/E2 value
+    noise tests deferred.
+H-9-1:
+  verdict: nuanced
+  evidence: >-
+    Survival penalty from 45 kn costs nothing (+0.3 pt) and exposure is 1-2 h / month
+    without it; progressive penalties from 35 kn not tested.
+H-9-3:
+  verdict: untestable-here
+  evidence: >-
+    Loss-of-link mode not simulated.
+H-X-1:
+  verdict: nuanced
+  evidence: >-
+    The error structure matters as much as its level (69-81 % at equal variance); our
+    default mix gives results close to the 'analog' structure (79.4 vs 79.9 %). Calibration of the
+    intensity/displacement split on real forecasts is the top S5.x item.
+H-X-2:
+  verdict: nuanced
+  evidence: >-
+    ENS spread x0.6 / x1.4: 82.2 / 79.4 % (n.s., n=4); exchangeability not falsified.
+H-X-3:
+  verdict: nuanced
+  evidence: >-
+    Leave-window-out terminal climatology: {V2:lwo}. B0 uses the hindsight best point by
+    definition (client B0 definition) - its inflation is 2-4 pt (weather_analysis).
+H-X-4:
+  verdict: confirmed
+  evidence: >-
+    20 km grid +0.9 pt (n.s.) at 3x cost.
+H-X-5:
+  verdict: confirmed
+  evidence: >-
+    Manoeuvre losses now simulated; their effect is 0.3 pt.
+H-X-6:
+  verdict: nuanced
+  evidence: >-
+    Two forecast seeds differ by 0.8 pt in mean CF over 6 windows; paired SEs 0.3-1 pt.
+    One year only: generalisation across years remains open (S5.x data).
+H-X-7:
+  verdict: nuanced
+  evidence: >-
+    Oracle 30 d look-ahead gave 84.1 % vs 86.2 % at 15 d on 2 windows (refiner
+    non-convergence suspected); {V2:oracle}.
+H-X-8:
+  verdict: untestable-here
+  evidence: >-
+    Not re-tested in S5 (client confirmed the VPP masking).
+H-X-9:
+  verdict: nuanced
+  evidence: >-
+    Start point changes CF by -2.0 (Lorient) to +1.9 pt (mid-Atlantic); the annual best
+    offshore start is representative within +-2 pt.
+H-X-10:
+  verdict: confirmed
+  evidence: >-
+    Consistency between issues off: -0.3 pt (n.s.): the consistency model is not a driver.
+H-X-11:
+  verdict: confirmed
+  evidence: >-
+    0 coast violations, guard interventions counted; clamped commands negligible.
+H-X-12:
+  verdict: confirmed
+  evidence: >-
+    Unchanged design (external review found no truth leak in policies).
+H-X-13:
+  verdict: deferred
+  evidence: >-
+    V_theta not revisited.
+H-X-14:
+  verdict: confirmed
+  evidence: >-
+    Paired deltas with SE are used; effects with |z| < 2 are reported as n.s.

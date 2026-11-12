@@ -1,0 +1,26 @@
+# Sprint-5 WP6: year-long validation of HORIZON v2 (persistent ship, 2015-01-01 + 350 days, i.e.
+# to mid-December so that the 15-day oracle look-ahead stays inside the 2015 ERA5 archive).
+# With a single year of ERA5 a year-long window cannot use a leave-window-out climatology (every
+# month is in the window): the terminal climatology is in-sample here (clim_window: all); the
+# size of that leak is measured on the 30-day windows of campaign_v2.yaml (lwo_B1c vs B1c).
+#   bash scripts/s5/supervise.sh --campaign scripts/s5/campaign_year.yaml
+duration_days: 350
+tiers: [Y]
+windows:
+  year: ["2015-01-01"]
+experiments:
+  - id: year_v2
+    tier: Y
+    router: HORIZON_V2
+    windows: year
+    seeds: [1, 2]
+    b0: true
+    variants:
+      - {name: clim_in_sample, router: {clim_window: all}}
+  - {id: year_v1, tier: Y, router: B1c_5d_REF, windows: year, seeds: [1]}
+  - id: year_oracle
+    tier: Y
+    router: Oracle_REF_H
+    windows: year
+    variants:
+      - {name: det, router: {refiner_cpu_s: 0.0, refiner_max_iter: 500}}

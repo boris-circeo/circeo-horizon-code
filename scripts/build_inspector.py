@@ -28,6 +28,8 @@ def main() -> None:
     ap.add_argument("--track-step", type=int, default=3, help="--lite: every n-th track sample")
     ap.add_argument("--wind-stride", type=int, default=1, help="--lite: keep every n-th wind cell")
     ap.add_argument("--wind-quant", type=int, default=3, help="--lite: wind code rounding step")
+    ap.add_argument("--sensitivity", help="JSON from scripts/s5/sensitivity_view.py (adds the "
+                    "Sensitivity tab)")
     a = ap.parse_args()
     p = Path(a.results)
     files = sorted(f for f in p.iterdir() if f.name.endswith((".json", ".json.gz"))) \
@@ -37,6 +39,9 @@ def main() -> None:
     data = load_export(files[0])
     for f in files[1:]:
         merge_exports(data, load_export(f))
+    if a.sensitivity:
+        import json
+        data["sensitivity"] = json.loads(Path(a.sensitivity).read_text())
     lite = {"wind_step": a.wind_step, "track_step": a.track_step,
             "wind_stride": a.wind_stride,
             "wind_quant": a.wind_quant} if a.lite else False

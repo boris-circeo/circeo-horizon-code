@@ -241,7 +241,7 @@ body.showcase .tw td:first-child,body.showcase .tw th:first-child{background:#0b
 <body>
 <header>
   <h1 id="ttl"></h1><span class="ver" id="ver"></span><span class="brand">HORIZON</span><span class="meta" id="meta"></span>
-  <span class="tabs"><button id="tab-showcase" style="display:none">Showcase</button><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button><button id="tab-seasons" data-ui="tab-seasons" style="display:none">Seasons</button><button id="tab-polar" data-ui="tab-polar" style="display:none">Polar</button>
+  <span class="tabs"><button id="tab-showcase" style="display:none">Showcase</button><button id="tab-ov" class="on" data-ui="tab-ov">Overview</button><button id="tab-ex" data-ui="tab-ex">Explorer</button><button id="tab-seasons" data-ui="tab-seasons" style="display:none">Seasons</button><button id="tab-polar" data-ui="tab-polar" style="display:none">Polar</button><button id="tab-sens" data-ui="tab-sens" style="display:none">Sensitivity</button>
   <span class="zoom"><button id="zm" title="Smaller UI">A&minus;</button><button id="z0" title="Reset UI size">A</button><button id="zp" title="Larger UI">A+</button></span><button id="guide-btn" data-ui="guide">Guide</button><button id="primerbtn" data-ui="primer">Primer</button><button id="tourbtn" data-ui="tour" title="Tour">Tour</button><button id="lang">EN</button>
   <button id="theme" title="Toggle dark mode">Dark</button></span>
 </header>
@@ -584,12 +584,12 @@ function renderBar() {
 }
 function renderAll() {
   if (S.tab === "showcase") { renderShowcase(); return; }
-  renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : S.tab === "polar" ? renderPolar() : S.tab === "seasons" ? renderSeasons() : renderExplorer();
+  renderBar(); renderChips(); S.tab === "ov" ? renderOverview() : S.tab === "polar" ? renderPolar() : S.tab === "seasons" ? renderSeasons() : S.tab === "sens" ? renderSensitivity() : renderExplorer();
 }
 function releaseCaches() { for (const o of [LANDH, WLH, SCL, SCW]) { o.cv = null; o.land = null; o.key = null; } }   // offscreen canvases are rebuilt on demand
 function setTab(t) {
   if (t !== S.tab) releaseCaches();
-  S.tab = t; for (const k of ["showcase", "ov", "ex", "polar", "seasons"]) $("#tab-" + k).classList.toggle("on", t === k);
+  S.tab = t; for (const k of ["showcase", "ov", "ex", "polar", "seasons", "sens"]) $("#tab-" + k).classList.toggle("on", t === k);
   document.body.classList.toggle("showcase", t === "showcase");
   setScale(); LANDH.key = null; SCL.key = null;
   S.play = false; renderAll();
@@ -1533,6 +1533,43 @@ function renderSeasons() {
    <div class="card" style="grid-column:1/-1"><h2>CF [%] ${S.lang === "fr" ? "par mois (petits chiffres : écart à la référence en points, pts)" : "by month (small figures: gap to the reference in points, pts)"}</h2><div class="tw"><table class="ro">${tbl}</table></div></div></div>`;
 }
 
+// ------------------------------------------------------------------ sensitivity (S5 campaign, optional D.sensitivity)
+// D.sensitivity = {title, note_fr, note_en, refs: [{name, cf}], groups: [{fr, en, rows: [{fr, en,
+//   delta, se, z, gap}]}]}: paired effects [pt] of one-knob changes vs the default router.
+function renderSensitivity() {
+  const X = D.sensitivity, fr = S.lang === "fr", L = o => esc(fr ? o.fr : o.en);
+  const rows = X.groups.flatMap(g => g.rows.map(r => ({...r, g})));
+  const aw = $("#app").clientWidth || 900, W = Math.round(Math.min(aw - 36 * K, 1500)), lw = Math.round(Math.min(W * 0.42, 430 * K));
+  const rh = Math.round(19 * K), gh = Math.round(24 * K), pad = Math.round(28 * K);
+  const lim = Math.max(4, ...rows.map(r => Math.abs(r.delta) + 1.96 * (isFinite(r.se) ? r.se : 0))) * 1.08;
+  const x0 = lw + 10 * K, x1 = W - 12 * K, sx = v => x0 + (v + lim) / (2 * lim) * (x1 - x0);
+  let y = pad, svg = "";
+  const fs = Math.round(12.5 * K), fsg = Math.round(13.5 * K);
+  for (const g of X.groups) {
+    svg += `<text x="4" y="${y + gh * 0.72}" font-size="${fsg}" font-weight="600" fill="var(--fg)">${L(g)}</text>`; y += gh;
+    for (const r of g.rows) {
+      const sig = isFinite(r.z) && Math.abs(r.z) >= 2, col = !sig ? "#9aa3b2" : r.delta >= 0 ? "#2e9e6a" : "#d0563b";
+      const a = sx(Math.min(0, r.delta)), b = sx(Math.max(0, r.delta));
+      svg += `<text x="${lw}" y="${y + rh * 0.7}" font-size="${fs}" text-anchor="end" fill="var(--fg)">${L(r)}</text>`;
+      svg += `<rect x="${a}" y="${y + rh * 0.18}" width="${Math.max(1, b - a)}" height="${rh * 0.64}" fill="${col}" rx="2"><title>${L(r)}: ${r.delta >= 0 ? "+" : ""}${fmt(r.delta, 1)} pt ± ${fmt(r.se, 1)} (z ${fmt(r.z, 1)})</title></rect>`;
+      if (isFinite(r.se) && r.se > 0) svg += `<line x1="${sx(r.delta - 1.96 * r.se)}" x2="${sx(r.delta + 1.96 * r.se)}" y1="${y + rh / 2}" y2="${y + rh / 2}" stroke="var(--fg)" stroke-width="${1.2 * K}" opacity=".55"/>`;
+      svg += `<text x="${r.delta >= 0 ? b + 4 * K : a - 4 * K}" y="${y + rh * 0.7}" font-size="${fs * 0.9}" text-anchor="${r.delta >= 0 ? "start" : "end"}" fill="var(--mute)">${r.delta >= 0 ? "+" : ""}${fmt(r.delta, 1)}</text>`;
+      y += rh;
+    }
+  }
+  const H = y + pad, ticks = [];
+  for (let v = -Math.floor(lim); v <= lim; v += lim > 8 ? 2 : 1) ticks.push(v);
+  const axis = ticks.map(v => `<line x1="${sx(v)}" x2="${sx(v)}" y1="${pad - 6 * K}" y2="${H - pad}" stroke="var(--grid, #8884)" stroke-width="${v === 0 ? 1.6 * K : 0.6 * K}"/><text x="${sx(v)}" y="${pad - 10 * K}" font-size="${fs * 0.9}" text-anchor="middle" fill="var(--mute)">${v > 0 ? "+" : ""}${v}</text>`).join("");
+  const refs = X.refs.map(r => `<span><b>${esc(r.name)}</b> ${fmt(r.cf, 1)} %</span>`).join(" &nbsp;·&nbsp; ");
+  let tbl = `<tr><th>${fr ? "Facteur" : "Factor"}</th><th>${fr ? "Effet [pts]" : "Effect [pts]"}</th><th>± se</th><th>z</th><th>${fr ? "Écart à l'Oracle [pts]" : "Gap to oracle [pts]"}</th></tr>`;
+  for (const g of X.groups) { tbl += `<tr><td colspan="5"><b>${L(g)}</b></td></tr>`; for (const r of g.rows) tbl += `<tr><td>${L(r)}</td><td>${r.delta >= 0 ? "+" : ""}${fmt(r.delta, 1)}</td><td>${fmt(r.se, 1)}</td><td>${fmt(r.z, 1)}</td><td>${isFinite(r.gap) ? fmt(r.gap, 1) : ""}</td></tr>`; }
+  $("#app").innerHTML = `<div class="grid2">
+   <div class="card" style="grid-column:1/-1"><h2>${esc(X.title || ui("tab-sens"))} <small>${fr ? "effet apparié sur le CF [points] d'un seul réglage vs le routeur par défaut ; barre colorée = significatif (|z| ≥ 2), gris = dans le bruit ; trait = intervalle 95 %" : "paired effect on CF [points] of one knob vs the default router; coloured = significant (|z| ≥ 2), grey = within noise; whisker = 95 % interval"}</small></h2>
+    <div class="hint">${refs}</div><div class="hint">${esc(fr ? X.note_fr : X.note_en)}</div>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">${axis}${svg}</svg></div>
+   <div class="card" style="grid-column:1/-1"><h2>${fr ? "Tableau" : "Table"}</h2><div class="tw"><table class="ro">${tbl}</table></div></div></div>`;
+}
+
 // ------------------------------------------------------------------ operating-point occupancy (per router, own polar)
 const OA = 18, OU = 16, OUMAX = 8;
 const OCOL = ["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#e34a33", "#b30000", "#7f0000"];
@@ -1872,7 +1909,7 @@ async function boot() {
   $("#ttl").textContent = D.title; $("#ver").textContent = "HORIZON Inspector v" + (D.meta.inspector_version || "4.7.1") + (D.meta.lite ? " lite" : "");
   const m = D.meta;
   $("#meta").textContent = `${D.seeds.length} seeds x ${pn.length} policies, ${(m.duration_s / DAY).toFixed(0)} d from ${m.epoch.slice(0, 10)}; ` + Object.entries(m.params || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${k}: ${v}`).join(", ") + `; schema v${D.schema_version}`;
-  $("#tab-showcase").onclick = () => setTab("showcase"); $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); $("#tab-seasons").onclick = () => setTab("seasons"); if (D.meta.duration_s / DAY >= 45) $("#tab-seasons").style.display = ""; if (D.polar) $("#tab-polar").style.display = "";
+  $("#tab-showcase").onclick = () => setTab("showcase"); $("#tab-ov").onclick = () => setTab("ov"); $("#tab-ex").onclick = () => setTab("ex"); $("#tab-polar").onclick = () => setTab("polar"); $("#tab-seasons").onclick = () => setTab("seasons"); if (D.meta.duration_s / DAY >= 45) $("#tab-seasons").style.display = ""; if (D.polar) $("#tab-polar").style.display = ""; $("#tab-sens").onclick = () => setTab("sens"); if (D.sensitivity) $("#tab-sens").style.display = "";
   $("#theme").onclick = () => { S.dark = !S.dark; applyTheme(); renderAll(); };
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeGuide(); hidePop(); }

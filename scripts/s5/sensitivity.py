@@ -35,10 +35,8 @@ def key_of(spec):
             spec["seed"])
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--md", default=str(L.ROOT / "docs/s5/sensitivity_table.md"))
-    a = ap.parse_args()
+def compute_rows() -> list[dict]:
+    """One dict per variant (router, router_ovr, env_ovr, seed, n, cf, delta, se, z, gap, ...)."""
     runs = {}
     for p in (L.OUT / "runs").glob("*.json"):
         r = json.loads(p.read_text())
@@ -65,6 +63,14 @@ def main():
             storm45_h=np.mean([w.get("storm45_h", np.nan) for w in byw.values()]),
             man_day=np.mean([w["manoeuvres"]["per_day"] for w in byw.values()]),
             wall_min=np.mean([w["wall_s"] for w in byw.values()]) / 60))
+    return rows
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--md", default=str(L.ROOT / "docs/s5/sensitivity_table.md"))
+    a = ap.parse_args()
+    rows = compute_rows()
 
     def f(x, nd=1):
         return "" if x is None or (isinstance(x, float) and np.isnan(x)) else f"{x:.{nd}f}"
