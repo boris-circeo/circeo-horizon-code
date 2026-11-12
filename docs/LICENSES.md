@@ -12,6 +12,7 @@ reported. **GPL / AGPL are forbidden**; if no alternative exists, escalate for a
 | numpy, scipy | BSD-3 | OK | arrays, distance transforms |
 | numba | BSD-2 | OK | DP kernels |
 | pyproj | MIT | OK | projections |
+| mlflow | Apache-2.0 | OK (optional extra `tracking`) | experiment tracking (local SQLite store, `mlflow ui`) |
 | shapely | BSD-3 | OK | geometry |
 | pyshp | MIT | OK | reading shapefiles |
 | xarray / zarr / netCDF4 | Apache-2.0 / MIT / MIT | OK | data I/O (optional) |

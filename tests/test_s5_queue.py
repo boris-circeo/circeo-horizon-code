@@ -84,7 +84,7 @@ def test_normalisation_and_ids(tmp_path, monkeypatch):
 def test_queue_idempotent_kill_restart_and_status(env):
     tmp, e = env
     e = dict(e, FAKE_SLEEP="1.5")
-    cmd = [sys.executable, str(S5 / "queue.py"), "--campaign", str(tmp / "campaign.yaml"),
+    cmd = [sys.executable, str(S5 / "campaign_queue.py"), "--campaign", str(tmp / "campaign.yaml"),
            "--workers", "2"]
     p = subprocess.Popen(cmd, env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     time.sleep(9)

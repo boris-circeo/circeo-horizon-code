@@ -22,6 +22,7 @@ v1: markdown → pandoc → HTML/CSS+KaTeX → Chromium → PDF) whose generatio
 | WP5 | Verdict per hypothesis (confirmed / refuted / nuanced / untestable) with evidence | register updated |
 | WP6 | HORIZON v2: refined algorithm & defaults from WP1-5; external critical reviewer (refactor, bugs, performance, tuning, speed) | code, benchmark |
 | WP7 | v2 document (FR, CIRCEO chain) with REX and typical results; inspector "Sensitivity" view | `docdev/` generator, PDF |
+| WP8 | Experiment tracking (client request, 2026-11-12): every simulated case recorded with code version (git commit, dirty flag), weather/polar data version (data-repo commit + content fingerprints), full parameters and results; free, local and private store; retro-import of the 398 S5 cases | MLflow (SQLite) `outputs/tracking/`, `src/horizon/tracking.py`, `docs/TRACKING.md` |
 
 ## Target scenario ("bench-6")
 Six 30-day windows of 2015 starting 1 Jan, 1 Mar, 1 May, 1 Jul, 1 Sep, 1 Nov, from the annual best

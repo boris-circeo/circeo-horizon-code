@@ -511,9 +511,42 @@ def run_case(spec: dict, log=print, segment_s: float = 10 * 86400.0) -> dict:
         "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,
         "segments": [{"label": m.label, "cf": m.capacity_factor} for m in res.segments],
         "finished": time.strftime("%F %T"),
+        "versions": versions(),
     }
     atomic_json(result_path(cid), out)
+    track_case(spec, out, log=log)
     return out
+
+
+def versions() -> dict:
+    """Code + data version tags of this process (see :mod:`horizon.tracking`)."""
+    import run_s3_backtest as R
+
+    from horizon.tracking import code_version, data_version
+    return {**code_version(ROOT), **data_version(R.ERA5_CACHE, R.POLAR_DIR, R.YEAR)}
+
+
+def track_case(spec: dict, out: dict, experiment: str = "S5-sensitivity", log=print,
+               extra_tags: dict | None = None) -> str | None:
+    """Record a finished case in MLflow (best effort: a tracking failure never fails a run)."""
+    from horizon import tracking
+    if not tracking.enabled():
+        return None
+    try:
+        spec = normalise(spec)
+        name = spec["router"]["name"]
+        params = {**tracking.flatten("router", {"name": name, **full_router(spec)}),
+                  **tracking.flatten("env", full_env(spec)),
+                  "window.start": spec["start"], "window.days": str(spec["days"]),
+                  "seed": str(spec["seed"])}
+        tags = {**(out.get("versions") or versions()), "case_id": out["id"], "router": name,
+                "window": spec["start"], "router_ovr": json.dumps(
+                    {k: v for k, v in spec["router"].items() if k != "name"}, sort_keys=True),
+                "env_ovr": json.dumps(spec["env"], sort_keys=True), **(extra_tags or {})}
+        return tracking.log_result(experiment, out, params, tags, run_name=out["id"])
+    except Exception as exc:  # noqa: BLE001 - tracking must never break a simulation
+        log(f"tracking skipped: {exc!r}")
+        return None
 
 
 def main_run(spec: dict) -> int:

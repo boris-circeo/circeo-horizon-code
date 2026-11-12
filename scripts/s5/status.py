@@ -38,7 +38,8 @@ def main():
     if pf.exists():
         try:
             pid = int(pf.read_text())
-            if L.pid_alive(pid) and "s5/queue.py" in Path(f"/proc/{pid}/cmdline").read_text():
+            cmd = Path(f"/proc/{pid}/cmdline").read_text()
+            if L.pid_alive(pid) and "s5/campaign_queue.py" in cmd:
                 master = pid
         except (OSError, ValueError):
             pass

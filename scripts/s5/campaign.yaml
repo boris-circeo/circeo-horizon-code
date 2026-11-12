@@ -1,4 +1,4 @@
-# Sprint-5 sensitivity campaign (WP4). Re-read by queue.py every cycle: APPEND experiments freely.
+# Sprint-5 sensitivity campaign (WP4). Re-read by campaign_queue.py every cycle: APPEND experiments freely.
 #
 # experiment fields
 #   id        unique name (shown in status.py / aggregate.py)

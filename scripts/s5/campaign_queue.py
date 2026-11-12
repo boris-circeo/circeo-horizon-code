@@ -1,6 +1,6 @@
 """Sprint-5 campaign queue: a pool of N workers consumes the expanded campaign by priority.
 
-Usage: ``python3 scripts/s5/queue.py [--workers 2] [--campaign scripts/s5/campaign.yaml]
+Usage: ``python3 scripts/s5/campaign_queue.py [--workers 2] [--campaign scripts/s5/campaign.yaml]
 [--tiers A,B,C] [--retry-failed] [--once]``.
 
 * Single master (``outputs/s5/queue.pid`` + flock): a second start exits at once.
