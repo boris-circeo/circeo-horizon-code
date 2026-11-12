@@ -659,40 +659,61 @@ Pour que les résultats puissent nous contredire, nous consignons ici les attent
 
 # 6. HORIZON v2 : algorithme affiné
 
-::: {.cal .todo}
-[CHAPITRE EN ATTENTE DE LA CAMPAGNE]{.lab}
-<span class="todo">[À COMPLÉTER S5-campagne]</span> L'algorithme HORIZON v2 sera décrit ici une fois les décisions arrêtées. Le brief S5 exclut toute complexité de routeur nouvelle (réservée à S6) : v2 est un *affinement* de ce qui existe, par défauts, interfaces et simplifications justifiés par les mesures.
-:::
+HORIZON v2 est un **affinement par élagage** du routeur v1 : il garde ce qui est mesuré utile, simplifie ce qui ne l'est pas et corrige ce qui était fragile. Aucune couche n'est ajoutée (le brief réserve les nouveautés à S6). Le routeur v2 est implémenté (`HORIZON_V2` dans `scripts/s5/s5lib.py`, construit par `horizon.config.HorizonConfig` / `make_policy`) et validé sur les six fenêtres (`docs/s5/v2_validation.md`) et sur l'année.
 
 ## 6.1 Principe de l'affinement
 
-L'affinement procède par **élagage et réglage justifiés**, non par ajout de couches : on conserve ce qui est mesuré utile, on simplifie ce qui ne l'est pas, on corrige ce qui est faux. Chaque modification fera l'objet d'une fiche : hypothèse de la v1 concernée, mesure, décision, effet attendu et conditions de réexamen.
+Chaque décision s'appuie sur une mesure appariée du chapitre 5 : on retire ou on raccourcit un élément si son effet est dans le bruit ($|z| < 1$ à 2) et si le retrait fait gagner en calcul ou en simplicité ; on garde un élément dont le retrait coûte un effet significatif ; on corrige ce qui rendait les résultats dépendants de la machine ou d'une information a posteriori.
 
-## 6.2 Pistes en examen (non décidées)
+## 6.2 Décisions
 
-Les points suivants sont les candidats à une décision, tirés des constats déjà établis. **Aucun n'est arrêté** ; la campagne tranchera.
+| Élément | v1 | v2 | Mesure qui fonde la décision |
+|---|---|---|---|
+| Horizon de la DP | 5 j | **3 j** | 3 / 5 / 7 / 10 j : 0,0 / réf. / +0,9 / +0,4 pt (bruit) |
+| Valeur terminale | climatologie annuelle (fenêtre testée incluse) | **climatologie hors fenêtre** (*leave-window-out*) | sans terminal : −2,7 pt ($z$ = −4,2) ; fuite mesurée : ±0,1 pt |
+| Raffineur continu | 48 h | **24 h** | sans raffineur : −2,9 pt ; 24 / 72 h : +0,2 / +0,5 (bruit) |
+| Limites IPOPT | 200 itérations **et** 20 s CPU | **500 itérations, sans limite CPU** | convergence 100 % ; résultats indépendants de la charge |
+| Replanification | 6 h | 6 h | 24 h : −1,4 pt ($z$ = −2,1) ; 3 h : rien |
+| Prévision utilisée | contrôle | contrôle | ensemble = contrôle au niveau nominal, 5× plus coûteux |
+| Fonction de valeur apprise $V_\theta$ | option | **retirée du défaut** | +0,6 pt non significatif (S4), coût hors ligne élevé |
+| Grille, stencil | 40 km / 3 h, portée 2 | inchangés | 20 km : +0,9 pt (bruit) pour 3× le calcul ; portée 1/3 : bruit |
+| Manœuvres, tempêtes | non modélisées dans le routeur | inchangé | pertes 0,3 pt ; > 45 kn : 1-2 h/mois, pénalité sans effet |
+| Marge côtière | 20 km | 20 km en évaluation ; **30-40 km recommandés en exploitation** | 40 km : +0,7 pt (bruit), aucune violation |
 
-| Piste | Constat actuel | Décision conditionnée par |
-|------------------------------|----------------------------------------|------------------------------|
-| Terminal climatologique comme défaut | +2,8 % (10 mois sur 12), fuite d'année possible | E-04, E-18 |
-| Raffineur systématique | +3 à +7 %, plus grand levier unique | E-06 |
-| Champ central : moyenne d'ensemble plutôt que contrôle | moyenne meilleure que contrôle par construction du modèle | E-11, E-20 |
-| Longueur du tronc de l'approximation en deux étages | optimisme de +30 % au-delà de 48 h | E-11 |
-| Retrait ou maintien de la fonction de valeur apprise $V_\theta$ | +0,6 point, non significatif, coût hors ligne ≈ 6 fois plus élevé que prévu | E-08, E-18 |
-| Courbe de tenue avec coût de manœuvre explicite | pertes de 4 à 15 % non facturées jusqu'à S4 | E-09 |
-| Terme de sécurité (pénalité en vent très fort) | aucune contrainte de survie ; ERA5 sous-estime les extrêmes | E-17 |
-| Résolution : 40 km / 3 h contre 20 km | discrétisation de 3 à 7 % | E-07 |
-| Heuristique simple en repli et en garde-fou | un vorace sur prévision pourrait être proche de R1 | E-12 |
+: Décisions d'affinement HORIZON v2.
 
-: Candidats à l'affinement et conditions de décision.
+**Pistes de la révision précédente écartées.** Le champ central « moyenne d'ensemble » (79,7 % contre 79,9 % pour le contrôle) n'apporte rien ; le tronc de l'approximation à deux étages et les réglages de l'ensemble (membres, scénarios, $\gamma$) n'ont pas d'effet mesurable ; l'heuristique vorace (33-34 %) ne peut servir ni de routeur ni de repli, seulement de garde-fou en cas de perte de lien (à étudier en S6).
 
 ## 6.3 Spécification de HORIZON v2
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Description de l'algorithme (graphe, stencil, enveloppe, terminal, ensemble, raffineur, exécution), paramètres par défaut et leur plage de robustesse, interfaces, budgets de calcul, comportement de repli.
+**Entrées.** Prévision déterministe de contrôle (champ de vent à 10 m, horaire, au moins 3 jours d'échéance) ; polaire de puissance nette BETA (avec masques et réparation des trous, chapitre 2) ; enveloppe de puissance à cap mixte ; carte de distance à la côte ; climatologie de puissance de tenue $\bar P_{hold}(x)$ calculée sur les mois *hors* fenêtre d'exploitation.
+
+**Toutes les 6 h :**
+
+1. **DP déterministe** sur la grille LAEA de 40 km et des pas de 3 h, sur 3 jours, avec arcs macro de portée 2 (49 directions) et contrôle exact des cordes côtières ($d \ge d_{min}$). Valeur terminale à $T$ : $V_T(x) = \bar P_{hold}(x)\cdot \min(5\ \mathrm{j},\ \text{temps de mission restant})$.
+2. **Raffineur continu** (CasADi / IPOPT, tir multiple, pas de 30 min) sur les 24 premières heures, initialisé par la trajectoire DP et terminé sur le champ de valeur DP à 24 h ; contraintes : enveloppe de vitesse, distance côtière (vérification bilinéaire exacte et resserrement local), 500 itérations au plus, aucune limite de temps. Si le raffineur n'améliore pas l'amorce, la trajectoire DP est exécutée telle quelle (compteur).
+3. **Exécution** des 6 premières heures ; le simulateur facture les manœuvres et applique la garde côtière.
+
+**Budget de calcul.** 2,4 min de CPU (un cœur) par fenêtre de 30 jours, soit environ 1,2 s par replanification, dont l'essentiel pour IPOPT. v1 : 5,8 min. Le chemin critique restant est le hessien exact du raffineur (65 % du temps IPOPT) ; la génération de code CasADi est la piste d'accélération suivante (3 à 5×, non tentée).
+
+**Comportement de repli.** Pas de départ réalisable : maintien en position (compteur `n_hold_fallback`) ; raffineur non amélioré : trajectoire DP (`n_warm_start`) ; commande infaisable : vitesse réduite par le modèle de puissance (`n_clamped`) ; approche côtière : garde du simulateur (environ une intervention par fenêtre, aucune violation).
 
 ## 6.4 Réglage : simplicité et robustesse
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Liste des paramètres, plage de réglage sûre de chacun, sensibilité du CF, paramètres figés et justification. Résultat de la revue critique externe (refactorisation, bogues, performances, vitesse) : <span class="todo">[À COMPLÉTER S5-campagne]</span>.
+| Paramètre | Défaut v2 | Plage sûre mesurée | Sensibilité dans la plage |
+|---|---|---|---|
+| Horizon DP | 3 j | 3 à 10 j | < 1 pt |
+| Terminal | climatologie, 5 j | requis si horizon < 7 j | −2,7 pt sans |
+| Raffineur | 24 h, 500 it. | 24 à 72 h ; 200 à 1000 it. | < 0,5 pt |
+| Replanification | 6 h | 3 à 12 h | < 1 pt (24 h : −1,4) |
+| Grille / portée | 40 km / 2 | 20-40 km ; 1-3 | < 1 pt |
+| Marge côtière | 20-40 km | 10 à 40 km | < 1 pt |
+
+: Paramètres de HORIZON v2 et robustesse.
+
+Trois paramètres seulement portent un effet significatif hors de leur plage (valeur terminale, raffineur, période de replanification) ; tous les autres sont figés à leur défaut.
+
+**Revue critique externe** (branche `s5-review`, intégrée) : treize constats, dont un de sévérité élevée sur la validité (raffineur non convergé accepté, limite de temps CPU) et quatre moyens (couverture d'horizon de la prévision, compteurs perdus à la reprise, replis silencieux, fuite de climatologie), tous corrigés ou neutralisés ; aucune erreur de convention (u/v, TWA, caps, unités). Mesure a posteriori : la limite CPU ne s'est jamais déclenchée pendant la campagne (résultats S5 identiques sans elle) et la fuite vaut ±0,1 point. Accélérations exactes intégrées : cache de faisabilité des arcs, sommes latentes en place, cache LRU des séries latentes (×1,2 sur B1c, plans identiques au bit près). Refactorisation : configuration unique `HorizonConfig` et fabrique `make_policy` pour tous les scripts.
 
 # 7. Résultats typiques
 
