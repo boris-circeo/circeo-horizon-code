@@ -62,7 +62,7 @@ def main():
     for t in tiers:
         cs = [c for c in cases if c["tier"] == t]
         nd = sum(c["id"] in done for c in cs)
-        rem = sum(est[c["spec"]["router"]["name"]] for c in cs if c["id"] not in done)
+        rem = sum(est.get(c["spec"]["router"]["name"], 360.0) for c in cs if c["id"] not in done)
         cum += rem
         print(f"  {t}   {nd:4d}/{len(cs):<4d}   {fmt_h(rem):>10}   {fmt_h(cum / a.workers):>10}")
     tot_done = len(done)
@@ -100,7 +100,7 @@ def main():
     else:
         print("\nNo errors.")
     pend = [c for c in cases if c["id"] not in done]
-    rem = sum(est[c["spec"]["router"]["name"]] for c in pend)
+    rem = sum(est.get(c["spec"]["router"]["name"], 360.0) for c in pend)
     from datetime import datetime, timedelta, timezone
     eta = datetime.now(timezone.utc) + timedelta(seconds=rem / a.workers)
     try:
