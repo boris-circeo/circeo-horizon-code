@@ -419,10 +419,7 @@ Le registre compte **119 entrées** : 47 hypothèses, 39 valeurs annoncées, 21 
 
 {{include: generated/hyp_summary.md}}
 
-::: {.cal .todo}
-[À COMPLÉTER]{.lab}
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Les effectifs ci-dessus reflètent l'état *avant* la campagne (S0-S4 et calculs de revue S5). Ils seront régénérés automatiquement lorsque le registre aura été mis à jour (WP5).
-:::
+Les effectifs ci-dessus intègrent les verdicts de la campagne S5 (WP5) : les 69 entrées encore ouvertes après S0-S4 ont toutes reçu un verdict — 19 confirmées, 7 réfutées, 19 nuancées, 12 reportées faute de données (prévisions réelles, ERA5 pluriannuel, logistique de flottille) et 12 non testables dans notre environnement. Les preuves S5 sont citées dans la langue du registre (anglais) ; elles renvoient aux tableaux du chapitre 5.
 
 ## 4.3 Hypothèses de la v1 déjà contredites ou nuancées
 
@@ -506,10 +503,7 @@ Les entrées de criticité haute encore **ouvertes** ou fragiles les plus lourde
 
 : Points ouverts critiques du registre (extrait ; la liste complète des 36 entrées de criticité haute est en annexe C).
 
-::: {.cal .todo}
-[À COMPLÉTER]{.lab}
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Verdict (confirmé, réfuté, nuancé, non testable) et preuve pour chaque entrée testée par la campagne ; mise à jour de la figure de synthèse « effectifs par statut ».
-:::
+**Ce que la campagne a tranché sur ces points critiques.** La valeur du routage contre le meilleur point fixe est confirmée et large (+21 points de CF sur les six fenêtres) ; la prévision d'ensemble n'apporte rien de mesurable au niveau d'erreur nominal ; l'horizon déterministe utile est de 3 jours, la valeur terminale prenant le relais ; les pertes de manœuvre sont négligeables (0,3 point, et non 4 à 15 %) ; la fuite de climatologie est réelle mais sans effet (±0,1 point). Restent ouverts faute de données : l'étalonnage du modèle d'erreur sur de vraies prévisions (le facteur dominant) et la généralisation à d'autres années (H-4-26, H-X-6).
 
 ## 4.7 Nos propres erreurs possibles
 
@@ -772,17 +766,19 @@ Les regrets mensuels d'une graine unique sont bruités : B1c graines 1 et 2 diff
 
 ## 7.2 HORIZON v2 sur le scénario cible
 
-<span class="todo">[À COMPLÉTER S5-campagne]</span> Tableau « bench-6 » : CF moyen par routeur (R0, R1, R2, v2, oracle) dans l'environnement réaliste de S5 (manœuvres facturées) avec intervalles de confiance ; écart à l'oracle en points.
+Environnement réaliste de S5 (pertes de manœuvre facturées, prévisions synthétiques nominales, $d_{min}$ = 20 km), six fenêtres de 30 jours de 2015, deux tirages de prévision pour les routeurs causaux. Écarts appariés sur les mêmes fenêtres.
 
-| Routeur | CF bench-6 [%] | Écart à l'oracle [points] | Écart à v1-PoC [points] |
-|---|---|---|---|
-| B0 | <span class="todo">—</span> | — | — |
-| v1-PoC (B1c_5d_REF) | <span class="todo">—</span> | — | référence |
-| v1-PoC (ENS_REF) | <span class="todo">—</span> | — | — |
-| HORIZON v2 | <span class="todo">—</span> | — | — |
-| Oracle_REF_H | <span class="todo">—</span> | 0 | — |
+| Routeur | CF bench-6 [%] | Écart à l'oracle [points] | Écart à v1-PoC [points] | Calcul par fenêtre |
+|---|---|---|---|---|
+| B0 (poste fixe optimal) | 58,8 | 27,4 | −21,1 | — |
+| v1-PoC (B1c_5d_REF), tirages 1 / 2 | 79,9 / 80,7 | 6,3 / 5,4 | référence | 5,8 min |
+| v1-PoC (ENS_REF), tirage 1 | 80,2 | 6,0 | +0,3 ± 0,7 (4 fenêtres) | 26 min |
+| **HORIZON v2**, tirages 1 / 2 | **79,8 / 80,9** | 6,4 / 5,2 | **−0,1 ± 0,6 / +0,2 ± 0,6** | **2,4 min** |
+| Oracle_REF_H (sans fuite, raffineur déterministe) | 86,3 | 0 | — | 4,8 min |
 
-: Scénario cible bench-6 (à compléter).
+: Scénario cible bench-6.
+
+HORIZON v2 égale v1 à 0,2 point près, en 2,4 à 3,9 fois moins de calcul, avec des résultats indépendants de la charge de la machine et sans information a posteriori dans la valeur terminale. Le raffineur converge dans 100 % des replanifications (v1 : 72 à 97 % selon la fenêtre).
 
 ## 7.3 HORIZON v2 sur l'année persistante
 

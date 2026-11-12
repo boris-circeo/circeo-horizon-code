@@ -2,8 +2,7 @@
 # One entry per assumption / quantitative claim / design decision / dismissed alternative.
 # Status codes: open | supported-by-S0-S4 | contradicted-by-S0-S4 | untestable-here. 'H-X-*' = our own environment hypotheses.
 # Experiment ids E-xx are defined in docs/s5/hypotheses.md. Note: figures marked 'S5 computation' were derived during this review from the ERA5 2015 cache and the BETA polar (aggregates only).
-# S5 WP5: statuses 's5-<verdict>' come from docs/s5/verdicts.yaml (scripts/s5/apply_verdicts.py).
-# S5 WP5: statuses 's5-<verdict>' come from docs/s5/verdicts.yaml (scripts/s5/apply_verdicts.py).
+# S5 WP5: statuses (confirmed, refuted, nuanced, deferred, untestable-here) of tested entries come from docs/s5/verdicts.yaml (scripts/s5/apply_verdicts.py).
 - id: H-1-1
   v1_section: 1.4, 2.1.1
   category: weather
@@ -17,7 +16,7 @@
   test: 'E-13: track TWS>20 kn blobs / lagged cross-correlation on ERA5 2015 (Hovmoeller along 50N) to
     get the distribution of 10 m-wind pattern speeds by season; compare with ship ground speed distribution.'
   test_cost: cheap
-  status: s5-nuanced
+  status: nuanced
   notes: 20-35 kn is a cyclone-centre speed at 500-1000 hPa; 10 m wind footprints (jet, cold sector) can
     move slower or deform. Also the ship moves with the flow when downwind (P>0 at TWA 150-170 above 22
     kn), so 'cannot chase' is weaker in strong wind.
@@ -56,7 +55,7 @@
   test: 'E-21: benchmark arcs/s per core (bench_dp), ENS N=51 w/o reduction, 10 km/1 h fine zone at the
     real size; extrapolate to 16 cores.'
   test_cost: cheap
-  status: s5-refuted
+  status: refuted
   notes: Our ENS_REF at 20 members costs ~15x the v1 'cycle'; the fine zone (10 km, 60 000 cells) was
     never implemented so the 3.2e8-arc estimate is untested.
   s5_verdict: refuted
@@ -94,7 +93,7 @@
   test: 'E-13: oracle (Oracle_REF_H) with ship max speed capped at 4/8/12/16 kn, and with a ''frozen position''
     (hold) variant; value of mobility = CF vs speed cap and vs reachable radius.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: Tests the value of mobility itself, which decides whether a station-keeping-plus-slow-drift strategy
     is nearly as good (heuristic baselines).
   s5_verdict: confirmed
@@ -114,7 +113,7 @@
   test: 'E-13/E-08: regress realised 5-10 d energy on (a) current wind at x, (b) forecast mean P over
     next 5 d, (c) climatology, by season; compute Eulerian vs Lagrangian persistence of productive conditions.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: Our terminals are 5 d horizons; the claim at 10-15 d is untouched. If persistence of 'productive'
     conditions is long (blocking, regimes), the claim is weaker than v1 states.
   s5_verdict: confirmed
@@ -135,7 +134,7 @@
   test: 'E-13/E-16: from existing S3/S4 tracks compute longitude vs time, heading histogram vs TWA, and
     CF by heading sector; test whether ships drift east with systems and ''recharge'' west.'
   test_cost: cheap
-  status: s5-deferred
+  status: deferred
   notes: Moot for the persistent fleet (no return) except for legs; strongly depends on the polar shape
     (asymmetric peak at 95-110 deg).
   s5_verdict: deferred
@@ -220,7 +219,7 @@
   evidence_so_far: 'BETA: +26 %/kn (12->14 kn), +19 %/kn (14->16), +17 %/kn (18->20), 0 above 22 kn (S5).'
   test: Done; propagate into E-10 (wind bias +-1 kn).
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: Order of magnitude right, understated at low wind; zero in the plateau.
   s5_verdict: confirmed
   s5_evidence: 'Polar sensitivity of the mission: +-10 % truth power -> +-8.1 pt CF (z 20); consistent
@@ -241,7 +240,7 @@
   test: 'E-13: measure the bias along ship tracks with the forecast ensemble: planned energy of members
     vs of their mean; E-11: DP on ensemble-mean field vs scenario DP.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: Jensen bias +-15-19 % at sd 4 kn is real on the polar but small after averaging over a route
     and over positions; may not change position RANKING, which is what routing needs.
   s5_verdict: nuanced
@@ -261,7 +260,7 @@
   test: 'E-14: log planned (DP/refiner) energy vs realised over the next 48 h and 5 d for each replan
     of S4 runs/new runs, by policy and season; test dependence on forecast spread.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: Our ensemble DP is as optimistic as deterministic planning, contrary to the v1 story.
   s5_verdict: nuanced
   s5_evidence: ENS (risk-neutral and CVaR gamma 0.3) does not beat B1c at nominal error (+0.0 pt, n.s.;
@@ -295,7 +294,7 @@
   test: 'E-24: leeway k_L in {0, 0.02, 0.03, 0.05} and synthetic current 0.3-0.8 kn (random direction)
     on B0 and routed policies; measure drift and CF loss.'
   test_cost: cheap
-  status: s5-untestable-here
+  status: untestable-here
   notes: k_L 'to be measured for this platform' - rotors give unusual windage; wrong k_L changes B0 and
     any holding behaviour.
   s5_verdict: untestable-here
@@ -373,7 +372,7 @@
     Oracle_REF_H 0.94 vs 0.77 = x1.2. Plateau compresses the cycle for a routed ship.'
   test: E-13 seasonal CF decomposition; E-18 for interannual spread (+-30-50 % claimed).
   test_cost: cheap
-  status: s5-nuanced
+  status: nuanced
   notes: Factor 2-3 applies to unrouted/available energy; routed energy varies much less - changes the
     economics of seasonal migration.
   s5_verdict: nuanced
@@ -390,7 +389,7 @@
   evidence_so_far: Best annual point is already 56.5N; monthly best fixed point not computed.
   test: 'E-15: best fixed cell per month (ERA5 2015) and CF gain from a seasonal migration vs fixed B0.'
   test_cost: cheap
-  status: s5-deferred
+  status: deferred
   notes: Cheap to compute; pure operations value.
   s5_verdict: deferred
   s5_evidence: Domain truncated at 32W (best cell on the box edge); mid-Atlantic start +1.9 pt. Needs
@@ -425,7 +424,7 @@
   test: 'E-20: compare the model with real archived forecasts (GEFS v12 reforecast 2015 via AWS; ECMWF/ERA5-EDA
     proxies): RMSE, ACC, spread-skill, timing error, mean-vs-control gap.'
   test_cost: expensive
-  status: s5-deferred
+  status: deferred
   notes: Every conclusion on horizon, ensemble value and latency inherits this unverified law.
   s5_verdict: deferred
   s5_evidence: Our forecast errors are synthetic (calibrated on literature); verification needs real archived
@@ -442,7 +441,7 @@
   test: 'E-04: DP horizon in {1,2,3,5,7,10,15} d x terminal {0, clim, V_theta} x {control, ENS mean, ENS
     scenarios}; metric CF and paired gap.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: 'Horizon response is built into our error law (D7 RMSE 6 m/s ~ climatological spread): ''no skill
     after D7'' is by construction.'
   s5_verdict: confirmed
@@ -462,7 +461,7 @@
   test: 'E-01/E-02: sweep displacement scale x{0.5,1,1.5,2,3} (timing error 3-12 h at D4) and read ensemble
     gain vs scale.'
   test_cost: cheap
-  status: s5-refuted
+  status: refuted
   notes: If v1 timing errors are right, our forecasts are too good on phase and ensemble value is under-estimated;
     conversely ensemble value might vanish when timing error is smaller.
   s5_verdict: refuted
@@ -511,7 +510,7 @@
     S4 monthly regret: higher in Jun-Aug (Jun 13-20 %).'
   test: 'E-02: set seasonal amplitude to 0 / 30 / -15 %; E-20 real.'
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: Inverse seasonal dependence of regret may simply reflect the oracle bound and weak winds, not
     forecast skill.
   s5_verdict: deferred
@@ -544,7 +543,7 @@
   test: 'E-13: temporal spectra of TWS and of vector wind at ship tracks and fixed points (ERA5 2015),
     energy fraction in 12 h-2 d, 2-6 d, 6-20 d bands by season.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: 'Our truth has less mesoscale variance than the real sea: errors in 12 h-2 d band underestimated
     in the PoC.'
   s5_verdict: confirmed
@@ -563,7 +562,7 @@
   test: 'E-17: exposure to TWS>35/40/45 kn along each router''s tracks (needs track-truth join); compare
     vs B0 and Oracle.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: Without a safety term (none exists in the PoC) the optimiser is indifferent to storm cores above
     the knee.
   s5_verdict: confirmed
@@ -614,7 +613,7 @@
   test: 'E-23: report paired differences (kWh) and CF points alongside regret; bootstrap by blocks of
     weeks.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: A regret ratio inherits the error of the bound; paired energy differences do not.
   s5_verdict: confirmed
   s5_evidence: 'Window-to-window spread of CF is 70-92 % for the same router; paired deltas have standard
@@ -632,7 +631,7 @@
   test: 'E-16: persistent core with lambda(d) in {0, v1, recomputed} and d_max in {400, 600, 900, none}:
     CF cost and drift of the core.'
   test_cost: medium
-  status: s5-untestable-here
+  status: untestable-here
   notes: Our CF 0.80 for a ship fixed far from the port is therefore optimistic for a fleet that must
     rotate.
   s5_verdict: untestable-here
@@ -667,7 +666,7 @@
   test: 'E-12: energy-stratified isochrone / label-correcting forward search with pruning on the same
     forecasts and graph; compare energy and cost to DP.'
   test_cost: medium
-  status: s5-untestable-here
+  status: untestable-here
   notes: '''Not transferable'' is true for the classic algorithms; the question is whether a forward Pareto-label
     method is competitive for single-ship planning.'
   s5_verdict: untestable-here
@@ -714,7 +713,7 @@
   test: E-04 (terminal ladder none/clim/hindsight*factor/V_theta/oracle V), E-08, E-12 (single layer long-horizon
     DP).
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: Offline layer = heaviest component of v1 (reforecasts, policy iteration); its added value over
     a climatology is not demonstrated.
   s5_verdict: nuanced
@@ -734,7 +733,7 @@
     on 10 d windows, seed 101 dominates. Real ERA5: no B1_15d run; ENS 10 d vs B1c_5d +1.2 %.'
   test: E-04 horizon x terminal grid on bench-6 (control forecast), then ENS.
   test_cost: medium
-  status: s5-refuted
+  status: refuted
   notes: Result tied to our forecast law (error saturates at D7).
   s5_verdict: refuted
   s5_evidence: 'B1 at 10 d is not worse than at 5 d (80.3 vs 79.9 %, n.s.) when the refiner and the terminal
@@ -750,7 +749,7 @@
     11.9 % (S4).
   test: 'E-04: horizons 1, 2, 3 d with terminal 0 and climatological.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: Needed to size the true value of anticipation (what the 5 d horizon already captures).
   s5_verdict: confirmed
   s5_evidence: '3 d horizon without terminal value: -2.7 pt (z -4.2); with 10 d horizon the terminal value
@@ -846,7 +845,7 @@
     states R2 <= 0.08 and V_theta bias -16 MWh there (S4_value limitations).
   test: 'E-08: iteration 2 with B1v+REF targets; test on on-track states and in closed loop.'
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: Shift between B1 rollouts and the policy finally used is visible already.
   s5_verdict: deferred
   s5_evidence: 'Value-function iteration not repeated in S5 (S4: one pass, +0.6 pt n.s.).'
@@ -896,7 +895,7 @@
   test: 'E-11: B1c with ensemble-mean field; B1c with lead-blended field (control to D2, mean after);
     vs scenario DP.'
   test_cost: cheap
-  status: s5-refuted
+  status: refuted
   notes: Cheapest decisive test of what the scenarios add beyond a better central forecast.
   s5_verdict: refuted
   s5_evidence: 'Routing on the ensemble mean (B1m) gives 79.7 %, same as control (79.9 %) and ENS (80.2
@@ -928,7 +927,7 @@
     issues are 0.7-0.97 correlated, so discrimination is slow and gradual.
   test: 'E-11: trunk length sweep.'
   test_cost: medium
-  status: s5-untestable-here
+  status: untestable-here
   notes: Number is a design choice, not a physical one.
   s5_verdict: untestable-here
   s5_evidence: The 48 h non-anticipative trunk was not varied in S5.
@@ -945,7 +944,7 @@
   test: 'E-11: random-k, k-means centroids, scalar-index clustering, all members; k in {1,3,6,12,all};
     compute-matched.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: 'In our model members are exchangeable perturbations of the truth: clustering structure differs
     from real ENS (bimodal storms).'
   s5_verdict: nuanced
@@ -963,7 +962,7 @@
     with refiner (S4); 51 members would be ~75 CPU-s without fine zone.
   test: E-21 timing at N=51.
   test_cost: cheap
-  status: s5-nuanced
+  status: nuanced
   notes: Plausible on 16 cores.
   s5_verdict: nuanced
   s5_evidence: '10 / 20 / 40 members: +0.8 pt (z 3.1, n = 4) / ref / +0.6 pt (n.s.); wall time 20 / 26
@@ -982,7 +981,7 @@
   test: 'E-12: forward label-setting with time-expanded graph and Pmax*time bound; count expansions vs
     DP arcs, check same optimum.'
   test_cost: medium
-  status: s5-untestable-here
+  status: untestable-here
   notes: Only worth testing to answer 'evaluators will ask for it'; DP cost makes it moot.
   s5_verdict: untestable-here
   s5_evidence: Theoretical; accepted.
@@ -1027,7 +1026,7 @@
     basin edges, metric distortion up to 3 % -> per-cell Jacobian and geodesic arc lengths (S0 review).'
   test: 'E-07: compare against a conformal conic grid on the same data.'
   test_cost: cheap
-  status: s5-nuanced
+  status: nuanced
   notes: Our deviation; effect likely below 1 %.
   s5_verdict: nuanced
   s5_evidence: We use an equal-area LAEA projection with Jacobian heading correction (S1); distances and
@@ -1045,7 +1044,7 @@
     % (H-4-4).
   test: 'E-06/E-07: add a 10-20 km / 1 h DP zone for 0-48 h and compare to refiner alone and to both.'
   test_cost: medium
-  status: s5-refuted
+  status: refuted
   notes: Tests D1/D9/D10 jointly.
   s5_verdict: refuted
   s5_evidence: 'Uniform 40 km grid without a fine zone + continuous refiner reaches 93 % of the oracle
@@ -1064,7 +1063,7 @@
   test: 'E-07: dt in {1, 3, 6} h, dx in {20, 40, 80} km at fixed forecasts; measure decision change (heading
     at +24 h) and energy.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: '40 km <= U_max x 3 h and 3 h <= L_coh/c hold for the measured e-folding scales; arcs up
@@ -1082,7 +1081,7 @@
   test: 'E-08: quantile terminal (q50 vs mean; q10 aggregation), monotone vs free; linear model control;
     k-NN climatology.'
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: '-'
   s5_verdict: deferred
   s5_evidence: Gradient boosting value model kept at S4 level (R2 0.44, +0.6 pt n.s.); quantile / monotone
@@ -1131,7 +1130,7 @@
   test: 'E-09: tau_m in {0, 2, 4, 6, 10 min} x rho_m in {0, 0.3, 0.6} charged by the simulator, router
     assuming nominal, mismatch grid; measure B0 vs routed gap and heading-change frequency.'
   test_cost: medium
-  status: s5-refuted
+  status: refuted
   notes: The B0 baseline (hold 97 %) is the most affected; real gap routing-vs-B0 could be even larger.
     Heading changes of routed ships also cost.
   s5_verdict: refuted
@@ -1151,7 +1150,7 @@
     f_avail included) which removed 'sit still' bias (83 % -> 0 %) (S1). No tack-state DP.
   test: 'E-09 (medium cost): fine-zone tack-state DP at 1 h vs envelope hold.'
   test_cost: expensive
-  status: s5-refuted
+  status: refuted
   notes: '-'
   s5_verdict: refuted
   s5_evidence: 'No explicit tack state is needed: manoeuvre losses are 0.3 pt; simulator accounting suffices.'
@@ -1167,7 +1166,7 @@
     (+-8) at 20 kn: bias towards the wind sits on the low edge. S0: hold TWA ~85 deg at 20 kn.'
   test: E-24 (leeway x bias x leg length).
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: 'TWA shift of +-10 deg in the truth polar costs 2.2-3.5 pt (oracle -3.7 pt): the optimum
@@ -1184,7 +1183,7 @@
   evidence_so_far: none. ERA5 40 km cannot test sub-grid variability.
   test: 'E-13: wind difference at 5-20 km separation from ERA5 native 0.25 deg (cheap).'
   test_cost: cheap
-  status: s5-untestable-here
+  status: untestable-here
   notes: '-'
   s5_verdict: untestable-here
   s5_evidence: Single-ship simulations only.
@@ -1243,7 +1242,7 @@
     constrained.
   test: 'E-16: d_max sweep and cost in CF.'
   test_cost: medium
-  status: s5-untestable-here
+  status: untestable-here
   notes: '-'
   s5_verdict: untestable-here
   s5_evidence: No recall constraint in the persistent runs.
@@ -1273,7 +1272,7 @@
   test: 'E-16: simulate legs for departure dates shifted by -2..+2 d (Experiment B reused) and read the
     leg energy range and mean.'
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: '-'
   s5_verdict: deferred
   s5_evidence: Lorient departure costs 2.0 pt over 30 days (transit); phasing not tested.
@@ -1289,7 +1288,7 @@
     -> refiner mismatch (Oracle_REF > Oracle) shows value mismatches exist.
   test: 'E-06b: waypoint vs field.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: The kWh terminal field (climatology) is the only exchange between DP and the future and
@@ -1308,7 +1307,7 @@
   test: 'E-11/E-08: train V on N=5-member forecasts, use with N=20/50 (and vice versa); E-20 for bias;
     literature check of GEFS/ECMWF reforecast specifications.'
   test_cost: expensive
-  status: s5-deferred
+  status: deferred
   notes: Information-set mismatch is a design hole; our PoC trains and tests on the same forecast law,
     hiding it.
   s5_verdict: deferred
@@ -1340,7 +1339,7 @@
     trajectories). Samples within a trajectory are highly correlated; effective sample size small.
   test: 'E-08/E-23: n_eff and block bootstrap of V CV; every-visit vs release-point targets.'
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: '-'
   s5_verdict: deferred
   s5_evidence: Value-learning not revisited in S5.
@@ -1358,7 +1357,7 @@
     No Z500/MJO/regime.'
   test: 'E-08: feature ablation ladder; oracle weekly-mean features as upper bound (H-2-28).'
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: '-'
   s5_verdict: deferred
   s5_evidence: Value-learning not revisited in S5.
@@ -1374,7 +1373,7 @@
     model: control RMSE 2.2 m/s at D1 (4.3 kn), displacement 42 km, i.e. comparable to v1''s 3-5 kn.'
   test: 'E-11: scenarios vs deterministic in 0-48 h; E-01 error scale.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: Deterministic routing (B1c) equals ensemble routing at nominal error; the ensemble only
@@ -1404,7 +1403,7 @@
   test: 'E-05: replan {1, 3, 6, 12, 24} h x hysteresis {0, 1, 3 %} (decision stability metric = heading
     and route-family changes).'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: '-'
   s5_verdict: nuanced
   s5_evidence: 'Replan every 3 / 6 / 12 / 24 h: 80.1 / 79.9 / 79.1 / 78.5 % (24 h: -1.4 pt, z -2.1). 6
@@ -1464,7 +1463,7 @@
   evidence_so_far: no benchmark.
   test: 'E-12 isochrone-style baseline with 5 d horizon on the same forecast: energy and cost vs DP.'
   test_cost: medium
-  status: s5-untestable-here
+  status: untestable-here
   notes: Needed for external credibility.
   s5_verdict: untestable-here
   s5_evidence: Theoretical; accepted.
@@ -1480,7 +1479,7 @@
     is what a tree would correct.
   test: 'E-11: 2-branch tree after the trunk (cluster at D5).'
   test_cost: expensive
-  status: s5-untestable-here
+  status: untestable-here
   notes: Complexity belongs to S6; only a small prototype.
   s5_verdict: untestable-here
   s5_evidence: Multi-stage trees not built.
@@ -1509,7 +1508,7 @@
   test: 'E-22: effect of d_min {10, 20, 40} km on CF (cheap), especially for Lorient departures and Bay
     of Biscay.'
   test_cost: cheap
-  status: s5-nuanced
+  status: nuanced
   notes: '-'
   s5_verdict: nuanced
   s5_evidence: 'd_min 10 / 20 / 40 km: 79.6 / 79.9 / 80.6 % (n.s.); 0 coast violations in all S5 runs
@@ -1542,7 +1541,7 @@
     the PoC.
   test: 'E-19: degrade forecasts to 3 h / 6 h steps with linear interpolation and measure CF loss.'
   test_cost: cheap
-  status: s5-untestable-here
+  status: untestable-here
   notes: '-'
   s5_verdict: untestable-here
   s5_evidence: Forecast fields are hourly in our environment.
@@ -1570,7 +1569,7 @@
     ForecastProvider hardening pending (S3 review).'
   test: 'E-22: rerun a month on 2 vs 1 workers and compare tracks bitwise.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: '-'
   s5_verdict: nuanced
   s5_evidence: 'v1 refiner had a 20 s CPU-time limit making decisions load-dependent (external review);
@@ -1589,7 +1588,7 @@
     autocorrelated months reduce n_eff; paired t-tests with 4-9 dof.
   test: E-18 + E-23.
   test_cost: expensive
-  status: s5-deferred
+  status: deferred
   notes: '-'
   s5_verdict: deferred
   s5_evidence: One year of ERA5 only (2015); multi-year data requested for S5.x.
@@ -1621,7 +1620,7 @@
   test: 'E-12: B-greedy (move to argmax of 7x7 smoothed 48-72 h forecast hold power within 36 h reach,
     6 h replan), B-clim (monthly best point + slow drift), compared to B1c_5d_REF on bench-6.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: Decides whether a 20-line router captures most of the 40 % routing gain.
   s5_verdict: confirmed
   s5_evidence: 'Greedy forecast-following rules (hold-24 h, max-wind) give 33-34 % CF, far below B0 (59
@@ -1638,7 +1637,7 @@
     E2, E3, B2 waypoint variant not done.
   test: E-08 (E2), E-05 (E3), E-06b (B2), E-11 (E1).
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: '-'
   s5_verdict: nuanced
   s5_evidence: E3 (replan frequency) and forecast error scans done (see H-5-8, H-2-23); E1/E2 value noise
@@ -1686,7 +1685,7 @@
   test: 'E-17: exposure histograms (TWS>35/40/45 kn) on S4 tracks; add penalty and ban variants; cost
     in CF.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: 'CF 0.80 may include time in conditions the real ship would avoid: results are upper-bound-like.'
   s5_verdict: nuanced
   s5_evidence: Survival penalty from 45 kn costs nothing (+0.3 pt) and exposure is 1-2 h / month without
@@ -1716,7 +1715,7 @@
   test: 'E-12: fallback policy with climatological V gradient and no forecast, 12-24 h plan validity;
     CF loss.'
   test_cost: cheap
-  status: s5-untestable-here
+  status: untestable-here
   notes: '-'
   s5_verdict: untestable-here
   s5_evidence: Loss-of-link mode not simulated.
@@ -1758,7 +1757,7 @@
   test: 'E-02: replace lead >= D5 forecasts by analog fields (other years/months) blended with truth;
     compare horizon and ensemble value (E-04/E-11).'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: Could inflate the value of long horizons and of ensembles that 'see' the truth's structure; also
     makes forecasts look sharper than real NWP. High-priority artefact check.
   s5_verdict: nuanced
@@ -1777,7 +1776,7 @@
     ENS control/mean RMSE ratio typically 1.05-1.20 beyond D3 (to verify).'
   test: 'E-02: control-mean gap {1.0, 1.15, 1.38, 1.6}; E-20 real.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: If real ratio is smaller, mean-field tests (H-4-13) lose their edge and scenarios may gain.
   s5_verdict: nuanced
   s5_evidence: 'ENS spread x0.6 / x1.4: 82.2 / 79.4 % (n.s., n=4); exchangeability not falsified.'
@@ -1793,7 +1792,7 @@
     in S3); clim terminal uses the annual 2015 climatology (S4).'
   test: 'E-18: with other years obtain a held-out climatology and B0.'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: 'Direction: advantage to B0 AND to terminal value; magnitude unknown.'
   s5_verdict: nuanced
   s5_evidence: 'Leave-window-out terminal climatology: -0.1 / +0.1 pt on B1c (2 seeds, n.s.): the leak
@@ -1811,7 +1810,7 @@
     gusts are absent; DP discretisation = ~3 % of value (E0 review).
   test: 'E-19/E-07: native 0.25 deg truth vs 40 km truth; 20 km grid.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: 20 km grid +0.9 pt (n.s.) at 3x cost.
@@ -1826,7 +1825,7 @@
     only in kinematics; hold curve fa (4 min, 0.3, 45 min) in envelope for mixed arcs only.'
   test: E-09/E-24 (WP3).
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: Penalises B0 (97 % holding) and heading-changing routed ships unequally.
   s5_verdict: confirmed
   s5_evidence: Manoeuvre losses now simulated; their effect is 0.3 pt.
@@ -1841,7 +1840,7 @@
     2015 is one winter (NAO+ strong? unknown).'
   test: E-18, E-23.
   test_cost: expensive
-  status: s5-nuanced
+  status: nuanced
   notes: '-'
   s5_verdict: nuanced
   s5_evidence: 'Two forecast seeds differ by 0.8 pt in mean CF over 6 windows; paired SEs 0.3-1 pt. One
@@ -1857,7 +1856,7 @@
     year would be larger.'
   test: E-14.
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: Regrets are lower bounds on true regret.
   s5_verdict: nuanced
   s5_evidence: Oracle 30 d look-ahead gave 84.1 % vs 86.2 % at 15 d on 2 windows (refiner non-convergence
@@ -1875,7 +1874,7 @@
     nodes are not used; <10 kn power = scaled positive part with cut-in 7 kn (client: very little).'
   test: 'E-10: mask bounds, cut-in 5-9 kn, repair on/off; effect on summer CF and B0.'
   test_cost: cheap
-  status: s5-untestable-here
+  status: untestable-here
   notes: Matters most for summer months (CF 0.35 for B0).
   s5_verdict: untestable-here
   s5_evidence: Not re-tested in S5 (client confirmed the VPP masking).
@@ -1890,7 +1889,7 @@
     cells are land).
   test: 'E-15: other starts (50N 15W v1 point, Lorient, 10 random cells).'
   test_cost: medium
-  status: s5-nuanced
+  status: nuanced
   notes: '-'
   s5_verdict: nuanced
   s5_evidence: Start point changes CF by -2.0 (Lorient) to +1.9 pt (mid-Atlantic); the annual best offshore
@@ -1907,7 +1906,7 @@
     (2.53 -> 2.36).'
   test: 'E-02: vary consistency and measure value of using the latest cycle only vs blending cycles.'
   test_cost: medium
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: 'Consistency between issues off: -0.3 pt (n.s.): the consistency model is not a driver.'
@@ -1923,7 +1922,7 @@
     4 steps in one run, clamped = 0 in 33 of 34 reports.'
   test: 'E-22: count clamped steps in S4 runs; re-run with strict rejection.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: 0 coast violations, guard interventions counted; clamped commands negligible.
@@ -1940,7 +1939,7 @@
   test: 'E-22: automated no-leak test (forecast independence from future truth); harden before external
     routers.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: Unchanged design (external review found no truth leak in policies).
@@ -1955,7 +1954,7 @@
     error and policy suboptimality; within-release ranking equals hindsight''s.'
   test: E-08.
   test_cost: medium
-  status: s5-deferred
+  status: deferred
   notes: '-'
   s5_verdict: deferred
   s5_evidence: V_theta not revisited.
@@ -1970,7 +1969,7 @@
     ''not significant''.'
   test: 'E-23: block bootstrap by weeks, effect sizes with CI, simulation-based power analysis.'
   test_cost: cheap
-  status: s5-confirmed
+  status: confirmed
   notes: '-'
   s5_verdict: confirmed
   s5_evidence: Paired deltas with SE are used; effects with |z| < 2 are reported as n.s.

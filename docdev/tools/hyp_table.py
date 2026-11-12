@@ -29,6 +29,7 @@ STATUS_FR = {   # order = reading order in the tables
     'nuanced': 'nuancé (S5)',
     'supported-by-S0-S4': 'confirmé (S0-S4)',
     'confirmed': 'confirmé (S5)',
+    'deferred': 'reporté (données S5.x / S6)',
     'open': 'ouvert',
     'untestable-here': 'non testable ici',
 }
@@ -110,7 +111,7 @@ def verdicts(reg, max_ev, focus=('contradicted-by-S0-S4', 'refuted', 'nuanced',
             continue
         L += [f'#### {st(s)[0].upper() + st(s)[1:]} : {len(items)} entrées', '']
         rows = [[f'**{e["id"]}**', CRIT_FR[e['criticality']][:4] + '.', esc(txt(e, 'statement', 'statement_fr')),
-                 esc(clip(txt(e, 'evidence_so_far', 'evidence_fr'), max_ev))] for e in items]
+                 esc(clip(e.get('s5_evidence') or txt(e, 'evidence_so_far', 'evidence_fr'), max_ev))] for e in items]
         L += [table(rows, ['Réf.', 'Crit.', 'Énoncé du v1 (ou hypothèse de notre environnement)', 'Preuve à ce jour'], [8, 4, 38, 50]), '',
               f': Entrées du registre au statut « {st(s)} » (triées par criticité).', '']
     return '\n'.join(L)
