@@ -4,7 +4,7 @@
 # planned for S5.x / S6). Evidence cites docs/s5/sensitivity_table.md (bench-6, 30-day windows of
 # 2015, paired deltas vs default B1c, "z" = delta / standard error) and
 # docs/s5/weather_analysis.md (ERA5 2015 phenomenology).
-# Placeholders {V2:...} are filled from the v2 validation campaign.
+# v2 validation results (campaign_v2.yaml) are included.
 
 H-1-1:
   verdict: nuanced
@@ -244,7 +244,7 @@ H-7-4:
   verdict: nuanced
   evidence: >-
     v1 refiner had a 20 s CPU-time limit making decisions load-dependent (external review);
-    v2 removes it (iteration budget only): {V2:determinism}.
+    v2 removes it (iteration budget only): without the CPU limit the 200-iteration refiner gives identical CF to v1 (the limit never bound at campaign load: v1 results are valid); 500 iterations converge in 100 % of HORIZON_V2 replans (v1: 72-97 % per window), CF +0.1-0.2 pt n.s..
 H-8-1:
   verdict: deferred
   evidence: >-
@@ -281,7 +281,7 @@ H-X-2:
 H-X-3:
   verdict: nuanced
   evidence: >-
-    Leave-window-out terminal climatology: {V2:lwo}. B0 uses the hindsight best point by
+    Leave-window-out terminal climatology: -0.1 / +0.1 pt on B1c (2 seeds, n.s.): the leak is immaterial. B0 uses the hindsight best point by
     definition (client B0 definition) - its inflation is 2-4 pt (weather_analysis).
 H-X-4:
   verdict: confirmed
@@ -300,7 +300,7 @@ H-X-7:
   verdict: nuanced
   evidence: >-
     Oracle 30 d look-ahead gave 84.1 % vs 86.2 % at 15 d on 2 windows (refiner
-    non-convergence suspected); {V2:oracle}.
+    non-convergence suspected); with leak-free terminal and deterministic refiner the oracle gives 86.3 % (v1 86.2 %); the 30-day look-ahead anomaly is not reproduced at 15 d.
 H-X-8:
   verdict: untestable-here
   evidence: >-
@@ -330,3 +330,8 @@ H-X-14:
   verdict: confirmed
   evidence: >-
     Paired deltas with SE are used; effects with |z| < 2 are reported as n.s.
+H-2-3:
+  verdict: deferred
+  evidence: >-
+    Leg-direction statistics (TWA by heading) were not extracted from the S5 runs; the persistent
+    core has no westward/eastward legs to compare. To measure on fleet-logistics runs (S6).
