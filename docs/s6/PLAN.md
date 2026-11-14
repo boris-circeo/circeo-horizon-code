@@ -33,6 +33,13 @@ then extend the period to confirm the results over several seasons and years.
 | WP8 | Extended routing zone (20–75 N, 80 W–15 E, the archive box): planning grid, coast mask, climatology / terminal value, start point(s); HORIZON v2 replay on the extended zone with real forecasts, paired against the S5 zone | CF S5 zone vs extended zone |
 | WP7 | Emulator recalibration on real errors (size per lead, structure, bias), if WP3/WP4 show it matters | `ForecastErrorParams` v3 |
 
+## Compute budget (client decision, 2026-11-14)
+
+Routing runs in the cloud; only the last stage (MVP) runs on board. Capacity factor has priority
+over compute time: no variant is rejected for being slow (ensemble routers, more members, longer
+horizons, larger refiner budgets are all admissible). Short run times matter only for the
+integration loop of the tests; on-board feasibility is assessed separately at the MVP stage.
+
 ## Order of the two evaluations (client decision, 2026-11-14)
 
 Two effects are measured **separately**, each on the S5 routing zone first:
