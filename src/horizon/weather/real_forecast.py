@@ -35,7 +35,7 @@ class RealForecastWeather(ERA5ForecastWeather):
     """
 
     def __init__(self, archive, epoch, duration_s: float, fc_dir, product: str,
-                 latency_h: float | None = None, seed: int = 0):
+                 latency_h: float | None = None, seed: int = 0, calib_days: float = 0.0):
         super().__init__(archive, archive.grid, epoch, duration_s, seed=seed)
         self.product = product
         self.latency_s = 3600.0 * (LATENCY_H[product] if latency_h is None else latency_h)
@@ -54,6 +54,54 @@ class RealForecastWeather(ERA5ForecastWeather):
         self._inits_s = (self.inits - self.epoch) / np.timedelta64(1, "s")
         self.n_held = 0
         self.n_fallback = 0  # requests answered by an older run than the nominal latest
+        self.calib = None
+        if calib_days > 0:
+            self.calib = self._fit_calibration(calib_days)
+
+    # ------------------------------------------------------------------ calibration (E-S6-2)
+    def _fit_calibration(self, days: float) -> dict:
+        """Per-lead speed factor and spread factor, fitted on runs whose whole forecast lies
+        strictly before the mission start (no look-ahead): runs initialised in
+        [epoch - days - max_lead, epoch - max_lead], sea cells, verified against ERA5.
+
+        * speed factor a(lead) = mean |truth| / mean |member| (speed bias of the members);
+        * spread factor k(lead) = RMSE(ensemble mean) / sqrt(mean ensemble variance), so that
+          the calibrated spread matches the error of the mean (spread-skill = 1).
+        """
+        from ..geo.coast import build_basin_coast  # noqa: F401  (sea cells: archive outside)
+        sea = ~self.archive.outside
+        lead_max_s = None
+        acc = {}
+        for init in self.inits:
+            leads_h, uv = self._load(init)
+            if lead_max_s is None:
+                lead_max_s = 3600.0 * float(leads_h[-1])
+            a_s = (init - self.epoch) / np.timedelta64(1, "s")
+            if not (-(days * 86400.0 + lead_max_s) <= a_s <= -lead_max_s):
+                continue
+            t = a_s + 3600.0 * leads_h
+            try:
+                tr = self.archive.fields_at(t, self.epoch)
+            except Exception:  # noqa: BLE001  (truth outside the archive year)
+                continue
+            f = uv.astype(np.float32)  # (L, M, ny, nx, 2)
+            em = f.mean(1)
+            # member speeds (the ensemble-mean field is smoother, its speed is biased low)
+            sp_f = np.hypot(f[..., 0], f[..., 1]).mean(1)[:, sea].mean(1)
+            sp_o = np.hypot(tr[..., 0], tr[..., 1])[:, sea].mean(1)
+            se = ((em - tr) ** 2).sum(-1)[:, sea].mean(1)
+            var = f.var(1, ddof=1).sum(-1)[:, sea].mean(1) if f.shape[1] > 1 else np.zeros_like(se)
+            for k, ld in enumerate(leads_h):
+                d = acc.setdefault(float(ld), [0.0, 0.0, 0.0, 0.0, 0])
+                d[0] += sp_f[k]; d[1] += sp_o[k]; d[2] += se[k]; d[3] += var[k]; d[4] += 1
+        if not acc:
+            raise ValueError("calibration: no training run before the mission start")
+        L = np.array(sorted(acc))
+        a = np.array([acc[l][1] / acc[l][0] for l in L])
+        k = np.array([np.sqrt(acc[l][2] / acc[l][3]) if acc[l][3] > 0 else 1.0 for l in L])
+        n = int(min(acc[l][4] for l in L))
+        return {"leads_h": L, "speed": a.astype(np.float32), "spread": k.astype(np.float32),
+                "n_runs": n}
 
     # ------------------------------------------------------------------ data
     def _load(self, init: np.datetime64):
@@ -100,6 +148,12 @@ class RealForecastWeather(ERA5ForecastWeather):
         a = uv[j0, :n].astype(np.float32)
         b = uv[j1, :n].astype(np.float32)
         out = a + (b - a) * w[:, None, None, None, None]  # (T, M, ny, nx, 2)
+        if self.calib is not None:
+            c = self.calib
+            fa = np.interp(lead, c["leads_h"], c["speed"]).astype(np.float32)
+            fk = np.interp(lead, c["leads_h"], c["spread"]).astype(np.float32)
+            mean = out.mean(1, keepdims=True)
+            out = (mean + (out - mean) * fk[:, None, None, None, None]) * fa[:, None, None, None, None]
         out = np.ascontiguousarray(np.moveaxis(out, 1, 0))
         return Ensemble(self.grid, self.epoch, float(analysis_s), t, out,
                         np.full(n, 1.0 / n))

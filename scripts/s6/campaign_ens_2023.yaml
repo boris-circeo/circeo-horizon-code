@@ -9,6 +9,7 @@ tiers: [A]
 windows:
   ens_2023: ["2023-02-01", "2023-03-01", "2023-04-01"]
   hres_may: ["2023-05-01"]
+  ens_cal: ["2023-03-01", "2023-04-01"]
 experiments:
   - {id: ens_real, tier: A, router: ENS_REF, seeds: [1], windows: ens_2023, vary: {env.forecast: [ens]}}
   - {id: ens_emulator, tier: A, router: ENS_REF, seeds: [1, 2], windows: ens_2023}
@@ -19,3 +20,6 @@ experiments:
   - {id: v2_hres_may, tier: A, router: HORIZON_V2, seeds: [1], windows: hres_may, vary: {env.forecast: [hres]}}
   - {id: v2_emulator_may, tier: A, router: HORIZON_V2, seeds: [1, 2], windows: hres_may, b0: true}
   - {id: v2_perfect_may, tier: A, router: HORIZON_V2, seeds: [1], windows: hres_may, vary: {env.error_scale: [0.0]}}
+  # E-S6-2: ENS calibrated per lead (member speed factor, spread factor) on the 45 days of runs
+  # completed before the window start (no look-ahead)
+  - {id: E-S6-2_ens_cal, tier: A, router: ENS_REF, seeds: [1], windows: ens_cal, vary: {env.forecast: [ens+cal45]}}

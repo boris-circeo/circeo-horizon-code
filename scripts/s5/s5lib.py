@@ -420,8 +420,10 @@ def build_environment(ctx, env: dict, seed: int, start_iso: str, days: float):
     epoch = np.datetime64(f"{start_iso}T00:00:00", "s")
     if env["forecast"] != "emulator":  # S6: real archived forecasts (hres, aifs, ens, gefs, ...)
         from horizon.weather.real_forecast import RealForecastWeather
+        prod, _, cal = env["forecast"].partition("+cal")  # e.g. "ens+cal45": 45-day calibration
         wx = RealForecastWeather(ctx.archive, epoch, days * 86400.0,
-                                 ROOT / "data" / "cache" / "realfc", env["forecast"], seed=seed)
+                                 ROOT / "data" / "cache" / "realfc", prod, seed=seed,
+                                 calib_days=float(cal) if cal else 0.0)
     else:
         wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, days * 86400.0, params=params,
                                  seed=seed,
