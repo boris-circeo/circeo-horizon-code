@@ -1,0 +1,22 @@
+# Sprint-6 WP4: HORIZON v2 on REAL archived forecasts (ECMWF HRES first), 2023 truth.
+# Run with the 2023 ERA5 cache (built from the public archive, see docs/s6/PLAN.md):
+#   HORIZON_YEAR=2023 HORIZON_ERA5_CACHE=$PWD/data/cache/era5_2023 HORIZON_EXPERIMENT=S6-real-forecasts \
+#     bash scripts/s5/supervise.sh --campaign scripts/s6/campaign_real_2023.yaml
+# Paired on the same windows and truth: real HRES vs the S5 emulator at nominal error (2 seeds),
+# perfect forecast, oracle bound (leak-free terminal value) and the best fixed station B0.
+# Windows: bench-6 months of 2023 (the ECMWF open-data archive starts on 2023-01-18).
+duration_days: 30
+tiers: [A]
+windows:
+  # HRES 2023-03 and 2023-05 are being re-extracted: their windows are added when available
+  bench6_2023: ["2023-02-01", "2023-07-01", "2023-09-01", "2023-11-01"]
+experiments:
+  - {id: v2_hres, tier: A, router: HORIZON_V2, seeds: [1], windows: bench6_2023, vary: {env.forecast: [hres]}}
+  - {id: v2_emulator, tier: A, router: HORIZON_V2, seeds: [1, 2], windows: bench6_2023, b0: true}
+  - {id: v2_perfect, tier: A, router: HORIZON_V2, seeds: [1], windows: bench6_2023, vary: {env.error_scale: [0.0]}}
+  - id: oracle_v2
+    tier: A
+    router: Oracle_REF_H
+    windows: bench6_2023
+    variants:
+      - {name: lwo_det, router: {clim_window: lwo, refiner_cpu_s: 0.0, refiner_max_iter: 500}}

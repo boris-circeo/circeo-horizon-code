@@ -65,8 +65,8 @@ ENV_DEFAULTS = dict(
     manoeuvre=True, tau_scale=1.0, man_rho=0.3, man_fixed_kwh=0.0,
     truth_polar_scale=1.0, truth_polar_twa_shift=0.0, d_min_km=20.0, grid_km=40.0,
     start="offshore", disp_scale=1.0, amp_scale=1.0, noise_scale=1.0, structure="default",
-    analog_scale=1.0)
-FORECAST_KEYS = ("error_scale", "latency_h", "consistency", "spread_factor", "season_amp",
+    analog_scale=1.0, forecast="emulator")
+FORECAST_KEYS = ("forecast", "error_scale", "latency_h", "consistency", "spread_factor", "season_amp",
                  "disp_scale", "amp_scale", "noise_scale", "structure", "analog_scale")
 # knobs of the environment that do not influence a router that sees no forecast
 SEED_FREE = ("Oracle_REF_H", "B0")
@@ -406,7 +406,7 @@ def build_environment(ctx, env: dict, seed: int, start_iso: str, days: float):
     from horizon.weather.forecast_model import ERA5ForecastWeather, ForecastErrorParams
 
     d = ENV_DEFAULTS
-    if all(env[k] == d[k] for k in FORECAST_KEYS):
+    if all(env[k] == d[k] for k in FORECAST_KEYS if k != "forecast"):
         params = ForecastErrorParams()
     else:
         params = ForecastErrorParams.with_knobs(
@@ -418,8 +418,14 @@ def build_environment(ctx, env: dict, seed: int, start_iso: str, days: float):
                          noise_scale=env["noise_scale"], structure=env["structure"],
                          analog_scale=env["analog_scale"])
     epoch = np.datetime64(f"{start_iso}T00:00:00", "s")
-    wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, days * 86400.0, params=params,
-                             seed=seed, fast_filter=os.environ.get("HORIZON_FAST_FILTER") == "1")
+    if env["forecast"] != "emulator":  # S6: real archived forecasts (hres, aifs, ens, gefs, ...)
+        from horizon.weather.real_forecast import RealForecastWeather
+        wx = RealForecastWeather(ctx.archive, epoch, days * 86400.0,
+                                 ROOT / "data" / "cache" / "realfc", env["forecast"], seed=seed)
+    else:
+        wx = ERA5ForecastWeather(ctx.archive, ctx.grid, epoch, days * 86400.0, params=params,
+                                 seed=seed,
+                                 fast_filter=os.environ.get("HORIZON_FAST_FILTER") == "1")
     if env["truth_polar_scale"] == 1.0 and env["truth_polar_twa_shift"] == 0.0:
         pm = ctx.pm
     else:
@@ -557,6 +563,7 @@ def track_case(spec: dict, out: dict, experiment: str = "S5-sensitivity", log=pr
                extra_tags: dict | None = None, uri: str | None = None) -> str | None:
     """Record a finished case in MLflow (best effort: a tracking failure never fails a run)."""
     from horizon import tracking
+    experiment = os.environ.get("HORIZON_EXPERIMENT", experiment)
     if not tracking.enabled():
         return None
     try:

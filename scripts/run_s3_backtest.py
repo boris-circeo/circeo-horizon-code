@@ -10,6 +10,7 @@ per-run pickles hold trajectories only (git-ignored by outputs/s3_runs).
 import argparse
 import pickle
 import time
+import os
 import warnings
 from pathlib import Path
 
@@ -42,8 +43,10 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "outputs" / "s3_runs"
 CLIM = ROOT / "data" / "cache" / "s3"
 POLAR_DIR = "/home/claude/circeo-horizon-data/power-polar"
-ERA5_CACHE = ROOT / "data" / "cache" / "era5"
-YEAR = 2015
+# S6: another truth year (e.g. 2023, cache built from the public ERA5 archive) through the
+# environment; defaults unchanged (2015, client ERA5)
+ERA5_CACHE = Path(os.environ.get("HORIZON_ERA5_CACHE", ROOT / "data" / "cache" / "era5"))
+YEAR = int(os.environ.get("HORIZON_YEAR", "2015"))
 DAY = 86400.0
 T = 30 * DAY
 START = (-6.5, 47.0)
