@@ -47,6 +47,8 @@ def load(scores: Path):
     out = {}
     for p, parts in by.items():
         ds = xr.concat(parts, "init", join="outer")
+        _, keep = np.unique(ds.init.values, return_index=True)
+        ds = ds.isel(init=np.sort(keep))  # a run present in two files (re-extraction) counted once
         ds = ds.sel(init=ds.indexes["init"].hour == 0)  # 00 UTC runs only (common to all)
         out[p] = ds.sortby("init")
     return out
