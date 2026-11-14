@@ -30,7 +30,21 @@ then extend the period to confirm the results over several seasons and years.
 | WP4 | Router replay on real archived forecasts (adapter with the real availability latency, ERA5 2023–2025 truth): capacity factor with HRES first (reference), then AIFS, then ENS; same protocol as the S5 validation | CF per product, paired vs the emulator |
 | WP5 | Ensemble construction experiments E-S6-1..4 (below) | `docs/s6/ensembles.md` |
 | WP6 | Multi-year weather history (1995–2025): structures, inter-annual and seasonal variability, offline terminal-value estimators | `docs/s6/history.md` |
+| WP8 | Extended routing zone (20–75 N, 80 W–15 E, the archive box): planning grid, coast mask, climatology / terminal value, start point(s); HORIZON v2 replay on the extended zone with real forecasts, paired against the S5 zone | CF S5 zone vs extended zone |
 | WP7 | Emulator recalibration on real errors (size per lead, structure, bias), if WP3/WP4 show it matters | `ForecastErrorParams` v3 |
+
+## Order of the two evaluations (client decision, 2026-11-14)
+
+Two effects are measured **separately**, each on the S5 routing zone first:
+1. **Step 1 — forecast source** (WP3, WP4, WP5): from the emulator to real forecasts (HRES, AIFS,
+   ENS), then calibrated forecasts and combinations (E-S6-1..4), on the S5 zone (32 W–5 E,
+   38–65 N, 40 km, S5 start point).
+2. **Step 2 — routing zone** (WP8): extend the zone with the best forecast source of step 1,
+   paired against the S5 zone on the same windows.
+
+Neither step waits for the full archive: each starts as soon as a few coherent periods exist
+(all the products of the comparison plus ERA5 truth on the same windows, consecutive months for
+30-day replays) and is extended as the downloads progress.
 
 ## WP5 — Ensemble construction experiments
 
