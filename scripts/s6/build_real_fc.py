@@ -27,7 +27,7 @@ REPO = "boris-circeo/circeo-meteo-forecasts"
 PRODUCTS = {  # release (year templated), file prefix, default members kept, default max lead
     "hres": ("ecmwf-oper-uv10-0p25-v2", "ecmwf_oper_uv10_0p25", 1, 240),
     "aifs": ("ecmwf-aifs-uv10-0p25-v2", "ecmwf_aifs_uv10_0p25", 1, 240),
-    "ens": ("ecmwf-enfo-uv10-0p5-{year}", "ecmwf_enfo_uv10_0p5", 21, 144),
+    "ens": ("ecmwf-enfo-uv10-0p5-{year}", "ecmwf_enfo_uv10_0p5", 21, 240),
     "gefs": ("gefs-oper-uv10-0p5-{year}", "gefs_oper_uv10_0p5", 21, 144),
     "gefs_ctl": ("gefs-ctl-uv10-0p25-v2", "gefs_ctl_uv10_0p25", 1, 240),
 }

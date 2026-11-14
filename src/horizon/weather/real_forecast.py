@@ -73,8 +73,9 @@ class RealForecastWeather(ERA5ForecastWeather):
     def analysis_time(self, now_s: float, product: str = "ens") -> float:
         """Initialisation time [s since epoch] of the latest run usable at ``now_s``."""
         ok = self._inits_s <= now_s - self.latency_s + 1e-6
-        if not ok.any():  # mission starts before any usable run: take the earliest
-            return float(self._inits_s[0])
+        if not ok.any():
+            raise ValueError(f"{self.product}: no run usable at t={now_s / 3600:.0f} h "
+                             f"(archive starts {self.inits[0]})")
         a = float(self._inits_s[ok][-1])
         cyc = 12 * 3600.0 if self.product in ("hres", "aifs") else 24 * 3600.0
         if now_s - self.latency_s - a >= cyc:

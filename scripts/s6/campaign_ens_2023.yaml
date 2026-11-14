@@ -1,0 +1,21 @@
+# Sprint-6 WP4: ensemble router on the REAL ECMWF ENS (20 members of the 51, 0.5 deg archive),
+# 2023 truth. Paired with the same router on the S5 emulator (2 seeds), and HORIZON v2 on the
+# ENS control and on HRES (same windows). Run with
+#   HORIZON_YEAR=2023 HORIZON_ERA5_CACHE=$PWD/data/cache/era5_2023 HORIZON_EXPERIMENT=S6-real-forecasts \
+#     bash scripts/s5/supervise.sh --campaign scripts/s6/campaign_ens_2023.yaml
+# Windows: months with ENS + the following month in the archive (ENS 2023 download in progress).
+duration_days: 30
+tiers: [A]
+windows:
+  ens_2023: ["2023-02-01", "2023-03-01", "2023-04-01"]
+  hres_may: ["2023-05-01"]
+experiments:
+  - {id: ens_real, tier: A, router: ENS_REF, seeds: [1], windows: ens_2023, vary: {env.forecast: [ens]}}
+  - {id: ens_emulator, tier: A, router: ENS_REF, seeds: [1, 2], windows: ens_2023}
+  - {id: v2_ens_control, tier: A, router: HORIZON_V2, seeds: [1], windows: ens_2023, vary: {env.forecast: [ens, hres]}}
+  - {id: v2_emulator, tier: A, router: HORIZON_V2, seeds: [1, 2], windows: ens_2023, b0: true}
+  - {id: v2_perfect, tier: A, router: HORIZON_V2, seeds: [1], windows: ens_2023, vary: {env.error_scale: [0.0]}}
+  # HRES 2023 completion (re-extracted months): May window, same paired set as campaign_real_2023
+  - {id: v2_hres_may, tier: A, router: HORIZON_V2, seeds: [1], windows: hres_may, vary: {env.forecast: [hres]}}
+  - {id: v2_emulator_may, tier: A, router: HORIZON_V2, seeds: [1, 2], windows: hres_may, b0: true}
+  - {id: v2_perfect_may, tier: A, router: HORIZON_V2, seeds: [1], windows: hres_may, vary: {env.error_scale: [0.0]}}

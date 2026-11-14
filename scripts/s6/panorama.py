@@ -69,18 +69,22 @@ def replays() -> list[str]:
             continue
         name, ovr = cid.split("__")[:2]
         lab = {"B0": "Point fixe B0", "Oracle_REF_H": "Oracle (borne)"}.get(name)
+        if lab is None and name == "ENS_REF":
+            lab = "Routeur ENSEMBLE — " + {"base": f"émulateur (s{m.group(4)})"}.get(
+                ovr, "réel " + ovr.split("=")[-1].upper())
         if lab is None:
             lab = {"base": f"Émulateur S5 (s{m.group(4)})", "error_scale=0": "Prévision parfaite"}.get(
-                ovr, ovr.replace("forecast=", "Réelle : ").upper().replace("RÉELLE : ", "Réelle : "))
+                ovr, "Réelle : " + ovr.split("=")[-1].upper() + (" (contrôle)" if ovr == "forecast=ens" else ""))
         rows[(m.group(2), lab)][m.group(1)[5:7]] = r["cf_pct"]
     out = ["**Rejeux du routeur HORIZON v2 (zone S5, fenêtres de 30 j, FC %)**", ""]
     for year in sorted({y for y, _ in rows}):
         wins = sorted({w for (y, _), v in rows.items() if y == year for w in v})
         out += [f"_{year}_", "", "| Prévision | " + " | ".join(wins) + " | Moyenne |",
                 "|---|" + "---|" * (len(wins) + 1)]
-        order = ["Point fixe B0", "Émulateur S5 (s1)", "Émulateur S5 (s2)"]
+        order = ["Point fixe B0", "Émulateur S5 (s1)", "Émulateur S5 (s2)"]  # then real, perfect, ENS router
         labs = sorted({l for (y, l) in rows if y == year},
-                      key=lambda l: (order.index(l) if l in order else 3 if l.startswith("Réelle") else 5, l))
+                      key=lambda l: (order.index(l) if l in order else 3 if l.startswith("Réelle") else
+                                     7 if l.startswith("Routeur") else 5, l))
         for lab in labs:
             v = rows[(year, lab)]
             cells = [f"{v[w]:.1f}" if w in v else "…" for w in wins]
